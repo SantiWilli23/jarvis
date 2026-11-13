@@ -135,3 +135,13 @@ Roles e informes:
 - Errores: 409 `ronda_activa`, 409 `estado_invalido`, 422 `repo_invalido`, 422 `privado`, 400 `texto_invalido`, 409 `pro_deshabilitado` con `motivos`.
 - `fail {error}`: `sin_cuota` deja la ronda en `necesita_usuario` (sin bajar de modelo); `timeout` u otros la dejan `fallida`; un `commit` fallido deja la ronda en `esperando_aprobacion` para reintentar.
 - Eventos: `pc.using` con `id` `claude_pc` o `gemini`; `pro.status` cuando cambia la habilitacion.
+## Ampliaciones P3 (runner del PC)
+
+- **Motor "gemini" = Antigravity CLI (`agy`)**: Gemini CLI ya no atiende cuentas Google AI Pro. En el contrato el motor sigue llamándose `gemini`; el runner lo ejecuta con `agy -p --output-format stream-json --model <id>` (sin `--dangerously-skip-permissions`; `--conversation` reservado). Flags SIN VERIFICAR, aislados en `desktop/runner/agy-args.js`; `doctor.js` los comprueba con `agy --help`.
+- **Modelos**: ya no se prohíbe `gemini-4-*` (siguen vetados `gemini-2.5-pro` y `*flash-lite*`). El modelo de planear/verificar viene del job (`config/pro.json`); por defecto el "Argon" del plan AI Pro (id por defecto del runner: `argon`, provisional). El id exacto se confirma con `agy --help` o su lista de modelos. Programar baja `3.8-flash` -> `3.7-flash` -> `3.6-flash` solo ante 503; 429/cuota = `error: "sin_cuota"` sin bajar.
+- **capabilities** (hello/heartbeat): `{claude:{ok,modelos}, agy:{ok,login,flags}, gemini_cli:{ok,login} (copia de agy, compat), repos:[ruta]}`. `login:"google"` es heurística (carpetas de credenciales) hasta verificar cómo guarda agy el login.
+- **Aprobaciones de un job**: `POST /api/agent/pro/jobs/:id/approval {kind,summary,detail}` -> `{approval:{id}}` (enlaza `approvals.pro_job_id`); el estado se consulta con el existente `GET /api/agent/approvals/:id`. Solo Claude (tiene "denegados"). Con agy los comandos peligrosos y `npm test` se vigilan en su stream y el job falla con `error: "comando_bloqueado: <kind>: <cmd>"`.
+- **Errores de fail**: `sin_cuota`, `gemini_503`, `timeout`, `repo_invalido`, `modelo_prohibido`, `job_invalido`, `claude_no_instalado`, `gemini_no_instalado`, `comando_bloqueado: ...`, `aprobacion_<estado>`, `claude_error: ...`, `gemini_error: ...`, `error_runner: ...`.
+- **Idempotencia / buzón**: `report` y `fail` pueden repetirse (reenvío desde el buzón del PC si Render dormía); el servidor debe responder `409`/`404` si el job ya está cerrado, y el PC lo da por entregado.
+- **Solo `programar`+`editar`** calcula `tree_before/tree_after/diff`; en planear/verificar van `null` y `diff:""`. `.geminiignore` se crea en el repo (si falta) y se oculta con `.git/info/exclude`.
+- **Config del PC** (`config.json`): `hubUrl`, `carpetas_permitidas[]`, `geminiPath`, `claudePath`.

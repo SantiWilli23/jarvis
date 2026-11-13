@@ -31,7 +31,26 @@ export function buildArgs({ task, folders = [], approved = [], resume = null, ma
   return args;
 }
 
-// Directo: stdin = los bytes EXACTOS del texto guardado (sin trim, sin encabezado, sin cambiar saltos de línea).
+// --- Modo Pro (docs/PRO.md §2): planear = opus solo lectura; programar = sonnet con acceptEdits;
+// verificar = opus solo lectura. Nunca se pueden leer .env, claves ni certificados. `npm test`/Bash no
+// van en la lista permitida: salen como "denegados" y piden aprobación (worker de Pro).
+export const PRO_MODELOS = { planear: "opus", programar: "sonnet", verificar: "opus" };
+export const PRIVADOS_CLAUDE = ["Read(**/.env)", "Read(**/.env.*)", "Read(**/*.pem)", "Read(**/*.key)", "Edit(**/.env*)", "Write(**/.env*)"];
+
+export function buildProArgs({ role, model = null, repo, approved = [], resume = null, maxTurns = 40 }) {
+  const escribe = role === "programar";
+  const args = ["-p", "--output-format", "stream-json", "--verbose"];
+  if (resume) args.push("--resume", resume);
+  args.push("--permission-mode", escribe ? "acceptEdits" : "default");
+  args.push("--allowedTools", [...(escribe ? LEER_ESCRIBIR : SOLO_LEER), ...approved].join(","));
+  const bloqueadas = [...PRIVADOS_CLAUDE, ...(escribe ? [] : ["Edit", "Write", "MultiEdit", "Bash", "PowerShell"])];
+  args.push("--disallowedTools", bloqueadas.join(","));
+  args.push("--max-turns", String(maxTurns));
+  args.push("--model", model || PRO_MODELOS[role] || "sonnet");
+  return args; // el cwd del proceso es el repo (no se usa --add-dir)
+}
+
+// Directo: stdin =los bytes EXACTOS del texto guardado (sin trim, sin encabezado, sin cambiar saltos de línea).
 // Preparar: el pedido original va íntegro dentro de un bloque, seguido del plan que preparó el modelo gratis.
 export function buildStdin(task) {
   if (task.mode !== "preparar" || !task.prepared) return Buffer.from(task.text, "utf8");

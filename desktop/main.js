@@ -8,6 +8,9 @@ import { join } from "node:path";
 import { loadConfig, saveConfig, configPath } from "./lib/config.js";
 import { createHubClient } from "./runner/hub-client.js";
 import { createWorker } from "./runner/worker.js";
+import { createProWorker } from "./runner/pro-worker.js";
+import { createOutbox } from "./runner/outbox.js";
+import { runDoctor, resolveAgy } from "./runner/doctor.js";
 
 const smoke = process.argv.includes("--smoke-test") || process.env.JARVIS_SMOKE === "1";
 if (smoke) app.setPath("userData", mkdtempSync(join(tmpdir(), "jarvis-smoke-")));
@@ -71,8 +74,22 @@ async function tryEnroll() {
 function startWorker() {
   const token = readToken();
   if (!token || worker) return;
+  const hub = createHubClient({ baseUrl: cfg.hubUrl, token });
+  // Modo Pro: carpetas permitidas = las de config.json carpetas_permitidas.
+  let caps = null;
+  const folders = () => (cfg.carpetas_permitidas || []).filter(Boolean);
+  const refreshCaps = () => runDoctor({ folders: folders(), claudePath: cfg.claudePath, agyPath: cfg.geminiPath }).then((c) => { caps = c; }).catch(() => {});
+  refreshCaps(); setInterval(refreshCaps, 5 * 60_000).unref();
+  const pro = createProWorker({
+    hub, outbox: createOutbox(join(dataDir, "pro-outbox"), { log: (m) => console.log("[jarvis]", m) }),
+    allowedFolders: folders, log: (m) => console.log("[jarvis]", m),
+    claude: cfg.claudePath ? { command: cfg.claudePath, prefix: [] } : null,
+    agy: () => resolveAgy({ configured: cfg.geminiPath }),
+    onStatus: (s) => { lastStatus = { ...lastStatus, ...s }; updateTray(); },
+  });
   worker = createWorker({
-    hub: createHubClient({ baseUrl: cfg.hubUrl, token }), host: hostname(), version: app.getVersion(),
+    pro, getCapabilities: () => caps,
+    hub, host: hostname(), version: app.getVersion(),
     claude: cfg.claudePath ? { command: cfg.claudePath, prefix: [] } : null,
     folders: null, fallbackCwd: cfg.workFolder || join(app.getPath("documents"), "Jarvis"),
     log: (m) => console.log("[jarvis]", m),

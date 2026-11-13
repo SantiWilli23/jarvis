@@ -16,10 +16,13 @@ export function createWorker({
   fallbackCwd = process.cwd(),
   pollMs = 5000, approvalPollMs = 3000, heartbeatMs = 15000, tapeWaitMs = 60_000,
   maxTurns = 30, model = null, onStatus = () => {},
+  pro = null,                    // worker del Modo Pro ({tick}); se atiende cuando la cola clásica está vacía
+  getCapabilities = null,        // () => capabilities del doctor (se manda en hello y heartbeat)
 }) {
   let running = false, paused = false, current = null, serverCfg = { caps: {}, permissions: {} };
   const status = (extra = {}) => onStatus({ running, paused, current, ...extra });
   let halted = false;
+  const capsBody = () => { const c = getCapabilities?.(); return c ? { capabilities: c } : {}; };
   const stopped = () => halted;
 
   async function waitApproval(approval, ttlMs) {
@@ -98,13 +101,14 @@ export function createWorker({
 
   async function loop() {
     let hbTimer = null, said = false;
-    const beat = () => hub.heartbeat({ paused, current_task: current }).catch(() => { said = false; });
+    const beat = () => hub.heartbeat({ paused, current_task: current, ...capsBody() }).catch(() => { said = false; });
     hbTimer = setInterval(beat, heartbeatMs); hbTimer.unref?.();
     while (running) {
       try {
-        if (!said) { serverCfg = await hub.hello({ version, host }); said = true; log("PC en línea"); status({ online: true }); }
+        if (!said) { serverCfg = await hub.hello({ version, host, ...capsBody() }); said = true; log("PC en línea"); status({ online: true }); }
         const out = await tick();
         if (out === "tarea") continue; // sigue de inmediato con la siguiente
+        if (pro && out === "vacia" && !paused) { const j = await pro.tick().catch((e) => { log(`Pro: ${e.message}`); if (e.status === 401 || e.status === 403) throw e; return "vacio"; }); if (j === "job") continue; }
         await sleep(out === "tope_diario" ? tapeWaitMs : pollMs);
       } catch (e) {
         said = false; status({ online: false, error: e.message });

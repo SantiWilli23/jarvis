@@ -20,5 +20,11 @@ export function createHubClient({ baseUrl, token, fetchFn = fetch }) {
     requestApproval: (id, a) => call(`/tasks/${id}/approval`, { body: a }),
     approvalStatus: (id) => call(`/approvals/${id}`, { method: "GET" }),
     finish: (id, out) => call(`/tasks/${id}/finish`, { body: out }),
+    // Modo Pro (docs/PRO.md §5 y "Ampliaciones P3")
+    proClaim: () => call("/pro/claim", { body: {} }),
+    proEvents: (id, events) => call(`/pro/jobs/${id}/events`, { body: { events } }),
+    proReport: (id, body) => call(`/pro/jobs/${id}/report`, { body }),
+    proFail: (id, error) => call(`/pro/jobs/${id}/fail`, { body: { error } }),
+    proApproval: (id, a) => call(`/pro/jobs/${id}/approval`, { body: a }),
   };
 }
