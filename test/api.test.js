@@ -74,3 +74,11 @@ test("WebSocket: exige auth en el primer mensaje y recibe eventos", async () => 
   bad.send(JSON.stringify({ type: "auth", token: "falso" }));
   assert.equal(await closed, 4401);
 });
+
+test("/api/tts exige auth y sin claves responde 204 para usar la voz del navegador", async () => {
+  assert.equal((await call("/api/tts", { method: "POST", body: { text: "hola" }, tk: null })).status, 401);
+  const r = await call("/api/tts", { method: "POST", body: { text: "Buenos días, señor." } });
+  assert.equal(r.status, 204);
+  assert.equal(r.headers.get("x-voice"), "browser");
+  assert.equal((await call("/api/tts", { method: "POST", body: { text: "" } })).status, 400);
+});

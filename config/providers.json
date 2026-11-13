@@ -8,12 +8,19 @@
     { "id": "grok", "nombre": "Grok", "rol": "Puesto apagado hasta pegar clave", "sustituto": "groq", "apagado": true },
     { "id": "perplexity", "nombre": "Perplexity", "rol": "Puesto apagado hasta pegar clave", "sustituto": "gemini", "apagado": true }
   ],
+  "voz": {
+    "nota": "Cadena de voz: frases pregrabadas > Gemini TTS > MiniMax > voz del navegador. Lo privado nunca sale a Gemini ni a MiniMax. Los topes de Gemini son propios (verifique su cuota real en la consola).",
+    "max_caracteres": 400,
+    "cachear": ["Hola, señor."],
+    "gemini": { "enabled": true, "modelo": "gemini-2.5-flash-preview-tts", "voz": "Charon", "tope_dia": 30 },
+    "minimax": { "enabled": false, "modelo": "speech-2.8-hd", "tope_caracteres_dia": 5000, "nota": "APAGADO: la cuenta no tiene saldo (error 1008). Ponga enabled:true cuando tenga saldo." }
+  },
   "cadena_gratis": ["gemini", "groq", "mistral", "openrouter", "cloudflare", "ollama"],
   "proveedores": {
     "gemini":     { "nombre": "Gemini Flash-Lite", "rol": "Fotos · preguntas medias", "env": "GEMINI_API_KEY", "modelo": "gemini-2.0-flash-lite", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
     "groq":       { "nombre": "Groq gpt-oss-120b", "rol": "Rápido · lo privado", "env": "GROQ_API_KEY", "modelo": "openai/gpt-oss-120b", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
     "mistral":    { "nombre": "Mistral / Ministral", "rol": "Español · cortas", "env": "MISTRAL_API_KEY", "apagado": true, "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
-    "openrouter": { "nombre": "OpenRouter :free", "rol": "Relevo · DeepSeek :free", "env": "OPENROUTER_API_KEY", "modelo": "deepseek/deepseek-chat-v3-0324:free", "apagado": true, "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
+    "openrouter": { "nombre": "OpenRouter :free", "rol": "Relevo · modelo :free (no privado)", "env": "OPENROUTER_API_KEY", "modelo": "google/gemma-4-31b-it:free", "limites": { "rpm": null, "rpd": 50, "nota": "tope propio de 50 pedidos al día; solo modelos :free (ids vigentes en https://openrouter.ai/api/v1/models)" } },
     "cloudflare": { "nombre": "Cloudflare Workers AI", "rol": "Relevo", "env": "CLOUDFLARE_API_TOKEN", "apagado": true, "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
     "ollama":     { "nombre": "Ollama (local)", "rol": "Relevo en el PC", "env": "OLLAMA_URL", "apagado": true, "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
     "fake":       { "nombre": "Proveedor de pruebas", "rol": "Sin claves · respuestas simuladas", "limites": { "rpm": null, "rpd": null } }

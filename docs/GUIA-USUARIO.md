@@ -63,3 +63,21 @@ Si abre la página en el iPhone, use Safari. El micrófono pide permiso la prime
 - **Sin claves:** Jarvis usa un proveedor de pruebas que repite lo que le dice. Sirve para ver que todo funciona.
 - **Probar el sistema:** `npm test` corre las pruebas (no necesita red ni claves).
 - El PC (Claude Code), Telegram y el widget de Atajos llegan en las fases 2, 3 y 4. Los botones de esas conexiones se ven apagados hasta entonces.
+
+## 9. Voz de Jarvis (cadena de voz)
+Cuando Jarvis habla, el servidor prueba en este orden y salta en silencio a la siguiente si falla:
+1. **Frases pregrabadas** (sus propios audios).
+2. **Gemini TTS** (voz grave y formal en español). Usa `GEMINI_API_KEY` y tiene un tope diario propio (`voz.gemini.tope_dia` en `config/providers.json`, 30 por defecto; ajústelo a lo que le permita su cuenta).
+3. **MiniMax** (apagado por defecto: su cuenta no tiene saldo). Para activarlo ponga `MINIMAX_API_KEY` en `.env` y `"enabled": true` en `voz.minimax`. Tope de 5.000 caracteres al día; el consumo se ve en el panel "Voz".
+4. **Voz del navegador** (tono bajo), si todo lo anterior falla o si el texto es privado.
+
+Lo privado NUNCA se manda a Gemini ni a MiniMax. El saludo "Hola, señor." se guarda en `data/cache/tts/` para no gastar cuota cada vez.
+
+### Cómo agregar sus propios audios (mp3)
+1. Grabe usted la frase (no use voces de actores ni audios de películas) y guárdela como mp3.
+2. Cópiela en la carpeta `web/audio/phrases/` con el nombre que dice `web/audio/phrases/manifest.json`: `hola-senor.mp3`, `a-sus-ordenes.mp3`, `sistemas-en-linea.mp3`, `entendido.mp3`, `un-momento-senor.mp3`.
+3. Para frases nuevas, añada una línea a `manifest.json`: `{ "id": "mi-frase", "texto": "Lo que dice.", "archivo": "mi-frase.mp3" }`.
+4. No hace falta reiniciar. La frase coincide ignorando mayúsculas, espacios y puntuación. Si el mp3 no existe, simplemente se usa la voz de la cadena.
+
+## 10. OpenRouter (relevo gratis)
+Ponga `OPENROUTER_API_KEY` (https://openrouter.ai/keys) y se activa solo, después de Gemini, Groq y Mistral. Usa solo modelos `:free` (el id está en `config/providers.json`, `proveedores.openrouter.modelo`; si no termina en `:free` queda apagado). Tope propio de 50 pedidos al día. Nunca recibe mensajes privados.

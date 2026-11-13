@@ -20,6 +20,7 @@ import { createApprovals } from "./approvals.js";
 import { createAudit } from "./audit.js";
 import { createStt } from "./stt.js";
 import { createChatService } from "./chat-service.js";
+import { createTts } from "./tts.js";
 
 const cfgPath = (f) => fileURLToPath(new URL(`../config/${f}`, import.meta.url));
 export const loadJson = (f) => JSON.parse(readFileSync(cfgPath(f), "utf8"));
@@ -55,6 +56,9 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const limiter = createLoginLimiter({ db, now });
   const stt = createStt({ apiKey: env.GROQ_API_KEY, fetch: f });
   const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, persona, now });
+  const tts = createTts({ db, env, fetch: f, config: config.voz, privacy, now,
+    phrasesDir: fileURLToPath(new URL("../web/audio/phrases", import.meta.url)),
+    cacheDir: fileURLToPath(new URL("../data/cache/tts", import.meta.url)) });
 
   // El estado "permiso" del orbe sigue a las aprobaciones pendientes.
   bus.on("approval.request", ({ userId }) => bus.emit("state", { userId, state: "permiso" }));
@@ -89,14 +93,15 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
       memory: { ...(await notes.counts(userId)), ultima_sync_pc: lastSync?.value ? Number(lastSync.value) : null, bd: env.DATABASE_URL ? "Turso" : "local" },
       queue: { items: queue, total: queue.length, porEstado: q },
       pc: state.pc,
-      connections: [conn("Groq", providers.groq?.enabled), conn("Gemini", providers.gemini?.enabled), conn("Telegram", !!env.TELEGRAM_BOT_TOKEN),
+      connections: [conn("Groq", providers.groq?.enabled), conn("Gemini", providers.gemini?.enabled), conn("OpenRouter", providers.openrouter?.enabled), conn("Telegram", !!env.TELEGRAM_BOT_TOKEN),
         conn("Turso", !!env.DATABASE_URL), conn("Render", !!env.RENDER), conn("Gmail", 0), conn("Calendar", 0), conn("Spotify", 0)],
       pendientes_aprobacion: (await approvals.pending(userId)).length,
+      voz: await tts.status(userId),
     };
   }
 
   return { db, env, config, permissions, persona, ownerId, providers, chain, keyless, privacy, quota, bus, state, router,
-    notes, search, inbox, audit, tasks, direct, prepare, approvals, sessions, limiter, stt, chat, status, now, fts };
+    notes, search, inbox, audit, tasks, direct, prepare, approvals, sessions, limiter, stt, tts, chat, status, now, fts };
 }
 
 export { all };

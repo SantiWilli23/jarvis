@@ -51,3 +51,9 @@ WebSocket `/ws`: estados del orbe, chat, tareas, aprobaciones, proveedores, esta
 
 ## No hacer
 Push o deploy sin permiso, `--dangerously-skip-permissions`, claves en git o en el cliente, tokens en la URL, depender de Web Speech API, ping para mantener Render despierto, cifras de límites inventadas (van `null` hasta verificar).
+
+## Ajuste Fase 1.5 (voz, OpenRouter, tema)
+- OpenRouter pasa de esqueleto a proveedor real (solo `:free`, tope 50/día, no privado).
+- Voz del servidor: `POST /api/tts` con cadena pregrabadas > Gemini TTS > MiniMax (apagado) > voz del navegador; lo privado nunca sale; saludo en caché de disco.
+- HUD: paneles en gris grafito con texto claro; orbe y barras siguen azules.
+- Cola directa: "tal cual" ahora exige "tal cual:" (o "díselo a Claude:" / "directo a Claude:" / "/claude") al inicio.

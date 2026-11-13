@@ -6,6 +6,7 @@ import { authRoutes } from "./routes/auth.js";
 import { deviceRoutes } from "./routes/devices.js";
 import { chatRoutes } from "./routes/chat.js";
 import { sttRoutes } from "./routes/stt.js";
+import { ttsRoutes } from "./routes/tts.js";
 import { taskRoutes } from "./routes/tasks.js";
 import { memoryRoutes } from "./routes/memory.js";
 import { approvalRoutes } from "./routes/approvals.js";
@@ -35,6 +36,7 @@ export function createApp(ctx) {
   api.use("/devices", auth, deviceRoutes(ctx));
   api.use("/chat", auth, chatRoutes(ctx));
   api.use("/stt", auth, sttRoutes(ctx));
+  api.use("/tts", auth, ttsRoutes(ctx));
   api.use("/tasks", auth, taskRoutes(ctx));
   api.use("/memory", auth, memoryRoutes(ctx));
   api.use("/approvals", auth, approvalRoutes(ctx));
