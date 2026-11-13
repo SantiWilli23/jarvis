@@ -72,7 +72,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const approvals = createApprovals({ db, bus, audit, now });
   const phone = createPhoneQueue({ db, bus, approvals, audit, config: loadJson("phone-actions.json"), now });
   const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, motores: config.motores_pc, now });
-  const pro = createPro({ db, bus, agent, approvals, audit, permissions, now });
+  const pro = createPro({ db, bus, agent, approvals, audit, permissions, now, quota, groq: () => providers.groq });
   const sessions = createSessions({ db, now });
   const limiter = createLoginLimiter({ db, now });
   const stt = createStt({ apiKey: env.GROQ_API_KEY, fetch: f });

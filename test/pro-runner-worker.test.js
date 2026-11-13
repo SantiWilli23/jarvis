@@ -117,3 +117,15 @@ test("agy: prompt como valor de -p, largo por archivo temporal, plan = solo lect
   assert.equal(hub.reports[0].diff, ""); assert.match(hub.reports[1].diff, /p\.txt/);
   clean(r);
 });
+
+test("consultar: aunque el job pida editar, corre como solo lectura y entrega texto sin diff", async () => {
+  const r = repo(), out = setup({ FAKE_EDIT: "intruso.txt:1", FAKE_RESULT: "mi opinion" });
+  const hub = mkHub(); hub.jobs.push(job(r, { role: "consultar", model: "opus", mode: "editar", prompt: "edita todo" }));
+  await worker(hub, r).tick();
+  const a = args(out); assert.equal(flag(a, "--permission-mode"), "default");
+  assert.ok(!flag(a, "--allowedTools").includes("Edit"));
+  assert.equal(hub.reports.length, 1); assert.equal(hub.reports[0].diff, ""); assert.equal(typeof hub.reports[0].informe, "string"); assert.equal(hub.reports[0].tree_before, null);
+  const g = setup(); const hub2 = mkHub(); hub2.jobs.push(job(r, { role: "consultar", engine: "gemini", model: "gemini-3.8-flash-high", mode: "editar" }));
+  await worker(hub2, r).tick();
+  assert.equal(flag(args(g), "--mode"), "plan"); clean(r);
+});

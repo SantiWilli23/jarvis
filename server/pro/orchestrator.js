@@ -3,7 +3,8 @@
 // El motor lógico "gemini" es Antigravity CLI (agy). Contrato: docs/PRO.md.
 import { createStore, jobView, msgView } from "./store.js";
 import { classifyTask } from "./classify.js";
-import { planPrompt, codePrompt, fixPrompt, verifyPrompt, commitPrompt } from "./prompts.js";
+import { planPrompt, codePrompt, fixPrompt, verifyPrompt, commitPrompt, consultPrompt, coordinatorSystem } from "./prompts.js";
+import { parseAcciones, validar, contextoGroq, contarTurnos, MOTORES } from "./coordinator.js";
 import { check, merge } from "./check.js";
 import { redact, cleanDiff } from "./redact.js";
 import { availability, repoValid, canonicalRepo } from "./availability.js";
@@ -36,9 +37,10 @@ const humanVerif = (v) => {
   return `${l("Dijo y no hizo", v.dijo_no_hizo)}${l("Hizo y no dijo", v.hizo_no_dijo)}${l("Cambios ajenos", v.cambios_ajenos)}Veredicto: ${v.veredicto}`;
 };
 
-export function createOrchestrator({ db, bus, agent, approvals, audit, permissions, config, now = () => Date.now(), textProvider }) {
+export function createOrchestrator({ db, bus, agent, approvals, audit, permissions, config, now = () => Date.now(), textProvider, quota = null, groq = () => null }) {
   const store = createStore({ db, now });
   const lim = config.limites || {};
+  const cc = config.coordinador || {};
   const maxCorr = lim.correcciones_max ?? 2;
   const tmo = config.timeouts || {};
 
@@ -53,7 +55,7 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
 
   function modelFor(engine, role) {
     if (role === "commit") return null;
-    const m = config.modelos?.[engine]?.[role];
+    const m = config.modelos?.[engine]?.[role === "consultar" ? "verificar" : role];
     return Array.isArray(m) ? m[0] : m || null;
   }
   async function enqueue(userId, round, thread, role, engine, prompt) {
@@ -70,6 +72,72 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
     return { thread, request, plan, jobs };
   }
   const programmed = (jobs) => jobs.some((j) => j.role === "programar" && j.status === "hecho");
+
+  // ---------- coordinador (Groq) ----------
+  // Interruptor: config + ajuste del usuario (por defecto encendido). "disponible" = Groq tiene clave.
+  async function coordinadorEstado(userId) {
+    const activo = cc.enabled !== false && (await store.getSetting(userId, "pro_coordinador")) !== "0";
+    return { activo, disponible: !!groq()?.enabled };
+  }
+  async function llamarGroq(userId, req) {
+    const g = groq();
+    if (!g?.enabled) return null;
+    try {
+      if (quota && !(await quota.check(userId, "groq")).ok) return null;
+      const r = await g.chat({ ...req, params: cc.groq, signal: AbortSignal.timeout((cc.timeout_s ?? 20) * 1000) });
+      if (quota) { await quota.record(userId, "groq", r.tokens); await quota.ingestHeaders(userId, "groq", r.headers); }
+      return r.text;
+    } catch (e) {
+      await quota?.pauseOnError(userId, "groq", { status: e.status, headers: e.headers, message: e.message }).catch(() => {});
+      return null;
+    }
+  }
+  // Un turno de Groq sobre la ronda. true = lo gestionó; false = fallar a mano (flujo determinista de siempre).
+  async function coordinar(userId, roundId) {
+    const round = await store.getRound(userId, roundId);
+    if (!round || round.status !== "coordinando") return true;
+    if ((await store.coordTurnsToday(userId)) >= (cc.turnos_dia ?? 40)) return false;
+    const { thread, jobs } = await ctxOf(userId, round);
+    const msgs = await store.listMessages(thread.id);
+    const limite = jobs.filter((j) => j.role === "consultar").length >= (cc.max_consultas_sin_usuario ?? 3) || contarTurnos(msgs, round.id) >= (cc.max_turnos_sin_usuario ?? 6);
+    const raw = await llamarGroq(userId, { system: coordinatorSystem({ limite }), messages: [{ role: "user", content: contextoGroq({ thread, msgs, roundId: round.id }) }] });
+    const parsed = raw == null ? null : parseAcciones(raw);
+    const acciones = parsed ? validar(parsed.acciones, { limite, aprobado: false }) : [];
+    if (parsed && !acciones.length && limite) { // quiso seguir consultando pasado el límite: se avisa al usuario y se para
+      await say(userId, thread.id, round.id, "jarvis", "coordinador", "Llegué al límite de consultas sin su intervención. Dígame cómo seguimos.");
+      await setRound(userId, round.id, { status: "conversando", summary: null });
+      return true;
+    }
+    if (!acciones.length) return false;
+    if (parsed.resumen) await store.setResumen(thread.id, redact(parsed.resumen));
+    const T = thread.id, R = round.id;
+    const habla = acciones.filter((a) => a.tipo === "hablar").map((a) => a.texto);
+    const cons = acciones.find((a) => a.tipo === "consultar"), prop = acciones.find((a) => a.tipo === "proponer");
+    // Cada turno deja exactamente un mensaje "coordinador" (sirve para contar turnos).
+    await say(userId, T, R, "jarvis", "coordinador", habla.join("\n\n") || (cons ? `Consulto a ${cons.a === "claude" ? "Claude" : "Gemini"}.` : prop ? "Le propongo cómo seguir." : "Por ahora paro aquí."));
+    if (prop) {
+      await say(userId, T, R, "jarvis", "propuesta", prop.texto || `Programa ${prop.programador}, verifica ${prop.verificador}.`, { programador: prop.programador, verificador: prop.verificador, nota: prop.nota || null });
+    }
+    if (cons) {
+      await say(userId, T, R, "jarvis", "consulta", cons.pregunta, { a: cons.a, pregunta: true });
+      const opiniones = msgs.filter((m) => m.round_id === R && m.kind === "consulta" && m.author === (cons.a === "claude" ? "gemini" : "claude")).map((m) => m.text).slice(-2);
+      await enqueue(userId, round, thread, "consultar", cons.a, consultPrompt({ pregunta: cons.pregunta, opiniones, engine: cons.a }));
+      return true; // la ronda sigue en "coordinando" hasta que llegue la respuesta
+    }
+    await setRound(userId, R, { status: "conversando", summary: prop ? "Propuesta lista: apruébela para empezar" : null });
+    return true;
+  }
+  // Fallback: sin Groq, o si falla, la ronda arranca planeando como siempre.
+  async function arrancarPlan(userId, round, nota) {
+    const { thread, request } = await ctxOf(userId, round);
+    await enqueue(userId, round, thread, "planear", round.programmer, planPrompt({ request, engine: round.programmer, nota }));
+    return setRound(userId, round.id, { status: "planeando", corrections: 0, summary: null });
+  }
+  const coordinarOFallback = async (userId, roundId) => {
+    let ok = false;
+    try { ok = await coordinar(userId, roundId); } catch { ok = false; }
+    if (!ok) { const r = await store.getRound(userId, roundId); if (r && r.status === "coordinando") await arrancarPlan(userId, r); }
+  };
 
   const orch = {
     store,
@@ -94,9 +162,28 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
       const c = await classifyTask(safe, { textProvider });
       let round = await store.createRound({ threadId, userId, messageId: msg.id, taskKind: c.task_kind, programmer: c.programmer, verifier: c.verifier });
       emitRound(userId, round);
+      if ((await coordinadorEstado(userId)).activo && groq()?.enabled) { // Groq coordina; si falla, sigue el flujo de siempre
+        round = await setRound(userId, round.id, { status: "coordinando" });
+        await coordinarOFallback(userId, round.id);
+        return { message: msg, round: await store.getRound(userId, round.id) };
+      }
       await enqueue(userId, round, thread, "planear", c.programmer, planPrompt({ request: safe, engine: c.programmer }));
       return { message: msg, round };
     },
+    // El usuario aprueba la propuesta del coordinador (botón): arranca la ronda con esos motores y el plan.
+    async iniciar(userId, roundId, { motor } = {}) {
+      const round = await store.getRound(userId, roundId);
+      if (!round) throw new ProError(404, "no_existe");
+      if (round.status !== "conversando") throw new ProError(409, "estado_invalido");
+      const msgs = await store.listMessages(round.thread_id);
+      const prop = [...msgs].reverse().find((m) => m.round_id === round.id && m.kind === "propuesta");
+      if (!prop || !MOTORES.includes(prop.meta?.programador)) throw new ProError(409, "estado_invalido");
+      const programmer = MOTORES.includes(motor) ? motor : prop.meta.programador;
+      const r = await store.updateRound(userId, round.id, { programmer, verifier: other(programmer) });
+      return { round: await arrancarPlan(userId, r, prop.meta.nota) };
+    },
+    coordinadorEstado,
+    async setCoordinador(userId, activo) { await store.setSetting(userId, "pro_coordinador", activo ? "1" : "0"); return coordinadorEstado(userId); },
     async decide(userId, roundId, { accion, text, motor } = {}) {
       let round = await store.getRound(userId, roundId);
       if (!round) throw new ProError(404, "no_existe");
@@ -161,7 +248,7 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
         if (!repoValid(row.repo, { agent, permissions })) { await orch.fail(userId, row.id, { error: "repo_invalido" }); continue; }
         using(userId, row.engine);
         const fb = row.engine === "gemini" && row.role === "programar" && Array.isArray(config.modelos?.gemini?.programar) ? config.modelos.gemini.programar.slice(1) : [];
-        const to = { planear: tmo.planear_s, programar: tmo.programar_s, verificar: tmo.verificar_s, commit: 120 }[row.role] ?? 300;
+        const to = { planear: tmo.planear_s, programar: tmo.programar_s, verificar: tmo.verificar_s, consultar: tmo.consultar_s ?? 120, commit: 120 }[row.role] ?? 300;
         return { job: { id: Number(row.id), round_id: Number(row.round_id), role: row.role, engine: row.engine, model: row.model, repo: row.repo, mode: row.mode, prompt: row.prompt, timeout_s: to, ...(fb.length ? { fallback_models: fb, fallback_solo_por: config.modelos.gemini.programar_baja_solo_por || [503] } : {}) } };
       }
       return { job: null };
@@ -206,6 +293,10 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
           await store.addReport({ jobId: row.id, roundId: round.id, kind: "informe", body: { plan: redact(txt) } });
           await say(userId, T, round.id, row.engine, "plan", txt, { job_id: Number(row.id), model: row.model });
           await setRound(userId, round.id, { status: "esperando_aprobacion", summary: "Plan listo para tu revisión" });
+        } else if (row.role === "consultar") { // opinión de solo lectura: se muestra y Groq retoma el turno
+          const txt = typeof body.informe === "string" ? body.informe : body.informe?.plan || body.informe?.texto || JSON.stringify(body.informe || "");
+          await say(userId, T, round.id, row.engine, "consulta", txt, { job_id: Number(row.id), model: row.model });
+          await coordinarOFallback(userId, round.id);
         } else if (row.role === "programar") {
           const inf = normInforme(body.informe);
           await store.addReport({ jobId: row.id, roundId: round.id, kind: "informe", body: inf });
@@ -254,7 +345,10 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
       const code = err.split(/[\s:]/)[0];
       const T = round.thread_id;
       const nombre = row.engine === "claude" ? "Claude" : "Gemini (agy)";
-      if (row.role === "commit") {
+      if (row.role === "consultar") { // la consulta es opcional: el usuario decide cómo seguir
+        await setRound(userId, round.id, { status: "conversando", summary: null });
+        await say(userId, T, round.id, "jarvis", "sistema", `No pude consultar a ${nombre} (${err}). Dígame cómo seguimos.`);
+      } else if (row.role === "commit") {
         await setRound(userId, round.id, { status: "esperando_aprobacion", summary: "El commit falló; puedes reintentar" });
         await say(userId, T, round.id, "jarvis", "sistema", `No se pudo hacer el commit local (${err}). Puedes volver a aceptar.`);
       } else if (code === "sin_cuota") {

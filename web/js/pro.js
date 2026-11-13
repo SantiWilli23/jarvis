@@ -11,9 +11,9 @@ export const MOTIVOS = {
 export const AUTORES = { usuario: "Usted", jarvis: "Jarvis", claude: "Claude", gemini: "Gemini" };
 export const ESTADOS = {
   planeando: "Planeando", esperando_aprobacion: "Esperando su aprobación", programando: "Programando", verificando: "Verificando",
-  corrigiendo: "Corrigiendo", hecha: "Hecha", necesita_usuario: "Necesita su decisión", fallida: "Fallida", cancelada: "Cancelada",
+  corrigiendo: "Corrigiendo", coordinando: "Jarvis coordina", conversando: "Esperando su respuesta", hecha: "Hecha", necesita_usuario: "Necesita su decisión", fallida: "Fallida", cancelada: "Cancelada",
 };
-const VIVOS = new Set(["planeando", "programando", "verificando", "corrigiendo"]);
+const VIVOS = new Set(["coordinando", "planeando", "programando", "verificando", "corrigiendo"]);
 export const MAX_CORR = 2;
 
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -28,6 +28,7 @@ export function trabajador(ronda, ultimo) {
   const prog = ronda.programmer || "claude";
   const ver = ronda.verifier || (prog === "claude" ? "gemini" : "claude");
   const m = (e, rol) => (e === "claude" ? (rol === "programar" ? "sonnet" : "opus") : (rol === "programar" ? "gemini-3.8-flash-medium" : "gemini-3.8-flash-high"));
+  if (ronda.status === "coordinando") return { engine: "jarvis", modelo: "gpt-oss-120b", rol: "coordina" };
   if (ronda.status === "planeando") { const e = ultimo === "gemini" || ultimo === "claude" ? ultimo : prog; return { engine: e, modelo: m(e, "planear"), rol: "planea" }; }
   if (ronda.status === "verificando") return { engine: ver, modelo: m(ver, "verificar"), rol: "verifica" };
   return { engine: prog, modelo: m(prog, "programar"), rol: ronda.status === "corrigiendo" ? "corrige" : "programa" };
@@ -70,8 +71,24 @@ export function renderDiff(diff) {
   return `<div class="diff" role="group" aria-label="Diff real del repositorio">${lineas.join("")}</div>`;
 }
 
-export function renderMensaje(msg) {
+// Conversación entre IAs (consultas de Jarvis a Claude/Gemini): plegada; el pedido original nunca se pliega.
+export function renderConsulta(msg) {
+  const n = AUTORES[msg.author] || msg.author, quien = msg.meta?.pregunta ? `Jarvis pregunta a ${AUTORES[msg.meta.a] || msg.meta.a}` : `${n} responde a Jarvis`;
+  return `<details class="msg a-${esc(msg.author)} k-consulta" data-id="${esc(msg.id ?? "")}"><summary>${esc(quien)} (consulta, solo lectura)</summary><div class="txt">${esc(msg.text)}</div></details>`;
+}
+export function renderPropuesta(msg, viva) {
+  const m = msg.meta || {}, rid = esc(msg.round_id ?? "");
+  const btn = (motor, txt, cls) => `<button type="button" class="${cls}" data-act="iniciar" data-round="${rid}" data-motor="${esc(motor)}">${txt}</button>`;
+  const otro = m.programador === "claude" ? "gemini" : "claude";
+  return `<article class="msg a-jarvis k-propuesta" data-id="${esc(msg.id ?? "")}"><header><b class="who">Jarvis propone</b></header><div class="txt">${esc(msg.text)}</div>
+    <p class="lbl">Programa ${esc(AUTORES[m.programador] || m.programador)} · verifica ${esc(AUTORES[m.verificador] || m.verificador)}</p>${m.nota ? `<p class="lbl">Nota del coordinador: ${esc(m.nota)}</p>` : ""}
+    ${viva ? `<div class="btns">${btn(m.programador, "Aprobar propuesta", "yes")}${btn(otro, "Cambiar: programa " + (AUTORES[otro] || otro), "")}</div>` : ""}</article>`;
+}
+
+export function renderMensaje(msg, { propuestaViva = false } = {}) {
   const a = msg.author || "jarvis", n = AUTORES[a] || a, k = msg.kind || "texto";
+  if (k === "consulta") return renderConsulta(msg);
+  if (k === "propuesta") return renderPropuesta(msg, propuestaViva);
   let inner;
   if (k === "informe") inner = renderInforme(cuerpo(msg) || {});
   else if (k === "verificacion") inner = renderVerificacion(cuerpo(msg) || {});
@@ -117,7 +134,7 @@ export function renderHilos(hilos, actual) {
 }
 
 /* ---------------- UI (solo navegador) ---------------- */
-const S = { pro: null, repos: [], hilos: [], actual: null, msgs: [], rondas: [], vivos: new Map(), ultimo: null, aprobs: [], error: "", cargado: false };
+const S = { coord: null, pro: null, repos: [], hilos: [], actual: null, msgs: [], rondas: [], vivos: new Map(), ultimo: null, aprobs: [], error: "", cargado: false };
 const $ = (id) => document.getElementById(id);
 const ronda = () => [...S.rondas].sort((a, b) => b.id - a.id)[0] || null;
 const errTexto = (e) => (e.status === 409 ? "Modo Pro no está habilitado ahora mismo." : e.status === 422 ? "Ese mensaje es privado y no puede ir a Pro." : e.status === 503 || e.status === 502 ? "El PC está apagado o el servidor dormido; reintente en unos segundos." : e.message || "Error");
@@ -129,6 +146,7 @@ async function cargarEstado() {
     const caps = st.pc?.capabilities || st.pro?.capabilities || {};
     S.repos = lista(caps.repos).length ? caps.repos : lista(st.pro?.repos);
     S.error = "";
+    S.coord = await api("/pro/coordinador").catch(() => S.coord);
   } catch (e) { S.pro = S.pro || { habilitado: false, motivos: [] }; S.error = e.status === 401 ? "" : "No hay conexión con el servidor (puede estar despertando)."; }
   pestanas();
 }
@@ -164,7 +182,8 @@ function pintar() {
   $("pro-hilos").innerHTML = renderHilos(S.hilos, S.actual?.id);
   $("pro-repo").innerHTML = S.repos.map((p) => `<option value="${esc(p)}">${esc(String(p).split(/[\\/]/).pop())}</option>`).join("") || '<option value="">(sin repos)</option>';
   let h = sin ? '<p class="vacio">Elija o cree un hilo para hablar con Claude y Gemini.</p>' : (S.msgs.length || S.vivos.size ? "" : '<p class="vacio">Hilo vacío. Describa la tarea: se planea, usted aprueba, se programa y el otro motor verifica.</p>');
-  h += S.msgs.map(renderMensaje).join("") + [...S.vivos.values()].map(renderVivo).join("");
+  const viva = r?.status === "conversando" ? [...S.msgs].reverse().find((m) => m.kind === "propuesta" && m.round_id === r.id)?.id : null;
+  h += S.msgs.map((m) => renderMensaje(m, { propuestaViva: m.id === viva })).join("") + [...S.vivos.values()].map(renderVivo).join("");
   const abajo = el.scrollTop + el.clientHeight >= el.scrollHeight - 40;
   el.innerHTML = h; if (abajo) el.scrollTop = el.scrollHeight;
   const t = trabajador(r, S.ultimo);
@@ -176,6 +195,8 @@ function pintar() {
   if (keep[0] && $("plan-edit")) $("plan-edit").value = keep[0];
   if (keep[1] && $("corr-text")) $("corr-text").value = keep[1];
   const puede = ok && !sin;
+  const co = S.coord, sw = $("pro-coord");
+  if (sw) { sw.checked = !!co?.activo; sw.disabled = !ok; $("pro-coord-txt").textContent = co && co.activo && !co.disponible ? "Jarvis coordina (sin clave de Groq: modo clásico)" : "Jarvis coordina"; }
   $("pro-send").disabled = !puede; $("pro-in").disabled = !puede;
   $("pro-in").placeholder = !ok ? "Pro no disponible" : sin ? "Cree un hilo primero" : "Describa la tarea…";
 }
@@ -194,7 +215,8 @@ function onClick(e) {
     const txt = accion === "aprobar" ? $("plan-edit")?.value.trim() : accion === "corregir" ? $("corr-text")?.value.trim() : "";
     if (accion === "corregir" && !txt) { $("corr-text")?.focus(); return; }
     decidir(b.dataset.round, accion, txt);
-  } else if (act === "cancelar") api(`/pro/rounds/${b.dataset.round}/cancel`, { method: "POST", body: {} }).catch((x) => { S.error = errTexto(x); pintar(); });
+  } else if (act === "iniciar") api(`/pro/rounds/${b.dataset.round}/iniciar`, { method: "POST", body: { motor: b.dataset.motor } }).catch((x) => { S.error = errTexto(x); }).then(() => S.actual && abrirHilo(S.actual.id));
+  else if (act === "cancelar") api(`/pro/rounds/${b.dataset.round}/cancel`, { method: "POST", body: {} }).catch((x) => { S.error = errTexto(x); pintar(); });
   else if (act === "aprobacion") decideApproval(Number(b.dataset.id), b.dataset.ok === "1").catch(() => {}).then(() => { S.aprobs = S.aprobs.filter((a) => String(a.id) !== b.dataset.id); pintar(); });
   else if (act === "diff") {
     const box = document.querySelector(`[data-diffbox="${b.dataset.job}"]`); if (!box) return;
@@ -269,6 +291,7 @@ function init() {
   $("vista-pro").addEventListener("click", onClick);
   $("pro-newform").addEventListener("submit", nuevoHilo);
   $("pro-form").addEventListener("submit", enviar);
+  $("pro-coord")?.addEventListener("change", (e) => api("/pro/coordinador", { method: "POST", body: { activo: e.target.checked } }).then((c) => { S.coord = c; pintar(); }).catch((x) => { S.error = errTexto(x); cargarEstado(); }));
   const vistos = new WeakSet(); // main.js y ws.js despachan el mismo objeto: se procesa una sola vez
   window.addEventListener("jarvis:ws", (e) => { const d = e.detail; if (d && typeof d === "object") { if (vistos.has(d)) return; vistos.add(d); } onWsPro(d); });
   const arranque = () => cargarEstado().then(() => {

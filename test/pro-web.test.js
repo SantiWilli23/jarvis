@@ -54,3 +54,18 @@ test("motivos de bloqueo y lista de hilos", () => {
   assert.match(renderHilos([], null), /Aún no hay hilos/);
   assert.match(renderHilos([{ id: 1, title: "t", repo: "C:\\a\\b" }], 1), /aria-current="true"/);
 });
+
+test("coordinador: autor Jarvis, consulta plegada, propuesta con botones solo si está viva, original visible", async () => {
+  const { renderConsulta, renderPropuesta, AUTORES, ESTADOS } = await import("../web/js/pro.js");
+  assert.equal(AUTORES.jarvis, "Jarvis");
+  const c = renderMensaje({ id: 5, round_id: 2, author: "claude", kind: "consulta", text: "mi <b>opinión</b>", meta: {} });
+  assert.match(c, /^<details/); assert.ok(!c.includes("<b>opinión") && c.includes("Claude responde a Jarvis"));
+  assert.match(renderConsulta({ author: "jarvis", kind: "consulta", text: "q", meta: { a: "gemini", pregunta: true } }), /Jarvis pregunta a Gemini/);
+  const msg = { id: 6, round_id: 2, author: "jarvis", kind: "propuesta", text: "Plan <x>", meta: { programador: "claude", verificador: "gemini", nota: "ojo" } };
+  const viva = renderMensaje(msg, { propuestaViva: true });
+  assert.ok(viva.includes('data-act="iniciar"') && viva.includes('data-round="2"') && viva.includes('data-motor="claude"') && viva.includes('data-motor="gemini"') && viva.includes("Plan &lt;x&gt;"));
+  assert.ok(!renderPropuesta(msg, false).includes("data-act"));
+  assert.match(renderMensaje({ id: 1, author: "usuario", kind: "texto", text: "pedido" }), /pedido/);
+  assert.ok(ESTADOS.coordinando && ESTADOS.conversando && rondaViva({ status: "coordinando" }) && !rondaViva({ status: "conversando" }));
+  assert.equal(trabajador({ status: "coordinando" }).engine, "jarvis");
+});

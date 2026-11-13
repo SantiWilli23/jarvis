@@ -46,6 +46,9 @@
 .a-gemini .who { color: #9fb6ff; }
 .a-jarvis { align-self: center; max-width: 100%; border-style: dashed; color: var(--dim); }
 .k-vivo { opacity: .92; }
+.k-consulta { align-self: stretch; max-width: 100%; font-size: 13px; } .k-consulta summary { cursor: pointer; color: var(--dim); min-height: 24px; }
+.k-propuesta { align-self: center; max-width: 100%; border-style: solid; border-color: var(--accent); color: var(--fg); }
+.pro-coord { display: flex; gap: 8px; align-items: center; font-size: 13px; min-height: 32px; } .pro-coord input { width: auto; }
 .tag { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px solid var(--amber); color: var(--amber); }
 
 .rep h4 { margin: 0 0 6px; font-size: 13px; }

@@ -7,6 +7,8 @@
 
 **Queda:** push/deploy de 871817e (pendiente de permiso); probar `agy --mode accept-edits` real, 429/503 reales, bloqueo de comandos con `agy` real, una ronda Pro completa; confirmar que el plan de `agy` llega completo en el mensaje; Gemini Pro/Argon no existe en la cuenta. Aparte: limpiar worktrees `jarvis-p1..p4`, regenerar claves vistas en el chat, Telegram, Google, Spotify, WhatsApp.
 
+**Coordinador Groq (rama pro-groq-coordinador, sin push):** Groq coordina en Pro (habla, consulta a Claude/Gemini solo lectura, propone; el usuario aprueba con botón); fallback al flujo clásico. Probado con Groq simulado; sin probar con Groq real. Ver docs/PRO.md.
+
 **Siguiente paso:** con permiso, push y deploy; luego una ronda Pro real en un repo de prueba.
 
 **Verificar:** `npm test` (145); `node --test test/pro-e2e.test.js`; guía docs/GUIA-USUARIO.md sección 15. Sin probar: ronda real, iPhone.

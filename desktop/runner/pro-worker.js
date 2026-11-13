@@ -147,6 +147,9 @@ export function createProWorker({
 
   async function processJob(job) {
     if (job.role === "commit") return processCommit(job);
+    // "consultar" (Claude/Gemini se pasan opiniones) corre SIEMPRE como verificar en solo lectura, diga lo que diga el prompt.
+    const consulta = job.role === "consultar";
+    if (consulta) job = { ...job, role: "verificar", mode: "solo_lectura" };
     const roles = ["planear", "programar", "verificar"];
     if (!roles.includes(job.role) || !["claude", "gemini"].includes(job.engine)) return fail(job, "job_invalido");
     const repo = job.repo;
@@ -167,7 +170,7 @@ export function createProWorker({
       if (edita) { treeB = await snap.snapshot(repo); diff = await snap.diffBetween(repo, treeA, treeB, diffMax); }
       const claim = parseInforme(r.text);
       // planear: el servidor espera el plan como texto (string), no un objeto de informe.
-      const informe = job.role === "planear" ? String(r.text || "") : claim
+      const informe = job.role === "planear" || consulta ? String(r.text || "") : claim
         ? { dijo_hizo: claim.dijo_hizo || [], archivos_tocados: claim.archivos_tocados || [], comandos: claim.comandos || r.commands || [], resultado: claim.resultado || "ok", ...(job.role !== "programar" ? claim : {}) }
         : { dijo_hizo: String(r.text || "").split(/\r?\n/).filter((l) => l.trim()).slice(0, 30), archivos_tocados: diff.files.map((f) => f.path), comandos: r.commands || [], resultado: "ok" };
       await deliver(`report-${job.id}`, "report", job.id, {
