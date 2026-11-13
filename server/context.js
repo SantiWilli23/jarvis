@@ -22,6 +22,8 @@ import { createAudit } from "./audit.js";
 import { createStt } from "./stt.js";
 import { createChatService } from "./chat-service.js";
 import { createTts } from "./tts.js";
+import { createWebSearch } from "./tools/websearch.js";
+import { buildExtensions } from "./extensions.js";
 
 const cfgPath = (f) => fileURLToPath(new URL(`../config/${f}`, import.meta.url));
 export const loadJson = (f) => JSON.parse(readFileSync(cfgPath(f), "utf8"));
@@ -34,10 +36,11 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const ownerId = await ensureOwner(db, { name: env.OWNER_NAME || "señor", password: env.OWNER_PASSWORD });
 
   const providers = providersOverride || buildProviders({ env, fetch: f, config });
+  await providers.ollama?.probe?.(); // Ollama solo entra si responde
   const realChain = config.cadena_gratis.filter((id) => providers[id]?.enabled);
   const keyless = realChain.length === 0;
   const chain = keyless ? ["fake"] : realChain;
-  const privacy = createPrivacy({ allowed: config.permite_privado, localSafe: keyless ? ["fake"] : [] });
+  const privacy = createPrivacy({ allowed: config.permite_privado, localSafe: [...(keyless ? ["fake"] : []), ...(providers.ollama?.enabled && providers.ollama.localSafe ? ["ollama"] : [])] });
   const limits = Object.fromEntries(Object.entries(config.proveedores).map(([id, p]) => [id, { rpm: p.limites?.rpm ?? null, rpd: p.limites?.rpd ?? null }]));
   const quota = createQuota({ db, limits, now });
   const bus = new EventEmitter();
@@ -57,7 +60,9 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const sessions = createSessions({ db, now });
   const limiter = createLoginLimiter({ db, now });
   const stt = createStt({ apiKey: env.GROQ_API_KEY, fetch: f });
-  const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, persona, now });
+  const websearch = createWebSearch({ providers, quota, config: config.busqueda, fetch: f, env, now });
+  const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, persona, webSearch: websearch, now });
+  let ext = null; // conectores de las fases 4-6 (se arman al final)
   const tts = createTts({ db, env, fetch: f, config: config.voz, privacy, now,
     phrasesDir: fileURLToPath(new URL("../web/audio/phrases", import.meta.url)),
     cacheDir: fileURLToPath(new URL("../data/cache/tts", import.meta.url)) });
@@ -83,7 +88,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
         pausado_hasta: paused ? s.paused_until : null, activo: state.lastProvider === id,
       };
     });
-    const puestos = config.puestos.map((p) => ({ id: p.id, nombre: p.nombre, rol: p.rol, pc: !!p.pc, estado: p.pc ? (agent.view().online ? "activo" : "pc_apagado") : "apagado" }));
+    const puestos = config.puestos.map((p) => ({ id: p.id, nombre: p.nombre, rol: p.rol, pc: !!p.pc, estado: p.pc ? (agent.view().online ? "activo" : "pc_apagado") : (providers[p.proveedor || p.id]?.enabled ? "activo" : "apagado") }));
     const q = await tasks.counts(userId);
     const queue = (await tasks.list(userId)).filter((x) => ["pendiente", "por_revisar", "reclamada", "en_curso"].includes(x.status)).reverse()
       .map((x) => ({ id: x.id, seq: x.seq, mode: x.mode, status: x.status, text: x.text.slice(0, 200), pasos: x.prepared?.pasos?.length || 0, por: x.prepared?.por || null, at: x.created_at }));
@@ -96,14 +101,17 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
       queue: { items: queue, total: queue.length, porEstado: q },
       pc: (agent.sweep(), agent.view()),
       connections: [conn("Groq", providers.groq?.enabled), conn("Gemini", providers.gemini?.enabled), conn("OpenRouter", providers.openrouter?.enabled), conn("Telegram", !!env.TELEGRAM_BOT_TOKEN),
-        conn("Turso", !!env.DATABASE_URL), conn("Render", !!env.RENDER), conn("Gmail", 0), conn("Calendar", 0), conn("Spotify", 0)],
+        conn("Turso", !!env.DATABASE_URL), conn("Render", !!env.RENDER), conn("Gmail", await ext?.google.connected(userId)), conn("Calendar", await ext?.google.connected(userId)), conn("Spotify", await ext?.spotify.connected(userId)),
+        conn("Juegos", ext?.games.enabled), conn("WhatsApp", ext?.whatsapp.enabled)],
       pendientes_aprobacion: (await approvals.pending(userId)).length,
       voz: await tts.status(userId),
     };
   }
 
-  return { db, env, config, permissions, persona, ownerId, providers, chain, keyless, privacy, quota, bus, state, router,
-    notes, search, inbox, audit, tasks, direct, prepare, approvals, agent, sessions, limiter, stt, tts, chat, status, now, fts };
+  const base = { db, env, config, permissions, persona, ownerId, providers, chain, keyless, privacy, quota, bus, state, router,
+    notes, search, inbox, audit, tasks, direct, prepare, approvals, agent, sessions, limiter, stt, tts, chat, websearch, status, now, fts };
+  ext = buildExtensions(base, { fetch: f });
+  return { ...base, ...ext };
 }
 
 export { all };

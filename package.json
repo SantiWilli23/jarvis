@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "node --watch server/index.js",
     "start": "node server/index.js",
+    "telegram:setwebhook": "node scripts/telegram-setwebhook.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {

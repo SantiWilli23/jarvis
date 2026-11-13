@@ -63,3 +63,9 @@ Push o deploy sin permiso, `--dangerously-skip-permissions`, claves en git o en 
 - Hub: `/api/agent/*` (hello, heartbeat, claim, events, approval, finish, bye) con token de dispositivo `pc`, que no sirve en el resto de la API (no puede aprobarse solo). Evento `pc_online`, estado del PC en el panel, uso en `claude_usage`, topes de `config/permissions.json`.
 - Permisos: el runner no usa `--dangerously-skip-permissions`; lo denegado vuelve en `permission_denials`, se pide aprobación y se continúa con `--resume` y una regla exacta en `--allowedTools`.
 - Pendiente de verificar a mano: `claude` real, ventana/voz/atajo en uso real, arranque con Windows, `npm run dist`.
+
+## Fases 4, 5 y 6 (lado servidor, hechas sin credenciales reales)
+- Fase 4: `/api/telegram/webhook` (secreto en cabecera, lista de chat_id, texto y voz, tarjetas de aprobación con botones), `/api/shortcut` completo, `/api/cron/tick` (recordatorios, PC encendido/apagado, resumen de cuota). Script `npm run telegram:setwebhook`.
+- Fase 5: Mistral, Cloudflare Workers AI y Ollama reales (apagados sin credencial; Ollama solo si responde). Puestos ChatGPT, Grok y Perplexity reales y apagados sin clave; el sustituto entra por `orden_por_tipo`. Búsqueda web con citas (`/api/search`, y automática para preguntas de investigación no privadas): Perplexity > Gemini con Google Search > DuckDuckGo.
+- Fase 6: Google (OAuth propio, tokens cifrados AES-256-GCM en `connections`), Spotify (PKCE), juego de fútbol (GET de solo lectura), WhatsApp Cloud API (envío siempre con aprobación). Registro de herramientas `/api/tools`. Leer = automático; enviar/escribir = aprobación en el teléfono.
+- Pendiente (necesita credenciales o la app de escritorio): probar cada API de verdad, crear los clientes OAuth, registrar los webhooks, interfaz web para los botones "Conectar" y para las herramientas.
