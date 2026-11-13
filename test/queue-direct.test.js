@@ -48,12 +48,18 @@ test("la hora va solo en header_json, nunca en el texto", async () => {
 
 test("detectDirect conserva el texto tras el disparador sin trim", () => {
   const cuerpo = "  revisa el login 🚀\r\n  ";
-  for (const pre of ["/claude ", "Díselo a Claude: ", "díselo a claude, ", "Jarvis, tal cual ", "/claude\n"]) {
+  for (const pre of ["/claude ", "Díselo a Claude: ", "directo a Claude: ", "Jarvis, tal cual: ", "tal cual:\n", "/claude\n"]) {
     const d = detectDirect(pre + cuerpo);
     assert.equal(d.direct, true, pre);
     assert.equal(d.text, pre.endsWith("\n") ? cuerpo : cuerpo, pre);
   }
   assert.equal(detectDirect("hola, qué tal").direct, false);
+});
+
+test("'tal cual' en frases normales NO activa la cola directa", () => {
+  for (const f of ["dímelo tal cual es", "tal cual lo dijo", "Tal cual, no lo sabía", "díselo a Claude mañana", "quiero ir directo a Claude Code", "Jarvis, dime tal cual qué pasó"]) {
+    assert.equal(detectDirect(f).direct, false, f);
+  }
 });
 
 test("entrega en orden de seq", async () => {

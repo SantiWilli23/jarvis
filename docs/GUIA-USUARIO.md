@@ -56,7 +56,7 @@ Si abre la página en el iPhone, use Safari. El micrófono pide permiso la prime
 | `TELEGRAM_BOT_TOKEN` | Fase 4 (Telegram). |
 
 ## 8. Cosas que conviene saber
-- **Directo a Claude:** si dice o escribe "díselo a Claude: ...", "tal cual: ..." o "/claude ...", el texto se guarda palabra por palabra, sin que ningún modelo lo toque, y espera en la cola del panel derecho. La hora se guarda aparte.
+- **Directo a Claude:** si dice o escribe al INICIO "díselo a Claude: ...", "directo a Claude: ...", "tal cual: ..." (con los dos puntos) o "/claude ..." (decir "tal cual" dentro de una frase normal no activa nada), el texto se guarda palabra por palabra, sin que ningún modelo lo toque, y espera en la cola del panel derecho. La hora se guarda aparte.
 - **Preparar:** si pide algo para el PC sin esas palabras, un modelo gratis lo ordena en pasos y preguntas; usted lo revisa en la cola y pulsa "Enviar al PC".
 - **Privado:** marque la casilla "privado" o use una nota privada; ese mensaje solo va a Groq (o a Claude). Si Groq no puede, Jarvis dice que no hay cuota en vez de mandarlo a otro lado.
 - **Notas "secretas"** nunca se guardan.
