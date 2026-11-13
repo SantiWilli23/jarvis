@@ -1,14 +1,28 @@
 {
-  "nota": "Modo Pro: modelos, límites y tiempos. Contrato completo en docs/PRO.md.",
+  "nota": "Modo Pro: modelos, límites y tiempos. Motor lógico 'gemini' = Antigravity CLI (agy) con login Google AI Pro. Contrato: docs/PRO.md.",
   "modelos": {
-    "claude": { "planear": "opus", "programar": "sonnet", "verificar": "opus" },
-    "gemini": {
-      "planear": "gemini-3.1-pro-preview",
-      "verificar": "gemini-3.1-pro-preview",
-      "programar": ["gemini-3.8-flash", "3.7-flash", "3.6-flash"],
-      "programar_baja_solo_por": [503]
+    "claude": {
+      "planear": "opus",
+      "programar": "sonnet",
+      "verificar": "opus"
     },
-    "prohibidos": ["gemini-4-*", "gemini-2.5-pro", "*flash-lite*"]
+    "gemini": {
+      "planear": "argon",
+      "verificar": "argon",
+      "programar": [
+        "gemini-3.8-flash",
+        "3.7-flash",
+        "3.6-flash"
+      ],
+      "programar_baja_solo_por": [
+        503
+      ],
+      "nota": "planear/verificar: modelo del plan AI Pro en agy (id exacto por confirmar; configurable aquí)."
+    },
+    "prohibidos": [
+      "gemini-2.5-pro",
+      "*flash-lite*"
+    ]
   },
   "limites": {
     "correcciones_max": 2,
@@ -23,5 +37,12 @@
     "job_reclamado_s": 60,
     "pc_en_linea_s": 45
   },
-  "requisitos": { "claude_modelos": ["opus", "sonnet"], "gemini_login": "google", "repos_git": true }
+  "requisitos": {
+    "claude_modelos": [
+      "opus",
+      "sonnet"
+    ],
+    "gemini_login": "google",
+    "repos_git": true
+  }
 }

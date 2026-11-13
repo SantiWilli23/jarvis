@@ -8,7 +8,7 @@ function cleanCaps(c) {
   const strs = (a) => (Array.isArray(a) ? a.map((x) => String(x).slice(0, 200)).slice(0, 30) : []);
   return {
     claude: { ok: !!c.claude?.ok, modelos: strs(c.claude?.modelos) },
-    gemini_cli: { ok: !!c.gemini_cli?.ok, login: c.gemini_cli?.login ? String(c.gemini_cli.login).slice(0, 20) : null },
+    agy: { ok: !!(c.agy || c.gemini_cli)?.ok, login: (c.agy || c.gemini_cli)?.login ? String((c.agy || c.gemini_cli).login).slice(0, 20) : null },
     repos: strs((c.repos || []).map((r) => (typeof r === "string" ? r : r?.ruta || ""))).filter(Boolean),
   };
 }

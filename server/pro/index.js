@@ -1,29 +1,18 @@
-// Modo Pro: módulo base. El agente P2 (orquestador) llena createPro; aquí solo está lo compartido
-// (habilitación) para que /api/status y la web ya puedan consultarlo. Contrato: docs/PRO.md.
+// Modo Pro: devuelve el objeto `ctx.pro`. Contrato: docs/PRO.md.
 import { loadProConfig } from "./config.js";
+import { proReasons } from "./reasons.js";
+import { createOrchestrator } from "./orchestrator.js";
 
-// Motivos por los que Pro no está habilitado, a partir de las capacidades que reporta el PC.
-export function proReasons({ pcOnline, caps, cfg }) {
-  const m = [];
-  const req = cfg.requisitos || {};
-  if (!pcOnline) m.push("pc_apagado");
-  const c = caps || {};
-  const need = req.claude_modelos || [];
-  if (!c.claude?.ok || need.some((x) => !(c.claude.modelos || []).includes(x))) m.push("claude_no_listo");
-  if (!c.gemini_cli?.ok || (req.gemini_login && c.gemini_cli.login !== req.gemini_login)) m.push("gemini_sin_login");
-  if (req.repos_git && !(c.repos || []).length) m.push("sin_repos_git");
-  return m;
-}
+export { proReasons };
+export { ProError } from "./orchestrator.js";
 
-// STUB (P2): firma que otros agentes deben respetar. Devuelve el objeto `ctx.pro`.
-//   status(userId) -> { habilitado, motivos[] }
-//   (P2 añade: threads/messages/send/decide/job queue; ver docs/PRO.md)
-export function createPro({ db, bus, agent, config = loadProConfig(), now = () => Date.now() }) {
-  return {
-    config,
-    async status(_userId) {
-      const motivos = proReasons({ pcOnline: agent.view().online, caps: agent.capabilities(), cfg: config });
-      return { habilitado: motivos.length === 0, motivos };
-    },
-  };
+export function createPro({ db, bus, agent, approvals, audit, permissions = {}, config = loadProConfig(), now = () => Date.now(), textProvider }) {
+  const orch = createOrchestrator({ db, bus, agent, approvals, audit, permissions, config, now, textProvider });
+  let last = null;
+  // Avisa a la web (pro.status) cuando cambia la habilitación (el PC se enciende/apaga o cambia capacidades).
+  bus.on("pc.status", ({ userId }) => {
+    const s = orch.status(userId), k = JSON.stringify(s);
+    if (k !== last) { last = k; bus.emit("pro.status", { userId, ...s }); }
+  });
+  return { config, orch, async status(userId) { return orch.status(userId); } };
 }
