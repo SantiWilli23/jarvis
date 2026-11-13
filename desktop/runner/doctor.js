@@ -6,7 +6,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join, delimiter } from "node:path";
 import { homedir } from "node:os";
 import { resolveClaude } from "./claude-runner.js";
-import { FLAGS_USADOS } from "./agy-args.js";
+import { FLAGS_USADOS, MODELO_PLAN_DEFECTO, CADENA_PROGRAMAR } from "./agy-args.js";
 import { isGitRepo } from "./git-snapshot.js";
 
 const run = promisify(execFile);
@@ -15,6 +15,7 @@ export function resolveAgy({ env = process.env, platform = process.platform, exi
   const p = configured || env.JARVIS_AGY_PATH;
   if (p) return /\.m?js$/.test(p) ? { command: process.execPath, prefix: [p], nodeAsElectron: !!process.versions.electron } : { command: p, prefix: [] };
   const exe = platform === "win32" ? "agy.exe" : "agy";
+  if (platform === "win32" && env.LOCALAPPDATA) { const l = join(env.LOCALAPPDATA, "agy", "bin", exe); if (exists(l)) return { command: l, prefix: [] }; }
   for (const dir of (env.PATH || env.Path || "").split(delimiter).filter(Boolean)) if (exists(join(dir, exe))) return { command: join(dir, exe), prefix: [] };
   return null;
 }
@@ -30,9 +31,12 @@ export async function verifyAgyFlags(b, exec_ = exec) {
   catch (e) { return { ok: false, missing: FLAGS_USADOS, error: e.message }; }
 }
 
-// SIN VERIFICAR: se desconoce dónde guarda agy su login; heurística por carpetas habituales.
-function hasAgyLogin(home, exists) {
-  return [".antigravity", join(".config", "antigravity"), join(".gemini", "oauth_creds.json")].some((r) => exists(join(home, r)));
+// `agy models` funciona solo con sesión iniciada: lista "id<TAB>nombre" por línea (tras "Fetching available models...").
+export function parseAgyModels(text) {
+  return String(text || "").split(/\r?\n/).filter((l) => l.includes("\t")).map((l) => l.split("\t")[0].trim()).filter((id) => /^[\w.-]+$/.test(id));
+}
+export async function listAgyModels(b, exec_ = exec) {
+  try { return parseAgyModels(await exec_(b, ["models"], 45000)); } catch { return []; }
 }
 
 export async function discoverRepos(folders = [], isGit = isGitRepo) {
@@ -45,16 +49,18 @@ export async function discoverRepos(folders = [], isGit = isGitRepo) {
   return [...new Set(out)];
 }
 
-export async function runDoctor({ folders = [], claudePath = null, agyPath = null, exec: ex = exec, env = process.env, home = homedir(), exists = existsSync } = {}) {
+export async function runDoctor({ folders = [], claudePath = null, agyPath = null, modelosEsperados = [MODELO_PLAN_DEFECTO, ...CADENA_PROGRAMAR], exec: ex = exec, env = process.env, home = homedir(), exists = existsSync } = {}) {
   const cb = claudePath ? { command: claudePath, prefix: [] } : resolveClaude({ env });
   let claude = { ok: false, modelos: [] };
   if (cb) { try { await ex(cb, ["--version"]); claude = { ok: true, modelos: ["opus", "sonnet"] }; } catch { /* no responde */ } } // los modelos no se pueden listar sin gastar cuota
   const ab = resolveAgy({ env, configured: agyPath, exists });
-  let agy = { ok: false, login: null, flags: null };
+  let agy = { ok: false, login: null, modelos: [], faltan: [], flags: null };
   if (ab) {
     let ok = false; try { await ex(ab, ["--version"]); ok = true; } catch { /* no responde */ }
     const flags = ok ? await verifyAgyFlags(ab, ex) : null;
-    agy = { ok, login: ok && hasAgyLogin(home, exists) ? "google" : null, flags };
+    const modelos = ok ? await listAgyModels(ab, ex) : [];
+    // login = `agy models` lista modelos; faltan = modelos configurados que la cuenta no ofrece (motivo para marcarlo).
+    agy = { ok, login: modelos.length ? "google" : null, modelos, faltan: modelos.length ? modelosEsperados.filter((m) => !modelos.includes(m)) : [], flags };
   }
   const repos = await discoverRepos(folders);
   // gemini_cli: compatibilidad con el contrato original (el servidor puede seguir leyéndolo).

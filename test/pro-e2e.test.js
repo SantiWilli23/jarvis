@@ -95,7 +95,7 @@ test("(a) ronda feliz: plan, programar, verificar, aceptar y commit local", asyn
   assert.equal((await roundOf(t, r.id)).status, "verificando");
   const o2 = env({ FAKE_RESULT: VER() });
   assert.equal(await worker.tick(), "job"); // verifica el OTRO motor (agy)
-  assert.deepEqual(modelsUsed(o2), ["argon"]);
+  assert.deepEqual(modelsUsed(o2), ["gemini-3.8-flash-high"]);
   const st = await roundOf(t, r.id);
   assert.equal(st.status, "esperando_aprobacion"); assert.match(st.summary, /aprobado/);
   assert.ok(!gitLog(repo).some((l) => /Jarvis Pro/.test(l)));
@@ -142,16 +142,16 @@ test("(d) agy: 503 al programar baja de modelo; sin cuota al planear no baja", a
   assert.equal(r.programmer, "gemini");
   const q = env({ FAKE_QUOTA: "1" });
   assert.equal(await worker.tick(), "job");
-  assert.deepEqual(modelsUsed(q), ["argon"]); // un solo intento: no baja
+  assert.deepEqual(modelsUsed(q), ["gemini-3.8-flash-high"]); // un solo intento: no baja
   assert.equal((await roundOf(t, r.id)).status, "necesita_usuario");
   assert.match((await view(t)).messages.at(-1).text, /No cambio de modelo/);
   await decide(r.id, { accion: "corregir", text: "reintenta" }); // replanifica
   await tick({ FAKE_RESULT: "plan css" });
   assert.equal((await roundOf(t, r.id)).status, "esperando_aprobacion");
   await decide(r.id, { accion: "aprobar" });
-  const o = env({ FAKE_503: "gemini-3.8-flash", FAKE_EDIT: "estilo.css:a{}", FAKE_RESULT: INF(["estilo.css"]) });
+  const o = env({ FAKE_503: "gemini-3.8-flash-medium", FAKE_EDIT: "estilo.css:a{}", FAKE_RESULT: INF(["estilo.css"]) });
   assert.equal(await worker.tick(), "job");
-  assert.deepEqual(modelsUsed(o), ["gemini-3.8-flash", "gemini-3.7-flash"]);
+  assert.deepEqual(modelsUsed(o), ["gemini-3.8-flash-medium", "gemini-3.8-flash-low"]);
   assert.equal((await roundOf(t, r.id)).status, "verificando");
   const o2 = env({ FAKE_RESULT: VER() });
   await worker.tick();

@@ -7,17 +7,16 @@
       "verificar": "opus"
     },
     "gemini": {
-      "planear": "argon",
-      "verificar": "argon",
+      "planear": "gemini-3.8-flash-high",
+      "verificar": "gemini-3.8-flash-high",
       "programar": [
-        "gemini-3.8-flash",
-        "3.7-flash",
-        "3.6-flash"
+        "gemini-3.8-flash-medium",
+        "gemini-3.8-flash-low"
       ],
       "programar_baja_solo_por": [
         503
       ],
-      "nota": "planear/verificar: modelo del plan AI Pro en agy (id exacto por confirmar; configurable aquí)."
+      "nota": "ids reales de `agy models` en la cuenta AI Pro; configurable aquí. planear/verificar corren con --mode plan (solo lectura real)."
     },
     "prohibidos": [
       "gemini-2.5-pro",

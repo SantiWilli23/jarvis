@@ -10,7 +10,7 @@ export const DEFAULTS = {
   alwaysOnTop: false,
   greeting: true,                    // decir "Hola señor." al arrancar
   carpetas_permitidas: [],           // Modo Pro: si está vacío se usan las de config/permissions.json del hub
-  geminiPath: null,                  // ruta a gemini (o su .js) si no está en el PATH
+  agyPath: null,                     // ruta a agy.exe si no está en el PATH ni en %LOCALAPPDATA%\agy\bin  geminiPath: null,                  // compat: nombre antiguo de agyPath
   claudePath: null,                 // ruta a claude.exe si no está en el PATH
   workFolder: null,                  // carpeta de trabajo si config/permissions.json no define ninguna
   agentToken: null,                  // lo escribe la propia app al enrolarse

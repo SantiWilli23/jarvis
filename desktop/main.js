@@ -78,13 +78,13 @@ function startWorker() {
   // Modo Pro: carpetas permitidas = las de config.json carpetas_permitidas.
   let caps = null;
   const folders = () => (cfg.carpetas_permitidas || []).filter(Boolean);
-  const refreshCaps = () => runDoctor({ folders: folders(), claudePath: cfg.claudePath, agyPath: cfg.geminiPath }).then((c) => { caps = c; }).catch(() => {});
+  const refreshCaps = () => runDoctor({ folders: folders(), claudePath: cfg.claudePath, agyPath: cfg.agyPath || cfg.geminiPath }).then((c) => { caps = c; }).catch(() => {});
   refreshCaps(); setInterval(refreshCaps, 5 * 60_000).unref();
   const pro = createProWorker({
     hub, outbox: createOutbox(join(dataDir, "pro-outbox"), { log: (m) => console.log("[jarvis]", m) }),
     allowedFolders: folders, log: (m) => console.log("[jarvis]", m),
     claude: cfg.claudePath ? { command: cfg.claudePath, prefix: [] } : null,
-    agy: () => resolveAgy({ configured: cfg.geminiPath }),
+    agy: () => resolveAgy({ configured: cfg.agyPath || cfg.geminiPath }),
     onStatus: (s) => { lastStatus = { ...lastStatus, ...s }; updateTray(); },
   });
   worker = createWorker({

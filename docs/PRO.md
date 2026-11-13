@@ -13,11 +13,11 @@ Chat de tres (usuario, Claude, Gemini). Jarvis orquesta: enruta por tipo de tare
 
 ## 2. Modelos
 
-| Rol | Claude (CLI) | Gemini CLI |
+| Rol | Claude (CLI) | Gemini (agy) |
 |---|---|---|
-| Planear | `opus`, solo lectura | `gemini-3.1-pro-preview` |
-| Programar | `sonnet`, `acceptEdits` | `gemini-3.8-flash`; solo ante 503: `3.7-flash`, luego `3.6-flash` |
-| Verificar | `opus` | `gemini-3.1-pro-preview` |
+| Planear | `opus`, solo lectura | `gemini-3.8-flash-high`, `--mode plan` (solo lectura real) |
+| Programar | `sonnet`, `acceptEdits` | `gemini-3.8-flash-medium`, `--mode accept-edits`; solo ante 503: `gemini-3.8-flash-low` |
+| Verificar | `opus` | `gemini-3.8-flash-high`, `--mode plan` |
 
 - Si Gemini no tiene cuota al planear o verificar NO se baja de modelo en silencio: el job falla con `error: "sin_cuota"` y se avisa al usuario.
 - Bajar de Flash solo por HTTP 503; un 429 no baja.
@@ -123,7 +123,7 @@ Capacidades que el PC manda en `hello` y `heartbeat`:
 
 ## Ampliaciones P2
 
-Cambio de motor: el motor logico `gemini` es ahora **Antigravity CLI (`agy`)** con login de la cuenta Google AI Pro (Gemini CLI ya no atiende esas cuentas). Las capacidades pasan a `agy: {ok, login}` (se acepta `gemini_cli` por compatibilidad; el servidor lo guarda como `agy`). `config/pro.json`: `modelos.gemini.planear/verificar` son configurables (por defecto `argon`, id exacto por confirmar); ya no se prohibe `gemini-4-*`. El motivo de `status.pro` sigue llamandose `gemini_sin_login`.
+Cambio de motor: el motor logico `gemini` es ahora **Antigravity CLI (`agy`)** con login de la cuenta Google AI Pro (Gemini CLI ya no atiende esas cuentas). Las capacidades pasan a `agy: {ok, login, modelos}` (se acepta `gemini_cli` por compatibilidad; el servidor lo guarda como `agy`). `config/pro.json`: `modelos.gemini.planear/verificar` son configurables (por defecto `gemini-3.8-flash-high`, id real de `agy models`); ya no se prohibe `gemini-4-*`. El motivo de `status.pro` sigue llamandose `gemini_sin_login`.
 
 Roles e informes:
 - Job con `role: "commit"` (mode `editar`): el `prompt` es el mensaje de commit; el runner hace `git add -A && git commit` local (nunca push) y envia `report` con `informe.resultado: "ok"`. Se emite al aceptar (`aprobar` sobre una ronda ya programada).
@@ -137,14 +137,14 @@ Roles e informes:
 - Eventos: `pc.using` con `id` `claude_pc` o `gemini`; `pro.status` cuando cambia la habilitacion.
 ## Ampliaciones P3 (runner del PC)
 
-- **Motor "gemini" = Antigravity CLI (`agy`)**: Gemini CLI ya no atiende cuentas Google AI Pro. En el contrato el motor sigue llamándose `gemini`; el runner lo ejecuta con `agy -p --output-format stream-json --model <id>` (sin `--dangerously-skip-permissions`; `--conversation` reservado). Flags SIN VERIFICAR, aislados en `desktop/runner/agy-args.js`; `doctor.js` los comprueba con `agy --help`.
-- **Modelos**: ya no se prohíbe `gemini-4-*` (siguen vetados `gemini-2.5-pro` y `*flash-lite*`). El modelo de planear/verificar viene del job (`config/pro.json`); por defecto el "Argon" del plan AI Pro (id por defecto del runner: `argon`, provisional). El id exacto se confirma con `agy --help` o su lista de modelos. Programar baja `3.8-flash` -> `3.7-flash` -> `3.6-flash` solo ante 503; 429/cuota = `error: "sin_cuota"` sin bajar.
-- **capabilities** (hello/heartbeat): `{claude:{ok,modelos}, agy:{ok,login,flags}, gemini_cli:{ok,login} (copia de agy, compat), repos:[ruta]}`. `login:"google"` es heurística (carpetas de credenciales) hasta verificar cómo guarda agy el login.
+- **Motor "gemini" = Antigravity CLI (`agy`) 1.5.x** (flags VERIFICADOS con agy real): `agy --print <prompt> --output-format stream-json --model <id> --mode plan|accept-edits [--effort ...]` con cwd = repo del job (sin `--dangerously-skip-permissions`). El prompt va como VALOR de `-p` (por stdin falla). Si supera ~6000 caracteres se escribe a un archivo temporal fuera del repo y se pasa `Lee y sigue exactamente las instrucciones de <ruta>` (probado: agy lo lee con view_file). `--mode plan` es solo lectura de verdad (planear y verificar); `--mode accept-edits` para programar; `--effort` solo para modelos sin sufijo de esfuerzo. Los flags viven en `desktop/runner/agy-args.js`; `doctor.js` los comprueba con `agy --help`.
+- **Modelos** (ids de `agy models`): `gemini-3.8-flash-high|medium|low`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`, `gpt-oss-120b-medium`. No existen "argon", Gemini Pro ni 3.7/3.6. Siguen vetados `gemini-2.5-pro` y `*flash-lite*`. Planear/verificar usan `gemini-3.8-flash-high`; programar `gemini-3.8-flash-medium` y baja a `gemini-3.8-flash-low` solo ante 503; 429/cuota = `error: "sin_cuota"` sin bajar.
+- **capabilities** (hello/heartbeat): `{claude:{ok,modelos}, agy:{ok,login,modelos,faltan,flags}, gemini_cli:{ok,login} (copia de agy, compat), repos:[ruta]}`. `login:"google"` si `agy models` lista modelos (sin sesion falla); `faltan` = modelos configurados que la cuenta no ofrece. Salida stream-json: `init`, `step_update` (`agent_response`, `text_delta`) y `result{status,response,usage}`; errores 429/503 por stderr con codigo != 0 (formato exacto de esos errores sin verificar).
 - **Aprobaciones de un job**: `POST /api/agent/pro/jobs/:id/approval {kind,summary,detail}` -> `{approval:{id}}` (enlaza `approvals.pro_job_id`); el estado se consulta con el existente `GET /api/agent/approvals/:id`. Solo Claude (tiene "denegados"). Con agy los comandos peligrosos y `npm test` se vigilan en su stream y el job falla con `error: "comando_bloqueado: <kind>: <cmd>"`.
 - **Errores de fail**: `sin_cuota`, `gemini_503`, `timeout`, `repo_invalido`, `modelo_prohibido`, `job_invalido`, `claude_no_instalado`, `gemini_no_instalado`, `comando_bloqueado: ...`, `aprobacion_<estado>`, `claude_error: ...`, `gemini_error: ...`, `error_runner: ...`.
 - **Idempotencia / buzón**: `report` y `fail` pueden repetirse (reenvío desde el buzón del PC si Render dormía); el servidor debe responder `409`/`404` si el job ya está cerrado, y el PC lo da por entregado.
 - **Solo `programar`+`editar`** calcula `tree_before/tree_after/diff`; en planear/verificar van `null` y `diff:""`. `.geminiignore` se crea en el repo (si falta) y se oculta con `.git/info/exclude`.
-- **Config del PC** (`config.json`): `hubUrl`, `carpetas_permitidas[]`, `geminiPath`, `claudePath`.
+- **Config del PC** (`config.json`): `hubUrl`, `carpetas_permitidas[]`, `agyPath` (compat: `geminiPath`; se busca tambien `%LOCALAPPDATA%\agy\bin\agy.exe`), `claudePath`.
 
 ## Ajustes de integración (Etapa 3)
 

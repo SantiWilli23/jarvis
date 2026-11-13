@@ -1,5 +1,6 @@
-// Ejecuta Antigravity CLI (agy) como proceso hijo (sin shell, sin GEMINI_API_KEY). Formato de salida SIN VERIFICAR:
-// se aceptan stream-json (una línea JSON por evento), un JSON único {response, stats} o texto plano.
+// Ejecuta Antigravity CLI (agy) como proceso hijo (sin shell, sin GEMINI_API_KEY). Salida real (VERIFICADA):
+// stream-json NDJSON: {event:"init"}, {event:"step_update"} y final {event:"result",result:{status,response,usage}}.
+// Los errores (modelo inválido, 429/503) salen por stderr con código de salida distinto de 0.
 import { spawn } from "node:child_process";
 import { agyEnv } from "./agy-args.js";
 import { blockedForGemini } from "./danger.js";
@@ -12,6 +13,7 @@ export function classifyAgyError(text) {
   return null;
 }
 
+// Los pasos de herramienta reales no están documentados: se busca un comando de shell de forma tolerante.
 function findCommand(o) {
   const n = String(o?.tool_name || o?.name || o?.tool || "");
   if (!/shell|bash|command|terminal/i.test(n)) return null;
@@ -20,21 +22,17 @@ function findCommand(o) {
 }
 
 function tokensOf(o) {
-  const s = o?.stats || o?.usage || {};
-  const sum = (k) => (s.models ? Object.values(s.models).reduce((t, m) => t + (m?.tokens?.[k] || 0), 0) : 0);
-  return {
-    tokens_in: Number(s.input_tokens ?? s.promptTokenCount ?? sum("prompt")) || 0,
-    tokens_out: Number(s.output_tokens ?? s.candidatesTokenCount ?? sum("candidates")) || 0,
-  };
+  const s = o?.usage || {};
+  return { tokens_in: Number(s.input_tokens) || 0, tokens_out: Number(s.output_tokens) || 0 };
 }
 
-// Devuelve { text, isError, errorKind, usage, commands, blocked, aborted, exitCode, stderr }.
-export function runAgy({ command, prefix = [], args, stdin, cwd, env = process.env, onEvents = () => {}, timeoutMs = 30 * 60_000, spawnFn = spawn }) {
+// Devuelve { text, isError, errorKind, usage, commands, blocked, aborted, exitCode, stderr, conversationId }.
+export function runAgy({ command, prefix = [], args, cwd, env = process.env, onEvents = () => {}, timeoutMs = 30 * 60_000, spawnFn = spawn }) {
   return new Promise((resolve) => {
     const child = spawnFn(command, [...prefix, ...args], { cwd, env: { ...agyEnv(env), ...(prefix.length && process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}) }, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, shell: false });
-    const out = { text: "", isError: false, errorKind: null, usage: { tokens_in: 0, tokens_out: 0 }, commands: [], blocked: null, aborted: null, exitCode: null, stderr: "" };
-    let buf = "", raw = "", finished = false, errMsg = "";
-    const parts = [];
+    const out = { text: "", isError: false, errorKind: null, usage: { tokens_in: 0, tokens_out: 0 }, commands: [], blocked: null, aborted: null, exitCode: null, stderr: "", conversationId: null };
+    let buf = "", finished = false, errMsg = "", gotResult = false;
+    const parts = [], deltas = [];
     const kill = (why) => { if (!out.aborted) { out.aborted = why; try { child.kill(); } catch { /* ya terminó */ } } };
     const timer = setTimeout(() => kill("tiempo"), timeoutMs);
 
@@ -42,38 +40,45 @@ export function runAgy({ command, prefix = [], args, stdin, cwd, env = process.e
       const s = line.trim(); if (!s) return;
       let m; try { m = JSON.parse(s); } catch { onEvents([{ kind: "texto", text: s.slice(0, 300) }]); parts.push(s); return; }
       if (!m || typeof m !== "object") return;
-      const cmd = findCommand(m);
+      const cmd = findCommand(m) || findCommand(m.step_update);
       if (cmd) {
         out.commands.push(cmd); onEvents([{ kind: "herramienta", text: `Bash: ${cmd.slice(0, 120)}` }]);
         const b = blockedForGemini(cmd);
         if (b) { out.blocked = { ...b, detail: cmd }; kill("comando_bloqueado"); }
         return;
       }
-      const t = typeof m.response === "string" ? m.response
-        : (m.type === "message" && m.role !== "user" && typeof m.content === "string") ? m.content
-        : typeof m.text === "string" ? m.text : null;
-      if (t) { if (typeof m.response === "string") out.text = t; else parts.push(t); onEvents([{ kind: "texto", text: t.trim().slice(0, 300) }]); }
-      if (m.type === "result" || m.stats || m.usage) { const u = tokensOf(m); if (u.tokens_in || u.tokens_out) out.usage = u; }
-      if (m.error || m.type === "error" || m.status === "error") { out.isError = true; errMsg = JSON.stringify(m.error ?? m).slice(0, 500); }
+      if (m.event === "init") { out.conversationId = m.conversation_id || null; return; }
+      if (m.event === "step_update" && m.step_update) {
+        const su = m.step_update;
+        if (su.step_type === "agent_response" && typeof su.text_delta === "string" && su.text_delta) { deltas.push(su.text_delta); onEvents([{ kind: "texto", text: su.text_delta.trim().slice(0, 300) }]); }
+        const u = tokensOf(su); if (u.tokens_in || u.tokens_out) out.usage = u;
+        return;
+      }
+      if (m.event === "result" && m.result) { // evento final: result.response es el texto completo
+        const r = m.result; gotResult = true;
+        if (typeof r.response === "string") out.text = r.response;
+        const u = tokensOf(r); if (u.tokens_in || u.tokens_out) out.usage = u;
+        if (r.status && r.status !== "SUCCESS") { out.isError = true; errMsg = `status ${r.status}: ${String(r.error || r.message || r.response || "").slice(0, 400)}`; }
+        return;
+      }
+      if (m.error || m.event === "error") { out.isError = true; errMsg = JSON.stringify(m.error ?? m).slice(0, 500); }
     };
-    child.stdout.on("data", (d) => { const s = d.toString("utf8"); raw += s; buf += s; let i; while ((i = buf.indexOf("\n")) >= 0) { handle(buf.slice(0, i)); buf = buf.slice(i + 1); } });
+    child.stdout.on("data", (d) => { buf += d.toString("utf8"); let i; while ((i = buf.indexOf("\n")) >= 0) { handle(buf.slice(0, i)); buf = buf.slice(i + 1); } });
     child.stderr.on("data", (d) => { out.stderr = (out.stderr + d.toString("utf8")).slice(-3000); });
     const done = (code, err) => {
       if (finished) return; finished = true; clearTimeout(timer);
       if (buf.trim()) handle(buf);
       out.exitCode = code;
-      if (!out.text) { // un único JSON multilínea
-        try { const j = JSON.parse(raw); if (typeof j.response === "string") { out.text = j.response; out.usage = tokensOf(j); } } catch { /* no era un único JSON */ }
-      }
-      if (!out.text) out.text = parts.join("\n").trim();
+      if (!out.text) out.text = (deltas.join("") || parts.join("\n")).trim();
       if (err) { out.isError = true; out.text = out.text || `No pude ejecutar Antigravity CLI (agy): ${err.message}`; }
       if (code) out.isError = true;
+      if (!code && !err && !gotResult && !out.text) { out.isError = true; errMsg ||= "sin resultado de agy"; }
       if (out.isError) out.errorKind = classifyAgyError(`${errMsg}\n${out.stderr}\n${out.text}`);
       resolve(out);
     };
     child.on("error", (e) => done(null, e));
     child.on("close", (c) => done(c));
     child.stdin.on("error", () => {});
-    child.stdin.end(stdin);
+    child.stdin.end(); // el prompt va en -p, no por stdin
   });
 }

@@ -39,8 +39,8 @@ test("ronda: plan editable, contador de correcciones y decisiones", () => {
 test("trabajador: motor y modelo según estado", () => {
   assert.equal(trabajador({ status: "hecha" }), null);
   assert.deepEqual(trabajador({ status: "programando", programmer: "claude", verifier: "gemini" }), { engine: "claude", modelo: "sonnet", rol: "programa" });
-  assert.equal(trabajador({ status: "verificando", programmer: "claude", verifier: "gemini" }).modelo, "gemini-3.1-pro-preview");
-  assert.equal(trabajador({ status: "programando", programmer: "gemini" }).modelo, "gemini-3.8-flash");
+  assert.equal(trabajador({ status: "verificando", programmer: "claude", verifier: "gemini" }).modelo, "gemini-3.8-flash-high");
+  assert.equal(trabajador({ status: "programando", programmer: "gemini" }).modelo, "gemini-3.8-flash-medium");
   assert.equal(trabajador({ status: "planeando", programmer: "claude" }).modelo, "opus");
   assert.ok(rondaViva({ status: "corrigiendo" }));
 });
