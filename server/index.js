@@ -24,6 +24,9 @@ ctx.bus.on("providers.update", async ({ userId }) => {
   ctx.hub.send(userId, { type: "providers.update", providers: (await ctx.status(userId)).providers });
 });
 
+// Si el PC deja de avisar, se marca desconectado.
+setInterval(() => ctx.agent.sweep(ctx.ownerId), 15_000).unref();
+
 const port = Number(process.env.PORT) || 3000;
 server.listen(port, () => {
   console.log(`[jarvis] Escuchando en http://localhost:${port}`);

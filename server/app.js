@@ -13,6 +13,7 @@ import { approvalRoutes } from "./routes/approvals.js";
 import { statusRoutes } from "./routes/status.js";
 import { shortcutRoutes } from "./routes/shortcut.js";
 import { stubRoutes } from "./routes/stubs.js";
+import { agentRoutes } from "./routes/agent.js";
 
 const WEB = fileURLToPath(new URL("../web", import.meta.url));
 
@@ -30,6 +31,7 @@ export function createApp(ctx) {
   const api = express.Router();
   api.use(healthRoutes());                    // GET /api/health
   api.use("/auth", authRoutes(ctx));
+  api.use("/agent", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentRoutes(ctx));
   api.use(stubRoutes());
   const auth = requireAuth(ctx.sessions);
   api.use("/shortcut", requireAuth(ctx.sessions, { kinds: ["shortcut"] }), shortcutRoutes(ctx));

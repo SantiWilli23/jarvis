@@ -96,7 +96,8 @@ export function renderConn(status) {
 export function renderPc(pc) {
   const on = !!pc?.online;
   $("pcdot").className = "dot " + (on ? "on" : "off");
-  $("pctext").textContent = on ? "PC encendido · Claude trabajando" : "PC apagado · modo nube";
+  const t = pc?.current_task;
+  $("pctext").textContent = !on ? "PC apagado · modo nube" : pc.paused ? "PC en línea · cola en pausa" : t ? `PC en línea · tarea #${t.seq}: ${t.preview || "trabajando"}`.slice(0, 80) : "PC en línea · esperando tareas";
 }
 
 // Tarjeta ámbar de permiso

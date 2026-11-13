@@ -41,7 +41,7 @@ test("login, status, chat fake y tarea directa", async () => {
   assert.equal(d.status, "tarea");
   const list = await (await call("/api/tasks")).json();
   assert.equal(list.tasks[0].text, exact);
-  assert.equal((await call("/api/agent/claim", { tk: null })).status, 501);
+  assert.equal((await call("/api/agent/claim", { method: "POST", tk: null })).status, 401);
 });
 
 test("nota secreta por la API no guarda nada; token de atajo solo sirve en /api/shortcut", async () => {

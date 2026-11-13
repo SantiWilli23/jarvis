@@ -88,6 +88,11 @@ export function createTasks({ db, bus, now = () => Date.now() }) {
       emit(task);
       return task;
     },
+    async setStatus(userId, id, status) {
+      await run(db, "UPDATE tasks SET status=?, updated_at=? WHERE id=? AND user_id=?", [status, now(), id, userId]);
+      const task = await api.get(userId, id); emit(task);
+      return task;
+    },
     async finish(userId, id, { status = "hecha", result = null }) {
       await run(db, "UPDATE tasks SET status=?, result=?, updated_at=? WHERE id=? AND user_id=?", [status, result, now(), id, userId]);
       const task = await api.get(userId, id); emit(task);

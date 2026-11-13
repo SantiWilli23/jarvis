@@ -17,6 +17,7 @@ import { createTasks } from "./queue/tasks.js";
 import { createDirect } from "./queue/direct.js";
 import { createPrepare } from "./queue/prepare.js";
 import { createApprovals } from "./approvals.js";
+import { createAgent } from "./agent.js";
 import { createAudit } from "./audit.js";
 import { createStt } from "./stt.js";
 import { createChatService } from "./chat-service.js";
@@ -52,6 +53,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const direct = createDirect({ tasks });
   const prepare = createPrepare({ router, tasks });
   const approvals = createApprovals({ db, bus, audit, now });
+  const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, now });
   const sessions = createSessions({ db, now });
   const limiter = createLoginLimiter({ db, now });
   const stt = createStt({ apiKey: env.GROQ_API_KEY, fetch: f });
@@ -81,7 +83,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
         pausado_hasta: paused ? s.paused_until : null, activo: state.lastProvider === id,
       };
     });
-    const puestos = config.puestos.map((p) => ({ id: p.id, nombre: p.nombre, rol: p.rol, pc: !!p.pc, estado: p.pc ? (state.pc.online ? "activo" : "pc_apagado") : "apagado" }));
+    const puestos = config.puestos.map((p) => ({ id: p.id, nombre: p.nombre, rol: p.rol, pc: !!p.pc, estado: p.pc ? (agent.view().online ? "activo" : "pc_apagado") : "apagado" }));
     const q = await tasks.counts(userId);
     const queue = (await tasks.list(userId)).filter((x) => ["pendiente", "por_revisar", "reclamada", "en_curso"].includes(x.status)).reverse()
       .map((x) => ({ id: x.id, seq: x.seq, mode: x.mode, status: x.status, text: x.text.slice(0, 200), pasos: x.prepared?.pasos?.length || 0, por: x.prepared?.por || null, at: x.created_at }));
@@ -92,7 +94,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
       providers: provs, puestos,
       memory: { ...(await notes.counts(userId)), ultima_sync_pc: lastSync?.value ? Number(lastSync.value) : null, bd: env.DATABASE_URL ? "Turso" : "local" },
       queue: { items: queue, total: queue.length, porEstado: q },
-      pc: state.pc,
+      pc: (agent.sweep(), agent.view()),
       connections: [conn("Groq", providers.groq?.enabled), conn("Gemini", providers.gemini?.enabled), conn("OpenRouter", providers.openrouter?.enabled), conn("Telegram", !!env.TELEGRAM_BOT_TOKEN),
         conn("Turso", !!env.DATABASE_URL), conn("Render", !!env.RENDER), conn("Gmail", 0), conn("Calendar", 0), conn("Spotify", 0)],
       pendientes_aprobacion: (await approvals.pending(userId)).length,
@@ -101,7 +103,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   }
 
   return { db, env, config, permissions, persona, ownerId, providers, chain, keyless, privacy, quota, bus, state, router,
-    notes, search, inbox, audit, tasks, direct, prepare, approvals, sessions, limiter, stt, tts, chat, status, now, fts };
+    notes, search, inbox, audit, tasks, direct, prepare, approvals, agent, sessions, limiter, stt, tts, chat, status, now, fts };
 }
 
 export { all };
