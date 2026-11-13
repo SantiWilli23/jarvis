@@ -6,7 +6,7 @@
 import { classify } from "../router/classify.js";
 
 export function createWebSearch({ providers, quota, config = {}, fetch: f = globalThis.fetch, env = process.env, now = () => Date.now() }) {
-  const gemModel = config.gemini_modelo || "gemini-2.5-flash";
+  const gemModel = config.gemini_modelo || "gemini-3.5-flash";
 
   async function viaPerplexity(query) {
     const r = await providers.perplexity.ask({ input: query, system: "Responde en español, breve, con datos actuales." });

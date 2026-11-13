@@ -17,11 +17,11 @@
   },
   "busqueda": {
     "nota": "Búsqueda web: Perplexity si hay PERPLEXITY_API_KEY; si no, Gemini con Google Search (GEMINI_API_KEY); si no, respuestas instantáneas de DuckDuckGo (sin clave). Nunca se busca con texto privado.",
-    "gemini_modelo": "gemini-2.5-flash"
+    "gemini_modelo": "gemini-3.5-flash"
   },
   "cadena_gratis": ["gemini", "groq", "openrouter", "cloudflare", "ollama"],
   "proveedores": {
-    "gemini":     { "nombre": "Gemini Flash-Lite", "rol": "Fotos · preguntas medias", "env": "GEMINI_API_KEY", "modelo": "gemini-2.0-flash-lite", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
+    "gemini":     { "nombre": "Gemini Flash-Lite", "rol": "Fotos · preguntas medias", "env": "GEMINI_API_KEY", "modelo": "gemini-3.5-flash-lite", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
     "groq":       { "nombre": "Groq gpt-oss-120b", "rol": "Rápido · lo privado", "env": "GROQ_API_KEY", "modelo": "openai/gpt-oss-120b", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
     "mistral":    { "nombre": "Mistral Small", "rol": "Español · cortas (no privado)", "env": "MISTRAL_API_KEY", "modelo": "mistral-small-latest", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
     "openrouter": { "nombre": "OpenRouter :free", "rol": "Relevo · modelo :free (no privado)", "env": "OPENROUTER_API_KEY", "modelo": "google/gemma-4-31b-it:free", "limites": { "rpm": null, "rpd": 50, "nota": "tope propio de 50 pedidos al día; solo modelos :free (ids vigentes en https://openrouter.ai/api/v1/models)" } },
