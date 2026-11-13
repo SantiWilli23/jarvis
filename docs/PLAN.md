@@ -69,3 +69,9 @@ Push o deploy sin permiso, `--dangerously-skip-permissions`, claves en git o en 
 - Fase 5: Mistral, Cloudflare Workers AI y Ollama reales (apagados sin credencial; Ollama solo si responde). Puestos ChatGPT, Grok y Perplexity reales y apagados sin clave; el sustituto entra por `orden_por_tipo`. Búsqueda web con citas (`/api/search`, y automática para preguntas de investigación no privadas): Perplexity > Gemini con Google Search > DuckDuckGo.
 - Fase 6: Google (OAuth propio, tokens cifrados AES-256-GCM en `connections`), Spotify (PKCE), juego de fútbol (GET de solo lectura), WhatsApp Cloud API (envío siempre con aprobación). Registro de herramientas `/api/tools`. Leer = automático; enviar/escribir = aprobación en el teléfono.
 - Pendiente (necesita credenciales o la app de escritorio): probar cada API de verdad, crear los clientes OAuth, registrar los webhooks, interfaz web para los botones "Conectar" y para las herramientas.
+
+## Modo Pro (Clásico/Pro)
+- Contrato y detalles en `docs/PRO.md`. Servidor: `server/pro/*`, `/api/pro`, `/api/agent/pro`. PC: `desktop/runner/pro-worker.js` (+ `agy-*`, `git-snapshot`, `outbox`, `doctor`). Web: pestaña Pro.
+- Ronda: plan -> usted aprueba -> programar -> verifica el otro motor (informe vs. diff real de git) -> hasta 2 correcciones -> aceptar = commit local. Gemini = Antigravity CLI (`agy`, cuenta AI Pro).
+- Etapa 3 (integración): servidor y runner, hechos en paralelo, se ajustaron al contrato (rol `commit` en el runner; plan como texto). Prueba extremo a extremo `test/pro-e2e.test.js` (servidor real + worker real + claude/agy falsos).
+- Pendiente de verificar a mano: `claude` y `agy` reales (flags, id del modelo, login), Render real, la web Pro con una ronda real.

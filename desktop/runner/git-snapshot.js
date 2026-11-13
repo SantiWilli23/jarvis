@@ -56,3 +56,12 @@ export async function diffBetween(repo, a, b, max = 200000) {
   if (text.length > max) text = text.slice(0, max) + "\n[... recortado]";
   return { files, text };
 }
+
+// Commit local de todo el trabajo (git add -A && git commit). NUNCA push. Devuelve { commit, vacio }.
+export async function commitAll(repo, message) {
+  await git(repo, ["add", "-A"]);
+  const pend = (await git(repo, ["status", "--porcelain"])).trim();
+  if (!pend) return { commit: null, vacio: true };
+  await git(repo, ["commit", "-q", "-m", String(message).slice(0, 500)]);
+  return { commit: (await git(repo, ["rev-parse", "HEAD"])).trim(), vacio: false };
+}

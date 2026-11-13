@@ -174,3 +174,25 @@ Ponga en `GAMES_API_URL` la dirección del servidor del juego. Sin más, Jarvis 
 2. En WhatsApp > Configuración de la API: copie el **Token** (`WHATSAPP_TOKEN`; el temporal dura 24 h, cree un usuario del sistema para uno permanente) y el **Identificador del número de teléfono** (`WHATSAPP_PHONE_ID`).
 3. Invente un texto largo para `WHATSAPP_VERIFY_TOKEN`. En Configuración > Webhooks use la URL `<PUBLIC_URL>/api/whatsapp/webhook` y ese mismo texto; suscríbase a `messages`. Recomendado: ponga el "App secret" (Configuración de la app > Básica) en `WHATSAPP_APP_SECRET` para validar la firma.
 4. Mensajes recibidos: se guardan como privados y se le avisa por Telegram. Enviar: `whatsapp.enviar` con `{"to":"57300...","text":"..."}`, siempre con aprobación. Meta limita los mensajes a quien no le ha escrito en 24 h (solo plantillas); en el modo de prueba solo se puede escribir a números verificados en su panel.
+
+## 15. Modo Pro (Claude y Gemini programando en su PC)
+
+Jarvis tiene dos modos. **Clásico**: la cola de siempre (usted pide, Claude Code lo hace en el PC). **Pro**: un chat de tres (usted, Claude y Gemini). Uno planea, usted aprueba el plan, uno programa, **el otro verifica** comparando lo que dijo haber hecho contra lo que realmente cambió en el repo, y al aceptar Jarvis hace un commit local (nunca sube nada). Máximo 2 correcciones automáticas por decisión suya.
+
+### Qué debe instalar
+1. **Claude Code** (ya hecho en la sección anterior; Pro usa los modelos `opus` y `sonnet`).
+2. **Antigravity CLI (`agy`)** y entrar con la cuenta Google que tiene **AI Pro**. Es el "Gemini" de Pro (Gemini CLI ya no atiende esas cuentas). Compruebe con `agy --version`.
+3. En su cuenta Google, **desactive el uso de datos para entrenamiento** (ajustes de actividad/privacidad de Gemini y Antigravity), porque el código de sus repos pasa por ahí.
+
+### Dejarlo configurado
+1. En el archivo de configuración de la app (bandeja > "Abrir archivo de configuración") ponga `"hubUrl": "https://jarvis-6pjr.onrender.com"`, reinicie la app, inicie sesión y deje que registre el PC (aparecerá "PC en línea").
+2. En ese mismo archivo, `carpetas_permitidas`: lista de carpetas donde Pro puede trabajar, por ejemplo `["C:\Users\yo\proyectos"]`. Solo se usan repos git que estén dentro (la carpeta misma o sus subcarpetas directas). Fuera de ahí Pro rechaza el trabajo. Opcionales: `claudePath` y `geminiPath` si no los encuentra.
+3. **Confirme los datos de `agy`** (se escribieron sin tenerlo instalado): ejecute `agy --help` y compruebe que existen `-p`, `--output-format` y `--model`; si no, corrija `desktop/runner/agy-args.js`. El id del modelo de planear/verificar es provisional (`argon` en `config/pro.json`): ponga el id real que muestre `agy`.
+
+### Usarlo
+Abra la pestaña **Pro** en Jarvis, elija repo (nuevo hilo) y escriba el pedido. Pro solo se activa con el PC encendido, Claude y `agy` listos y algún repo. Si falta algo, la pestaña le dice qué. Verá el plan; pulse Aprobar, Corregir o Rechazar. Tras programar y verificar, "Aceptar" hace el commit local. Si `agy` se queda sin cuota, Jarvis se detiene y se lo dice (no baja de modelo solo); si está saturado (503) al programar, baja de Flash a un Flash anterior. Nada privado (contraseñas, etc.) entra en Pro y los secretos se tapan.
+
+### Límites conocidos
+- `agy` no tiene un modo "solo lectura" garantizado: se le pide en el prompt y el diff real de git lo comprueba. Sus comandos peligrosos y `npm test` se vigilan y cortan el trabajo.
+- Si cancela una ronda, el PC puede terminar el paso en curso (su resultado se descarta).
+- Sin probar con las CLIs reales ni con Render: solo con simuladores.

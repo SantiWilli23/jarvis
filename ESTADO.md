@@ -1,11 +1,12 @@
+<!-- estado-proyecto -->
 # Estado de Jarvis (13-nov-2026)
 
-**Pedido:** Jarvis personal gratis (orbe azul, voz Algenib, "Hola señor."), en Render+Turso, con control del PC y del iPhone.
+**Pedido:** Jarvis personal gratis (orbe azul, voz Algenib), en Render+Turso, con control del PC/iPhone y Modo Pro (Claude y Gemini/`agy` programando con verificación cruzada).
 
-**Hecho:** nube Render+Turso con cron anti-sueño; cadena gratis de IAs; rediseño web y vista móvil `/m` (en main/GitHub); cola del teléfono; correo despertador y Web Push (107/107, solo en rama `pro-base`). Plan de Gemini Flash/Pro con decisiones tomadas. Sesión Clásico/Pro unió sus 4 partes en `pro-integracion` (137/137).
+**Hecho:** nube Render+Turso, cadena gratis de IAs, web y `/m`, cola del teléfono, correo despertador y Web Push. Rama `pro-integracion`: P1-P4 fusionadas, Etapa 3 hecha (rol `commit` y plan en texto arreglados en el runner; `test/pro-e2e.test.js` con servidor real + worker real + fakes; docs PRO/PLAN/GUIA al día).
 
-**Queda:** push de main con fases 3 y 4 (falta permiso); `PHONE_NUDGE_EMAIL` en Render; fase 0 de Gemini: el usuario instala `agy` en su PC (mi instalación en el sandbox no cuenta; su política bloquea scripts, debe pegar el comando a mano) e inicia sesión; programar Gemini tras unir Clásico/Pro; Bluetooth real; Telegram, Google, Spotify, WhatsApp.
+**Queda:** verificar `claude` y `agy` reales (`agy --help`, id del modelo, login AI Pro); `hubUrl` a https://jarvis-6pjr.onrender.com y enrolar el PC; `carpetas_permitidas`; fusionar `pro-integracion` a `main` y push (sin permiso aún); Bluetooth, Telegram, Google, Spotify, WhatsApp.
 
-**Siguiente paso:** el usuario pega `irm https://antigravity.google/cli/install.ps1 | iex`, abre otra ventana y corre `agy` para entrar con AI Pro; luego `agy models` y prueba `agy -p`.
+**Siguiente paso:** con permiso, fusionar y desplegar; luego probar una ronda Pro real en un repo de prueba.
 
-**Verificar:** `npm test`; `npm run dev` → localhost:3055 y `/m`; `Test-Path $env:LOCALAPPDATA\agy\bin\agy.exe` en su terminal. Sin probar: iPhone real, correo/push reales, `agy`.
+**Verificar:** `npm test`; `node --test test/pro-e2e.test.js`; guía en docs/GUIA-USUARIO.md sección 15. Sin probar: CLIs reales, Render, iPhone.

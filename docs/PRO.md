@@ -145,3 +145,11 @@ Roles e informes:
 - **Idempotencia / buzón**: `report` y `fail` pueden repetirse (reenvío desde el buzón del PC si Render dormía); el servidor debe responder `409`/`404` si el job ya está cerrado, y el PC lo da por entregado.
 - **Solo `programar`+`editar`** calcula `tree_before/tree_after/diff`; en planear/verificar van `null` y `diff:""`. `.geminiignore` se crea en el repo (si falta) y se oculta con `.git/info/exclude`.
 - **Config del PC** (`config.json`): `hubUrl`, `carpetas_permitidas[]`, `geminiPath`, `claudePath`.
+
+## Ajustes de integración (Etapa 3)
+
+Desajustes servidor (P2) / runner (P3) hallados con `test/pro-e2e.test.js` y su arreglo:
+1. **Rol `commit`**: el servidor lo emite al aceptar, pero el worker lo rechazaba con `job_invalido`. Ahora `pro-worker.js` lo ejecuta (`git add -A && git commit -m <prompt>` vía `git-snapshot.commitAll`, nunca push; sin cambios = `ok`; fallo = `commit_fallido: ...`) y manda `report` con `resultado: "ok"`.
+2. **Informe de `planear`**: el servidor espera texto (string); el worker mandaba un objeto `{dijo_hizo,...}` y el plan salía como JSON. Ahora manda el texto del plan tal cual. `verificar` manda el JSON de verificación (campos propios) y `programar` el informe del punto 6.
+3. Comprobados sin cambios: rutas, `claim`/`again`, aprobaciones (`/pro/jobs/:id/approval`, estado por `/api/agent/approvals/:id`), capacidades `agy`, `sin_cuota` / `gemini_503`, duplicado (`report` 200 `duplicado`, `fail` repetido 200) y reenvío del buzón.
+4. Límite conocido: el worker no aborta el motor si `events` devuelve `cancelado`; termina el paso y el servidor ignora el `report`.

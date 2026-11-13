@@ -123,7 +123,21 @@ export function createProWorker({
     return { error: lastErr };
   }
 
+  // Rol "commit" (docs/PRO.md "Ampliaciones P2"): el prompt es el mensaje; commit local, nunca push.
+  async function processCommit(job) {
+    const repo = job.repo;
+    if (!repo || !snap.isInsideAllowed(repo, allowedFolders()) || !existsSync(repo) || !(await snap.isGitRepo(repo))) return fail(job, "repo_invalido");
+    try {
+      const c = await snap.commitAll(repo, job.prompt);
+      await deliver(`report-${job.id}`, "report", job.id, {
+        informe: { dijo_hizo: [c.vacio ? "Nada que commitear" : `Commit local ${c.commit.slice(0, 8)}`], archivos_tocados: [], comandos: ["git add -A", "git commit"], resultado: "ok" },
+        tree_before: null, tree_after: null, diff: "", usage: { tokens_in: 0, tokens_out: 0 },
+      });
+    } catch (e) { return fail(job, `commit_fallido: ${String(e.stderr || e.message).slice(0, 250)}`); }
+  }
+
   async function processJob(job) {
+    if (job.role === "commit") return processCommit(job);
     const roles = ["planear", "programar", "verificar"];
     if (!roles.includes(job.role) || !["claude", "gemini"].includes(job.engine)) return fail(job, "job_invalido");
     const repo = job.repo;
@@ -143,7 +157,8 @@ export function createProWorker({
       let treeB = treeA, diff = { files: [], text: "" };
       if (edita) { treeB = await snap.snapshot(repo); diff = await snap.diffBetween(repo, treeA, treeB, diffMax); }
       const claim = parseInforme(r.text);
-      const informe = claim
+      // planear: el servidor espera el plan como texto (string), no un objeto de informe.
+      const informe = job.role === "planear" ? String(r.text || "") : claim
         ? { dijo_hizo: claim.dijo_hizo || [], archivos_tocados: claim.archivos_tocados || [], comandos: claim.comandos || r.commands || [], resultado: claim.resultado || "ok", ...(job.role !== "programar" ? claim : {}) }
         : { dijo_hizo: String(r.text || "").split(/\r?\n/).filter((l) => l.trim()).slice(0, 30), archivos_tocados: diff.files.map((f) => f.path), comandos: r.commands || [], resultado: "ok" };
       await deliver(`report-${job.id}`, "report", job.id, {
