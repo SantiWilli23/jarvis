@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#02070d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Jarvis</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="css/hud.css">
+</head>
+<body data-state="idle">
+
+<div class="wake" id="wake" hidden>Despertando… el servidor estaba dormido, reintentando.</div>
+
+<div class="login" id="login" hidden>
+  <form id="loginform" autocomplete="on">
+    <div class="brand">JARVIS</div>
+    <label for="pw">Contraseña</label>
+    <input id="pw" name="password" type="password" autocomplete="current-password" required>
+    <div class="err" id="loginerr" role="alert"></div>
+    <button type="submit">Entrar</button>
+  </form>
+</div>
+
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand">JARVIS</div>
+    <span class="chip"><i class="dot on"></i><span id="clock">--:--</span></span>
+    <span class="chip" id="pcchip"><i class="dot off" id="pcdot"></i><span id="pctext">PC apagado · modo nube</span></span>
+    <span class="sp"></span>
+    <button class="chip-btn" id="logout" type="button">Salir</button>
+  </header>
+
+  <div class="layout">
+    <section class="col" aria-label="Modelos y memoria">
+      <div class="panel">
+        <h2>Cadena de modelos <em id="keyless"></em></h2>
+        <div id="models"></div>
+      </div>
+      <div class="panel">
+        <h2>Memoria <em id="membd">local</em></h2>
+        <div class="mem">
+          <b id="memtotal">0</b> notas · <b id="mempriv">0</b> privadas · <b id="memrev">0</b> por revisar<br>
+          Última sincronización con el PC: <b id="memsync">nunca</b><br>
+          Leídas en esta consulta: <b id="memread">0</b>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage" aria-label="Orbe de Jarvis">
+      <div class="orbwrap">
+        <canvas id="orb" aria-label="Orbe de Jarvis, toque para hablar" role="img"></canvas>
+        <div class="readout"><b id="slabel">En espera</b><span id="smodel">toque el orbe</span></div>
+        <div class="perm" id="perm" role="alertdialog" aria-label="Pedido de permiso">
+          <div class="k" id="permk">Claude pide permiso</div>
+          <code id="permcode"></code>
+          <p id="permp"></p>
+          <div class="btns"><button type="button" id="no">Rechazar</button><button type="button" class="yes" id="yes">Aprobar</button></div>
+        </div>
+      </div>
+      <div class="say" aria-live="polite">
+        <div class="who" id="who">Jarvis</div>
+        <div class="txt" id="txt"></div>
+      </div>
+      <form class="say-form" id="sayform">
+        <label class="sr" for="sayin">Escribir a Jarvis</label>
+        <input type="text" id="sayin" placeholder="o escriba aquí…" autocomplete="off" maxlength="4000">
+        <label><input type="checkbox" id="saypriv"> privado</label>
+        <button type="submit">Enviar</button>
+      </form>
+      <div class="hint" id="hint">Toque el orbe para saludar. Después, un toque para hablar y otro para enviar.</div>
+    </section>
+
+    <section class="col" aria-label="Cola y conexiones">
+      <div class="panel">
+        <h2>Cola para el PC <em id="qcount">0</em></h2>
+        <div id="queue"></div>
+      </div>
+      <div class="panel">
+        <h2>Conexiones</h2>
+        <div class="conn" id="conn"></div>
+      </div>
+    </section>
+  </div>
+  <div class="foot">Jarvis · Fase 1 · iPhone: Safari, un toque para hablar</div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
