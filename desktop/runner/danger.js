@@ -18,6 +18,19 @@ export function classifyDenial({ tool_name: tool, tool_input: input = {} }) {
   return { kind: "terminal_libre", summary: `Usar ${tool} fuera de lo permitido`, detail: String(objetivo) };
 }
 
+// --- Modo Pro: Gemini CLI no devuelve "denegados" como Claude, así que se vigilan sus comandos de shell
+// mientras corre. Bloquea lo peligroso y `npm test` (solo con aprobación).
+const NPM_TEST = /(^|[\s;&|])(npm|pnpm|yarn|npx)\s+(run\s+)?(test|jest|vitest|mocha)\b/i;
+export function blockedForGemini(cmd) {
+  const c = String(cmd || "");
+  if (PUSH.test(c)) return { kind: "git_push", summary: "Subir cambios con git push" };
+  if (DESPLEGAR.test(c)) return { kind: "desplegar", summary: "Desplegar o publicar" };
+  if (BORRAR.test(c)) return { kind: "borrar", summary: "Borrar archivos" };
+  if (MENSAJE.test(c)) return { kind: "enviar_mensaje", summary: "Enviar un mensaje" };
+  if (NPM_TEST.test(c)) return { kind: "terminal_libre", summary: "Ejecutar las pruebas (npm test)" };
+  return null;
+}
+
 // Regla --allowedTools que habilita exactamente lo aprobado (no toda la herramienta).
 export function allowRule({ tool_name: tool, tool_input: input = {} }) {
   if (input.command) return `${tool}(${input.command})`;

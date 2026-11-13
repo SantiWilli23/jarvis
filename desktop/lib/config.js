@@ -4,12 +4,14 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 export const DEFAULTS = {
-  hubUrl: "http://localhost:3055",   // o la dirección de Render cuando exista (Fase 3)
+  hubUrl: "http://localhost:3055",   // configurable: en config.json o JARVIS_HUB_URL (p. ej. https://jarvis-6pjr.onrender.com)
   hotkey: "Control+Alt+J",           // abre/enfoca Jarvis y activa el micrófono
   autoStart: true,                   // arrancar con Windows
   alwaysOnTop: false,
   greeting: true,                    // decir "Hola señor." al arrancar
-  claudePath: null,                  // ruta a claude.exe si no está en el PATH
+  carpetas_permitidas: [],           // Modo Pro: si está vacío se usan las de config/permissions.json del hub
+  geminiPath: null,                  // ruta a gemini (o su .js) si no está en el PATH
+  claudePath: null,                 // ruta a claude.exe si no está en el PATH
   workFolder: null,                  // carpeta de trabajo si config/permissions.json no define ninguna
   agentToken: null,                  // lo escribe la propia app al enrolarse
   agentTokenEnc: null,
