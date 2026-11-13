@@ -6,6 +6,8 @@ import { all, get, run } from "../db/client.js";
 export const MAX_FOTO_BYTES = 4 * 1024 * 1024;
 export const MAX_FOTOS_POR_TAREA = 3;
 const EDITABLES = ["pendiente", "por_revisar"];
+export const ENGINES = ["claude", "gemini"]; // lista cerrada de motores del PC
+const REASIGNABLES = ["pendiente", "por_revisar", "fallida", "rechazada", "interrumpida", "tope_tarea"];
 
 export const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 
@@ -13,7 +15,7 @@ function toTask(r) {
   if (!r) return null;
   const buf = Buffer.from(r.raw_text);
   return {
-    id: Number(r.id), user_id: Number(r.user_id), seq: Number(r.seq), mode: r.mode, status: r.status,
+    id: Number(r.id), user_id: Number(r.user_id), seq: Number(r.seq), mode: r.mode, status: r.status, engine: r.engine || "claude",
     text: buf.toString("utf8"), sha256: r.raw_sha256,
     header: JSON.parse(r.header_json || "{}"),
     prepared: r.prepared_json ? JSON.parse(r.prepared_json) : null,
@@ -23,18 +25,19 @@ function toTask(r) {
 }
 
 export function createTasks({ db, bus, now = () => Date.now() }) {
-  const emit = (t) => t && bus?.emit("task.update", { userId: t.user_id, task: { id: t.id, seq: t.seq, mode: t.mode, status: t.status, preview: t.text.slice(0, 140) } });
+  const emit = (t) => t && bus?.emit("task.update", { userId: t.user_id, task: { id: t.id, seq: t.seq, mode: t.mode, engine: t.engine, status: t.status, preview: t.text.slice(0, 140) } });
 
   const api = {
     // rawText se guarda tal cual: sin trim, sin normalizar saltos de línea ni Unicode.
-    async create({ userId, rawText, mode, header = {}, prepared = null, reviewFirst = false, status }) {
+    async create({ userId, rawText, mode, header = {}, prepared = null, reviewFirst = false, status, engine = "claude" }) {
+      if (!ENGINES.includes(engine)) throw new Error("motor_invalido");
       const buf = Buffer.from(String(rawText), "utf8");
       const st = status || (reviewFirst ? "por_revisar" : "pendiente");
       const hdr = { dictated_at: new Date(now()).toISOString(), ...header };
       const t = now();
-      const r = await run(db, `INSERT INTO tasks (user_id, seq, mode, status, raw_text, raw_sha256, header_json, prepared_json, review_first, created_at, updated_at)
-        VALUES (?, (SELECT COALESCE(MAX(seq),0)+1 FROM tasks WHERE user_id = ?), ?,?,?,?,?,?,?,?,?)`,
-        [userId, userId, mode, st, buf, sha256(buf), JSON.stringify(hdr), prepared ? JSON.stringify(prepared) : null, reviewFirst ? 1 : 0, t, t]);
+      const r = await run(db, `INSERT INTO tasks (user_id, seq, mode, status, engine, raw_text, raw_sha256, header_json, prepared_json, review_first, created_at, updated_at)
+        VALUES (?, (SELECT COALESCE(MAX(seq),0)+1 FROM tasks WHERE user_id = ?), ?,?,?,?,?,?,?,?,?,?)`,
+        [userId, userId, mode, st, engine, buf, sha256(buf), JSON.stringify(hdr), prepared ? JSON.stringify(prepared) : null, reviewFirst ? 1 : 0, t, t]);
       const task = await api.get(userId, r.id);
       emit(task);
       return task;
@@ -78,15 +81,25 @@ export function createTasks({ db, bus, now = () => Date.now() }) {
       const task = await api.get(userId, id); emit(task);
       return { ok: true, task };
     },
-    // Entrega la siguiente tarea pendiente en orden de seq (atómico).
-    async claim(userId, claimedBy = "pc") {
+    // Entrega la siguiente tarea pendiente en orden de seq (atómico), solo de los motores que el PC puede atender.
+    async claim(userId, claimedBy = "pc", engines = ["claude"]) {
+      const ok = engines.filter((e) => ENGINES.includes(e));
+      if (!ok.length) return null;
       const t = now();
       const r = await all(db, `UPDATE tasks SET status='reclamada', claimed_by=?, claimed_at=?, updated_at=?
-        WHERE id = (SELECT id FROM tasks WHERE user_id=? AND status='pendiente' ORDER BY seq LIMIT 1) AND status='pendiente' RETURNING *`,
-        [claimedBy, t, t, userId]);
+        WHERE id = (SELECT id FROM tasks WHERE user_id=? AND status='pendiente' AND engine IN (${ok.map(() => "?").join(",")}) ORDER BY seq LIMIT 1) AND status='pendiente' RETURNING *`,
+        [claimedBy, t, t, userId, ...ok]);
       const task = toTask(r[0]);
       emit(task);
       return task;
+    },
+    // "Pasar a Claude": cambia el motor y la vuelve a la cola (lo privado solo puede ir a Claude, nunca a Gemini).
+    async reassign(userId, id, engine) {
+      if (!ENGINES.includes(engine)) return { ok: false, reason: "motor_invalido" };
+      const r = await run(db, `UPDATE tasks SET engine=?, status='pendiente', result=NULL, claimed_by=NULL, updated_at=? WHERE id=? AND user_id=? AND status IN (${REASIGNABLES.map((s) => `'${s}'`).join(",")})`, [engine, now(), id, userId]);
+      if (!r.changes) return { ok: false, reason: "no_reasignable" };
+      const task = await api.get(userId, id); emit(task);
+      return { ok: true, task };
     },
     async setStatus(userId, id, status) {
       await run(db, "UPDATE tasks SET status=?, updated_at=? WHERE id=? AND user_id=?", [status, now(), id, userId]);

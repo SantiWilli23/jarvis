@@ -1,9 +1,13 @@
 // Bucle del agente: avisa "PC en línea", recoge tareas de la cola y las pasa a Claude Code.
 import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import { buildArgs, buildStdin } from "./claude-args.js";
 import { classifyDenial, allowRule } from "./danger.js";
 import { runClaude as realRun, resolveClaude } from "./claude-runner.js";
+import { buildAgyArgs, MAX_PEDIDO, MODELO_DEFECTO, isProhibited, normalizeModel } from "./agy-args.js";
+import { runAgy as realRunAgy, resolveAgy } from "./agy-runner.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MAX_RONDAS = 3; // veces que una tarea puede pedir aprobaciones y continuar
@@ -12,6 +16,10 @@ export function createWorker({
   hub, log = () => {}, version = "0.1.0", host = "PC",
   claude = null,                 // { command, prefix } (por defecto se busca en el PC)
   runClaude = realRun,           // inyectable para pruebas
+  agy = null,                    // { command, prefix } o función que lo resuelve (Antigravity CLI; por defecto se busca en el PC)
+  runAgy = realRunAgy,           // inyectable para pruebas
+  geminiFolders = null,          // carpetas de Gemini; si es null se usan carpetas_gemini del hub
+  geminiDefaultDir = join(homedir(), "Documents", "Jarvis", "gemini"),
   folders = null,                // si es null se usan las que manda el hub (config/permissions.json)
   fallbackCwd = process.cwd(),
   pollMs = 5000, approvalPollMs = 3000, heartbeatMs = 15000, tapeWaitMs = 60_000,
@@ -35,7 +43,36 @@ export function createWorker({
     return "caducada";
   }
 
+  // Gemini (agy): solo en carpetas_gemini (separadas de las de Claude). v1 sin ronda de aprobación: lo que agy
+  // rechaza o lo que el runner bloquea queda anotado como "[Sin permiso: ...]" y la cola ofrece "Pasar a Claude".
+  async function processGemini(task) {
+    const perm = serverCfg.permissions || {};
+    const dirs = (geminiFolders ?? (perm.carpetas_gemini?.length ? perm.carpetas_gemini : [geminiDefaultDir])).filter(Boolean);
+    const cwd = dirs[0] || geminiDefaultDir;
+    try { mkdirSync(cwd, { recursive: true }); } catch { /* ya existe */ }
+    const original = buildStdin({ ...task, mode: "directo", prepared: null });
+    if (createHash("sha256").update(original).digest("hex") !== task.sha256) {
+      return hub.finish(task.id, { status: "fallida", result: "El texto llegó alterado (sha256 distinto); no se ejecutó." });
+    }
+    const bin = typeof agy === "function" ? agy() : agy || resolveAgy();
+    if (!bin) return hub.finish(task.id, { status: "fallida", result: "No encontré Antigravity CLI (agy) en este PC. Instálela e inicie sesión con `agy`." });
+    const model = normalizeModel(serverCfg.motores?.gemini?.modelo || MODELO_DEFECTO);
+    if (isProhibited(model)) return hub.finish(task.id, { status: "fallida", result: `Modelo no permitido para Gemini: ${model}.` });
+    const prompt = buildStdin(task).toString("utf8"); // directo: los bytes exactos del texto guardado
+    if (prompt.length > MAX_PEDIDO) return hub.finish(task.id, { status: "fallida", result: "El pedido es demasiado largo para la línea de comandos de agy." });
+    const queue = []; let flush = null;
+    const send = () => { flush = null; const ev = queue.splice(0); if (ev.length) hub.events(task.id, ev).catch(() => {}); };
+    const r = await runAgy({ ...bin, args: buildAgyArgs({ prompt, model }), cwd, allowedDirs: dirs, onEvents: (ev) => { queue.push(...ev); flush ||= setTimeout(send, 800); } });
+    if (flush) { clearTimeout(flush); send(); }
+    const usage = { tokens_in: r.usage.tokens_in, tokens_out: r.usage.tokens_out };
+    const nota = r.denials.length ? `\n[Sin permiso: ${r.denials.join("; ")}]` : "";
+    if (r.aborted === "tiempo") return hub.finish(task.id, { status: "fallida", result: `Detenida: pasó el tiempo máximo.${nota}`, usage });
+    const status = r.blocked ? "rechazada" : r.isError ? "fallida" : "hecha";
+    return hub.finish(task.id, { status, result: ((r.text || r.stderr || "") + nota).trim(), usage });
+  }
+
   async function processTask(task, caps) {
+    if (task.engine === "gemini") return processGemini(task);
     const perm = serverCfg.permissions || {};
     const dirs = (folders ?? perm.carpetas_permitidas ?? []).filter(Boolean);
     const cwd = dirs[0] || fallbackCwd;

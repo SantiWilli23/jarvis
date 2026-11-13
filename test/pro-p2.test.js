@@ -122,7 +122,7 @@ test("Gemini sin cuota al planear: no baja de modelo y avisa", async () => {
   const r = await say("mejora el css de la pantalla y los colores");
   assert.equal(r.round.programmer, "gemini");
   const j = await claim();
-  assert.equal(j.model, "argon");
+  assert.equal(j.model, "gemini-3.8-flash-high");
   await fail(j.id, "sin_cuota");
   assert.equal((await round(r.round.id)).status, "necesita_usuario");
   assert.ok((await call(`/api/pro/threads/${thread}`)).messages.at(-1).text.includes("No cambio de modelo"));

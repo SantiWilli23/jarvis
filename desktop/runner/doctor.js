@@ -6,21 +6,18 @@ import { existsSync, readdirSync } from "node:fs";
 import { join, delimiter } from "node:path";
 import { homedir } from "node:os";
 import { resolveClaude } from "./claude-runner.js";
-import { FLAGS_USADOS } from "./agy-args.js";
+import { FLAGS_USADOS, versionOk, VERSION_MINIMA } from "./agy-args.js";
+import { resolveAgy } from "./agy-runner.js";
 import { isGitRepo } from "./git-snapshot.js";
 
 const run = promisify(execFile);
 
-export function resolveAgy({ env = process.env, platform = process.platform, exists = existsSync, configured = null } = {}) {
-  const p = configured || env.JARVIS_AGY_PATH;
-  if (p) return /\.m?js$/.test(p) ? { command: process.execPath, prefix: [p], nodeAsElectron: !!process.versions.electron } : { command: p, prefix: [] };
-  const exe = platform === "win32" ? "agy.exe" : "agy";
-  for (const dir of (env.PATH || env.Path || "").split(delimiter).filter(Boolean)) if (exists(join(dir, exe))) return { command: join(dir, exe), prefix: [] };
-  return null;
-}
+export { resolveAgy };
 
 async function exec(b, args, timeout = 15000) {
-  const { stdout, stderr } = await run(b.command, [...b.prefix, ...args], { timeout, windowsHide: true, env: { ...process.env, ...(b.prefix.length && process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}) } });
+  const p = run(b.command, [...b.prefix, ...args], { timeout, windowsHide: true, env: { ...process.env, ...(b.prefix.length && process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}) } });
+  p.child.stdin?.end(); // stdin cerrado: agy no debe quedarse esperando
+  const { stdout, stderr } = await p;
   return `${stdout}\n${stderr}`;
 }
 
@@ -30,9 +27,10 @@ export async function verifyAgyFlags(b, exec_ = exec) {
   catch (e) { return { ok: false, missing: FLAGS_USADOS, error: e.message }; }
 }
 
-// SIN VERIFICAR: se desconoce dónde guarda agy su login; heurística por carpetas habituales.
-function hasAgyLogin(home, exists) {
-  return [".antigravity", join(".config", "antigravity"), join(".gemini", "oauth_creds.json")].some((r) => exists(join(home, r)));
+// Con la sesión iniciada, `agy models` lista los modelos de la cuenta (una línea "id<TAB>nombre"); sin sesión falla.
+export async function agyModels(b, exec_ = exec) {
+  try { return (await exec_(b, ["models"], 30000)).split(/\r?\n/).map((l) => l.split("\t")[0].trim()).filter((id) => /^[a-z][\w.-]*-[\w.-]+$/i.test(id)); }
+  catch { return []; }
 }
 
 export async function discoverRepos(folders = [], isGit = isGitRepo) {
@@ -50,13 +48,16 @@ export async function runDoctor({ folders = [], claudePath = null, agyPath = nul
   let claude = { ok: false, modelos: [] };
   if (cb) { try { await ex(cb, ["--version"]); claude = { ok: true, modelos: ["opus", "sonnet"] }; } catch { /* no responde */ } } // los modelos no se pueden listar sin gastar cuota
   const ab = resolveAgy({ env, configured: agyPath, exists });
-  let agy = { ok: false, login: null, flags: null };
+  let agy = { ok: false, cli: "agy", login: null, version: null, modelos: [], flags: null };
   if (ab) {
-    let ok = false; try { await ex(ab, ["--version"]); ok = true; } catch { /* no responde */ }
-    const flags = ok ? await verifyAgyFlags(ab, ex) : null;
-    agy = { ok, login: ok && hasAgyLogin(home, exists) ? "google" : null, flags };
+    let version = null; try { version = (await ex(ab, ["--version"])).match(/\d+(\.\d+){1,2}/)?.[0] || null; } catch { /* no responde */ }
+    if (version && versionOk(version)) {
+      const modelos = await agyModels(ab, ex);
+      const flags = await verifyAgyFlags(ab, ex);
+      agy = { ok: modelos.length > 0 && flags.ok, cli: "agy", login: modelos.length ? "google" : null, version, modelos, flags };
+    } else agy = { ...agy, version, error: version ? `agy ${version} es anterior a ${VERSION_MINIMA}` : "agy no responde" };
   }
   const repos = await discoverRepos(folders);
   // gemini_cli: compatibilidad con el contrato original (el servidor puede seguir leyéndolo).
-  return { claude, agy, gemini_cli: { ok: agy.ok, login: agy.login }, repos };
+  return { claude, agy, gemini_cli: { ok: agy.ok, cli: "agy", login: agy.login, version: agy.version, modelos: agy.modelos }, repos };
 }

@@ -57,11 +57,11 @@ test("programar con Claude: sonnet acceptEdits y diff real", async () => {
 });
 
 test("agy: sin GEMINI_API_KEY, 503 baja de modelo y programa", async () => {
-  const r = repo(), out = setup({ FAKE_503: "gemini-3.8-flash", FAKE_EDIT: "x.txt:1" });
-  const hub = mkHub(); hub.jobs.push(job(r, { engine: "gemini", model: "gemini-3.8-flash" }));
+  const r = repo(), out = setup({ FAKE_503: "gemini-3.8-flash-high", FAKE_EDIT: "x.txt:1" });
+  const hub = mkHub(); hub.jobs.push(job(r, { engine: "gemini", model: "gemini-3.8-flash-high" }));
   await worker(hub, r).tick();
-  assert.equal(flag(args(out, 0), "--model"), "gemini-3.8-flash");
-  assert.equal(flag(args(out, 1), "--model"), "gemini-3.7-flash");
+  assert.equal(flag(args(out, 0), "--model"), "gemini-3.8-flash-high");
+  assert.equal(flag(args(out, 1), "--model"), "gemini-3.8-flash-medium");
   assert.equal(JSON.parse(readFileSync(`${out}.1.env.json`, "utf8")).GEMINI_API_KEY, null);
   assert.match(hub.reports[0].diff, /x\.txt/); assert.ok(existsSync(join(r, "x.txt")));
   clean(r);
@@ -69,17 +69,17 @@ test("agy: sin GEMINI_API_KEY, 503 baja de modelo y programa", async () => {
 
 test("agy: sin cuota falla con sin_cuota y NO baja de modelo", async () => {
   const r = repo(), out = setup({ FAKE_QUOTA: "1" });
-  const hub = mkHub(); hub.jobs.push(job(r, { role: "planear", engine: "gemini", model: "argon", mode: "solo_lectura" }));
+  const hub = mkHub(); hub.jobs.push(job(r, { role: "planear", engine: "gemini", model: "gemini-3.8-flash-high", mode: "solo_lectura" }));
   await worker(hub, r).tick();
   assert.deepEqual(hub.fails, [{ id: 1, e: "sin_cuota" }]); assert.ok(!existsSync(`${out}.1.args.json`));
-  const o2 = setup({ FAKE_QUOTA: "1" }); const h2 = mkHub(); h2.jobs.push(job(r, { engine: "gemini", model: "gemini-3.8-flash" }));
+  const o2 = setup({ FAKE_QUOTA: "1" }); const h2 = mkHub(); h2.jobs.push(job(r, { engine: "gemini", model: "gemini-3.8-flash-high" }));
   await worker(h2, r).tick(); assert.equal(h2.fails[0].e, "sin_cuota"); assert.ok(!existsSync(`${o2}.1.args.json`));
   clean(r);
 });
 
 test("agy: comando peligroso se bloquea", async () => {
   const r = repo(); setup({ FAKE_CMD: "git push origin main" });
-  const hub = mkHub(); hub.jobs.push(job(r, { engine: "gemini", model: "gemini-3.8-flash" }));
+  const hub = mkHub(); hub.jobs.push(job(r, { engine: "gemini", model: "gemini-3.8-flash-high" }));
   await worker(hub, r).tick(); assert.match(hub.fails[0].e, /comando_bloqueado: git_push/); clean(r);
 });
 

@@ -15,6 +15,7 @@ async function addColumn(db, table, column, ddl) {
 }
 export async function migrate(db) {
   await addColumn(db, "approvals", "pro_job_id", "INTEGER");
+  await addColumn(db, "tasks", "engine", "TEXT NOT NULL DEFAULT 'claude'"); // motor del PC: claude | gemini
 }
 
 // Devuelve { fts: true|false }. Si FTS5 no está disponible, las búsquedas usan LIKE por palabras.

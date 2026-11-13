@@ -92,6 +92,8 @@ function startWorker() {
     hub, host: hostname(), version: app.getVersion(),
     claude: cfg.claudePath ? { command: cfg.claudePath, prefix: [] } : null,
     folders: null, fallbackCwd: cfg.workFolder || join(app.getPath("documents"), "Jarvis"),
+    agy: () => resolveAgy({ configured: cfg.geminiPath }), geminiFolders: (cfg.carpetas_gemini || []).filter(Boolean).length ? cfg.carpetas_gemini.filter(Boolean) : null,
+    geminiDefaultDir: join(app.getPath("documents"), "Jarvis", "gemini"),
     log: (m) => console.log("[jarvis]", m),
     onStatus: (s) => { lastStatus = { ...lastStatus, ...s }; updateTray(); },
   });

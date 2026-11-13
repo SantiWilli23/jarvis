@@ -1,32 +1,30 @@
-// Línea de comando de Antigravity CLI (`agy`), que sustituye a Gemini CLI (ya no atiende cuentas Google AI Pro).
-// TODOS los flags de la CLI viven AQUÍ para poder corregirlos en un solo sitio.
-//
-// SIN VERIFICAR: `agy` no estaba instalada al escribir esto. Flags según el contrato del coordinador:
-//   -p                       modo no interactivo
-//   --output-format stream-json
-//   --model <id>
-//   --conversation <id>      continuar una conversación (reservado; no se usa aún)
-// NO se usa --dangerously-skip-permissions. Se desconoce si existe un flag de modo de aprobación: no se pasa.
-// Por eso "solo lectura" se pide en el propio prompt (PREFIJO_LECTURA) y el diff real lo comprueba.
-// `doctor.js` comprueba FLAGS_USADOS contra `agy --help`.
-//
-// Login: la cuenta AI Pro (login de la CLI). El runner quita las claves de API del entorno.
-// Prompt por stdin (SIN VERIFICAR que `agy -p` lo lea de stdin; si no, ajustar aquí buildAgyStdin).
+// Línea de comando de Antigravity CLI (`agy`), que sustituye a Gemini CLI. TODOS los flags viven AQUÍ.
+// Verificado contra agy 1.5.8 (`agy --help`, `agy models` y llamadas reales con -p):
+//   -p <pedido>            modo no interactivo; el pedido va como argumento (stdin se cierra)
+//   --output-format stream-json   NDJSON: init, step_update..., result
+//   --sandbox              pedido de terminal restringida. OJO: en Windows NO confina escrituras ni comandos fuera
+//                          de la carpeta de trabajo (se comprobó), por eso el runner vigila las herramientas.
+//   --print-timeout 30m    tope de tiempo del modo -p
+//   --model <id>           gemini-3.8-flash-high (id de `agy models`)
+//   --conversation <id>    continuar una conversación
+// NUNCA se pasa --dangerously-skip-permissions ni --mode auto.
 
-export const FLAGS_USADOS = ["-p", "--output-format", "--model"];
+export const FLAGS_USADOS = ["-p", "--output-format", "--sandbox", "--print-timeout", "--model"];
 
-// Ya no se prohíbe gemini-4-*; siguen vetados los que el contrato excluye.
-export const PROHIBIDOS = [/gemini-2\.5-pro/i, /flash-lite/i];
-// Modelo por defecto de plan/verificación (el "Argon" del plan AI Pro). El valor real viene de config/pro.json
-// (job.model). El id exacto se confirma con `agy --help` / la lista de modelos de la CLI.
-export const MODELO_PLAN_DEFECTO = "argon";
-export const CADENA_PROGRAMAR = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"];
+export const MODELO_DEFECTO = "gemini-3.8-flash-high";
+export const MODELO_PLAN_DEFECTO = MODELO_DEFECTO; // planear/verificar dentro de agy (Hydrogen planea por la API, no por agy)
+export const CADENA_PROGRAMAR = ["gemini-3.8-flash-high", "gemini-3.8-flash-medium", "gemini-3.8-flash-low"];
+export const VERSION_MINIMA = "1.1.1";
 
-// "3.7-flash" -> "gemini-3.7-flash"; ids como "argon" quedan igual.
+// Lista cerrada: solo Hydrogen (nivel gratis) y la familia 3.8 Flash. Argon, Carbon, 3.1-pro, 2.5-pro, flash-lite: no.
+const PERMITIDOS = [/^gemini-4-hydrogen$/i, /^gemini-3\.8-flash(-(high|medium|low))?$/i];
+export const PROHIBIDOS = [/gemini-2\.5-pro/i, /flash-lite/i, /gemini-4-(argon|carbon)/i, /gemini-3\.1-pro/i];
+
+// "3.8-flash" -> "gemini-3.8-flash"; ids completos quedan igual.
 export const normalizeModel = (m) => (/^\d/.test(String(m)) ? `gemini-${m}` : String(m));
-export const isProhibited = (m) => PROHIBIDOS.some((re) => re.test(m));
+export const isProhibited = (m) => PROHIBIDOS.some((re) => re.test(m)) || !PERMITIDOS.some((re) => re.test(m));
 
-// Programar baja de Flash solo ante 503 (lo decide pro-worker); el resto, un solo modelo.
+// Programar baja de modelo solo ante 503 (lo decide pro-worker); el resto, un solo modelo.
 export function modelChain(role, model) {
   const m = normalizeModel(model || MODELO_PLAN_DEFECTO);
   if (role !== "programar") return [m];
@@ -34,16 +32,28 @@ export function modelChain(role, model) {
   return i >= 0 ? CADENA_PROGRAMAR.slice(i) : [m];
 }
 
-export function buildAgyArgs({ model, conversation = null }) {
-  const a = ["-p", "--output-format", "stream-json", "--model", normalizeModel(model || MODELO_PLAN_DEFECTO)];
+// El pedido viaja en la línea de comandos: tope práctico de Windows ~32 000 caracteres.
+export const MAX_PEDIDO = 28_000;
+
+export function buildAgyArgs({ prompt, model, conversation = null, timeout = "30m" }) {
+  const a = ["-p", String(prompt), "--output-format", "stream-json", "--sandbox", "--print-timeout", timeout, "--model", normalizeModel(model || MODELO_DEFECTO)];
   if (conversation) a.push("--conversation", conversation);
   return a;
 }
 
-export const PREFIJO_LECTURA = "MODO SOLO LECTURA: no crees, modifiques ni borres archivos ni ejecutes comandos que cambien el repo.\n\n";
-export const buildAgyStdin = (prompt, mode) => Buffer.from((mode === "editar" ? "" : PREFIJO_LECTURA) + prompt, "utf8");
+// "1.5.8" >= "1.1.1"
+export function versionOk(v, min = VERSION_MINIMA) {
+  const n = (s) => String(s).match(/\d+/g)?.slice(0, 3).map(Number) ?? [];
+  const a = n(v), b = n(min);
+  if (!a.length) return false;
+  for (let i = 0; i < 3; i++) { const x = a[i] ?? 0, y = b[i] ?? 0; if (x !== y) return x > y; }
+  return true;
+}
 
-// Entorno sin claves de API: fuerza el login de la cuenta.
+export const PREFIJO_LECTURA = "MODO SOLO LECTURA: no crees, modifiques ni borres archivos ni ejecutes comandos que cambien el repo.\n\n";
+export const buildAgyPrompt = (prompt, mode) => (mode === "editar" ? "" : PREFIJO_LECTURA) + prompt;
+
+// Entorno sin claves de API: fuerza el login de la cuenta del PC.
 export function agyEnv(env = process.env) {
   const e = { ...env };
   for (const k of ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_USE_VERTEXAI", "GOOGLE_GENAI_USE_GCA"]) delete e[k];

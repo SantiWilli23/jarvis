@@ -6,7 +6,7 @@ export function chatRoutes(ctx) {
     try {
       const text = typeof req.body?.text === "string" ? req.body.text : "";
       if (text.length > 20000) return res.status(413).json({ error: "texto_largo" });
-      const out = await ctx.chat.handle({ userId: req.user.id, text, conversationId: req.body?.conversationId, flagPrivate: !!req.body?.private, source: req.body?.source || "texto" });
+      const out = await ctx.chat.handle({ userId: req.user.id, text, conversationId: req.body?.conversationId, flagPrivate: !!req.body?.private, source: req.body?.source || "texto", engine: req.body?.engine });
       res.json(out);
     } catch (e) { next(e); }
   });

@@ -37,4 +37,4 @@ export function agentRoutes(ctx) {
 }
 
 // El texto viaja como cadena UTF-8 y con su sha256 para que el agente verifique que llegó intacto.
-const viewTask = (t) => ({ id: t.id, seq: t.seq, mode: t.mode, text: t.text, sha256: t.sha256, header: t.header, prepared: t.prepared });
+const viewTask = (t) => ({ id: t.id, seq: t.seq, mode: t.mode, engine: t.engine, text: t.text, sha256: t.sha256, header: t.header, prepared: t.prepared });

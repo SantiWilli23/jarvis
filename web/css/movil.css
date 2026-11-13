@@ -91,6 +91,7 @@ body.movil .say-form.open { transform: none; visibility: visible; transition: tr
 body.movil .say-form input[type="text"] { min-height: 44px; padding: 8px 10px; }
 body.movil .say-form button[type="submit"] { min-height: 44px; min-width: 64px; }
 body.movil .say-form .priv { font-size: 11px; min-height: 44px; }
+body.movil .say-form select.motor { font-size: 16px; min-height: 44px; max-width: 92px; }
 
 /* ---------- hojas inferiores ---------- */
 body.movil .scrim { position: fixed; inset: 0; z-index: 30; background: rgba(0, 0, 0, 0.55); opacity: 0; transition: opacity .2s; }

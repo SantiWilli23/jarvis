@@ -32,7 +32,7 @@ test("onUse recibe el id del proveedor y el usuario", async () => {
 test("config/pro.json: correcciones máx 2 y sin modelos prohibidos", () => {
   const c = loadProConfig();
   assert.equal(c.limites.correcciones_max, 2);
-  assert.ok(!/lite|2\.5-pro|gemini-4/.test(JSON.stringify(c.modelos.gemini)));
+  assert.ok(!/lite|2\.5-pro|argon|carbon|3.1-pro/.test(JSON.stringify(c.modelos.gemini)));
 });
 
 test("proReasons: motivos de no habilitado", () => {

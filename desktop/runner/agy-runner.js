@@ -1,60 +1,117 @@
-// Ejecuta Antigravity CLI (agy) como proceso hijo (sin shell, sin GEMINI_API_KEY). Formato de salida SIN VERIFICAR:
-// se aceptan stream-json (una línea JSON por evento), un JSON único {response, stats} o texto plano.
+// Ejecuta Antigravity CLI (`agy -p ... --output-format stream-json`) como proceso hijo: sin shell, con stdin
+// cerrado y sin claves de API. Parsea el NDJSON de forma tolerante (los eventos desconocidos se ignoran).
+// Formato real (agy 1.5.8): {"event":"init"|"step_update"|"result", ...}. Ver test/fixtures/fake-agy.mjs.
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join, delimiter, resolve } from "node:path";
 import { agyEnv } from "./agy-args.js";
 import { blockedForGemini } from "./danger.js";
+
+// Busca agy: JARVIS_AGY_PATH (o `configured`), PATH y %LOCALAPPDATA%\agy\bin\agy.exe.
+export function resolveAgy({ env = process.env, platform = process.platform, exists = existsSync, configured = null } = {}) {
+  const p = configured || env.JARVIS_AGY_PATH;
+  if (p) return /\.m?js$/.test(p) ? { command: process.execPath, prefix: [p], nodeAsElectron: !!process.versions.electron } : { command: p, prefix: [] };
+  const exe = platform === "win32" ? "agy.exe" : "agy";
+  for (const dir of (env.PATH || env.Path || "").split(delimiter).filter(Boolean)) if (exists(join(dir, exe))) return { command: join(dir, exe), prefix: [] };
+  const local = env.LOCALAPPDATA || (platform === "win32" ? join(env.USERPROFILE || "", "AppData", "Local") : "");
+  if (local) { const f = join(local, "agy", "bin", exe); if (exists(f)) return { command: f, prefix: [] }; }
+  return null;
+}
 
 // "503" (servidor saturado: permite bajar de Flash), "sin_cuota" (429/cuota: NO se baja) o null.
 export function classifyAgyError(text) {
   const t = String(text || "");
-  if (/\b503\b|UNAVAILABLE|overloaded|sobrecargad/i.test(t)) return "503";
+  if (/\b503\b|UNAVAILABLE|overloaded|high demand|sobrecargad/i.test(t)) return "503";
   if (/\b429\b|RESOURCE_EXHAUSTED|quota|rate.?limit|cuota/i.test(t)) return "sin_cuota";
   return null;
 }
 
-function findCommand(o) {
-  const n = String(o?.tool_name || o?.name || o?.tool || "");
-  if (!/shell|bash|command|terminal/i.test(n)) return null;
-  const a = o.args || o.input || o.parameters || o.tool_input || {};
-  return typeof a.command === "string" ? a.command : null;
+const RECHAZO = /permission (denied|required|was denied)|not permitted|rejected|denied|requires? (user )?(approval|permission)|auto-?reject|no se permite|permiso/i;
+const norm = (p) => resolve(String(p)).replace(/\\/g, "/").toLowerCase();
+const inside = (p, dirs) => dirs.some((d) => { const a = norm(p), b = norm(d); return a === b || a.startsWith(b.endsWith("/") ? b : b + "/"); });
+
+// Textos con pinta de ruta dentro de los parámetros de una herramienta.
+function pathsOf(params) {
+  const out = [];
+  for (const [k, v] of Object.entries(params || {})) if (typeof v === "string" && /path|file|dir|target|cwd/i.test(k)) out.push(v);
+  return out;
+}
+const cmdOf = (params) => { const v = params?.CommandLine ?? params?.command ?? params?.Command; return typeof v === "string" ? v : null; };
+
+// Vigilancia (agy en Windows NO confina por sí mismo): comandos peligrosos y rutas fuera de las carpetas permitidas.
+export function guardTool({ tool, params }, allowedDirs = [], cwd = process.cwd()) {
+  const cmd = cmdOf(params);
+  if (cmd) {
+    const b = blockedForGemini(cmd);
+    if (b) return { ...b, detail: cmd };
+  }
+  if (allowedDirs.length) {
+    for (const p of pathsOf(params)) {
+      const abs = /^([a-z]:[\\/]|[\\/]{1,2})/i.test(p) ? p : join(cwd, p);
+      if (!inside(abs, allowedDirs)) return { kind: "fuera_de_carpeta", summary: "Tocar archivos fuera de las carpetas de Gemini", detail: `${tool}: ${p}` };
+    }
+    if (cmd) {
+      const sale = /(^|[\s"'=])\.\.[\\/]/.test(cmd) || [...cmd.matchAll(/[a-z]:[\\/][^\s"'|&;<>]*/gi)].some((m) => !inside(m[0], allowedDirs));
+      if (sale) return { kind: "fuera_de_carpeta", summary: "Comando que sale de las carpetas de Gemini", detail: cmd };
+    }
+  }
+  return null;
 }
 
-function tokensOf(o) {
-  const s = o?.stats || o?.usage || {};
-  const sum = (k) => (s.models ? Object.values(s.models).reduce((t, m) => t + (m?.tokens?.[k] || 0), 0) : 0);
-  return {
-    tokens_in: Number(s.input_tokens ?? s.promptTokenCount ?? sum("prompt")) || 0,
-    tokens_out: Number(s.output_tokens ?? s.candidatesTokenCount ?? sum("candidates")) || 0,
-  };
-}
-
-// Devuelve { text, isError, errorKind, usage, commands, blocked, aborted, exitCode, stderr }.
-export function runAgy({ command, prefix = [], args, stdin, cwd, env = process.env, onEvents = () => {}, timeoutMs = 30 * 60_000, spawnFn = spawn }) {
-  return new Promise((resolve) => {
-    const child = spawnFn(command, [...prefix, ...args], { cwd, env: { ...agyEnv(env), ...(prefix.length && process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}) }, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, shell: false });
-    const out = { text: "", isError: false, errorKind: null, usage: { tokens_in: 0, tokens_out: 0 }, commands: [], blocked: null, aborted: null, exitCode: null, stderr: "" };
+// Devuelve { text, isError, errorKind, usage, commands, denials, blocked, aborted, conversationId, status, exitCode, stderr }.
+export function runAgy({ command, prefix = [], args, cwd, env = process.env, onEvents = () => {}, timeoutMs = 30 * 60_000, allowedDirs = [], spawnFn = spawn }) {
+  return new Promise((resolveP) => {
+    const child = spawnFn(command, [...prefix, ...args], { cwd, env: { ...agyEnv(env), ...(prefix.length && process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}) }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, shell: false });
+    const out = { text: "", isError: false, errorKind: null, usage: { tokens_in: 0, tokens_out: 0 }, commands: [], denials: [], blocked: null, aborted: null, conversationId: null, status: null, exitCode: null, stderr: "" };
     let buf = "", raw = "", finished = false, errMsg = "";
-    const parts = [];
+    const deltas = new Map(); // step_index -> texto acumulado
+    const plain = [];
     const kill = (why) => { if (!out.aborted) { out.aborted = why; try { child.kill(); } catch { /* ya terminó */ } } };
     const timer = setTimeout(() => kill("tiempo"), timeoutMs);
+    const deny = (what, msg) => { const t = `${what}: ${String(msg).replace(/\s+/g, " ").slice(0, 160)}`; if (!out.denials.includes(t)) out.denials.push(t); };
+    const usageOf = (u) => (u && typeof u === "object" ? { tokens_in: Number(u.input_tokens) || 0, tokens_out: Number(u.output_tokens) || 0 } : null);
 
     const handle = (line) => {
       const s = line.trim(); if (!s) return;
-      let m; try { m = JSON.parse(s); } catch { onEvents([{ kind: "texto", text: s.slice(0, 300) }]); parts.push(s); return; }
+      let m; try { m = JSON.parse(s); } catch { plain.push(s); onEvents([{ kind: "texto", text: s.slice(0, 300) }]); return; }
       if (!m || typeof m !== "object") return;
-      const cmd = findCommand(m);
-      if (cmd) {
-        out.commands.push(cmd); onEvents([{ kind: "herramienta", text: `Bash: ${cmd.slice(0, 120)}` }]);
-        const b = blockedForGemini(cmd);
-        if (b) { out.blocked = { ...b, detail: cmd }; kill("comando_bloqueado"); }
+      if (m.event === "init") {
+        out.conversationId = m.init?.conversation_id || m.conversation_id || out.conversationId;
+        onEvents([{ kind: "inicio", text: `Gemini empezó (${m.init?.model || "agy"})` }]);
         return;
       }
-      const t = typeof m.response === "string" ? m.response
-        : (m.type === "message" && m.role !== "user" && typeof m.content === "string") ? m.content
-        : typeof m.text === "string" ? m.text : null;
-      if (t) { if (typeof m.response === "string") out.text = t; else parts.push(t); onEvents([{ kind: "texto", text: t.trim().slice(0, 300) }]); }
-      if (m.type === "result" || m.stats || m.usage) { const u = tokensOf(m); if (u.tokens_in || u.tokens_out) out.usage = u; }
-      if (m.error || m.type === "error" || m.status === "error") { out.isError = true; errMsg = JSON.stringify(m.error ?? m).slice(0, 500); }
+      if (m.event === "step_update" && m.step_update) {
+        const u = m.step_update;
+        out.conversationId ||= u.conversation_id || null;
+        if (u.step_type === "agent_response" && typeof u.text_delta === "string") {
+          deltas.set(u.step_index, (deltas.get(u.step_index) || "") + u.text_delta);
+          if (u.state === "DONE") { const t = (deltas.get(u.step_index) || "").trim(); if (t) onEvents([{ kind: "texto", text: t.slice(0, 300) }]); }
+        } else if (u.step_type === "tool") {
+          const params = u.tool_info?.parameters || {};
+          const tool = u.tool_name || u.tool_info?.name || "herramienta";
+          if (u.state === "ACTIVE") {
+            const cmd = cmdOf(params);
+            if (cmd) out.commands.push(cmd);
+            onEvents([{ kind: "herramienta", text: cmd ? `Comando: ${cmd.slice(0, 120)}` : `${tool}: ${pathsOf(params)[0] || ""}`.slice(0, 160) }]);
+            const b = guardTool({ tool, params }, allowedDirs, cwd);
+            if (b) { out.blocked = b; deny(b.summary, b.detail); kill("comando_bloqueado"); }
+          } else {
+            const bad = /ERROR|REJECT|DENIED|CANCEL/i.test(String(u.state)) ? u.tool_info?.error || u.tool_info?.output || u.state : (u.tool_info?.error || null);
+            const why = bad || (RECHAZO.test(String(u.tool_info?.output || "")) ? u.tool_info.output : null);
+            if (why) deny(tool, typeof why === "string" ? why : JSON.stringify(why));
+          }
+        }
+        return;
+      }
+      if (m.event === "result" && m.result) {
+        const r = m.result;
+        out.status = r.status ?? null;
+        if (typeof r.response === "string") out.text = r.response;
+        const us = usageOf(r.usage); if (us) out.usage = us;
+        if (r.status && r.status !== "SUCCESS") { out.isError = true; errMsg = JSON.stringify(r.error ?? r).slice(0, 500); }
+        return;
+      }
+      if (m.error || m.type === "error") { out.isError = true; errMsg = JSON.stringify(m.error ?? m).slice(0, 500); }
     };
     child.stdout.on("data", (d) => { const s = d.toString("utf8"); raw += s; buf += s; let i; while ((i = buf.indexOf("\n")) >= 0) { handle(buf.slice(0, i)); buf = buf.slice(i + 1); } });
     child.stderr.on("data", (d) => { out.stderr = (out.stderr + d.toString("utf8")).slice(-3000); });
@@ -62,18 +119,15 @@ export function runAgy({ command, prefix = [], args, stdin, cwd, env = process.e
       if (finished) return; finished = true; clearTimeout(timer);
       if (buf.trim()) handle(buf);
       out.exitCode = code;
-      if (!out.text) { // un único JSON multilínea
-        try { const j = JSON.parse(raw); if (typeof j.response === "string") { out.text = j.response; out.usage = tokensOf(j); } } catch { /* no era un único JSON */ }
-      }
-      if (!out.text) out.text = parts.join("\n").trim();
+      if (!out.text) out.text = [...deltas.values()].join("").trim() || plain.join("\n").trim();
       if (err) { out.isError = true; out.text = out.text || `No pude ejecutar Antigravity CLI (agy): ${err.message}`; }
       if (code) out.isError = true;
-      if (out.isError) out.errorKind = classifyAgyError(`${errMsg}\n${out.stderr}\n${out.text}`);
-      resolve(out);
+      if (RECHAZO.test(out.stderr)) deny("agy", out.stderr.split(/\r?\n/).find((l) => RECHAZO.test(l)) || out.stderr);
+      if (out.denials.length) out.isError = true; // un rechazo de permiso cuenta como error (v1: sin ronda de aprobación)
+      if (out.isError) out.errorKind = classifyAgyError(`${errMsg}\n${out.stderr}\n${out.text}`) || (out.denials.length ? "permiso" : null);
+      resolveP(out);
     };
     child.on("error", (e) => done(null, e));
     child.on("close", (c) => done(c));
-    child.stdin.on("error", () => {});
-    child.stdin.end(stdin);
   });
 }

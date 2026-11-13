@@ -196,3 +196,10 @@ Abra la pestaña **Pro** en Jarvis, elija repo (nuevo hilo) y escriba el pedido.
 - `agy` no tiene un modo "solo lectura" garantizado: se le pide en el prompt y el diff real de git lo comprueba. Sus comandos peligrosos y `npm test` se vigilan y cortan el trabajo.
 - Si cancela una ronda, el PC puede terminar el paso en curso (su resultado se descarta).
 - Sin probar con las CLIs reales ni con Render: solo con simuladores.
+
+## Gemini en el PC (agy)
+
+1. Instale Antigravity CLI (`agy`) y ejecute `agy` una vez para iniciar sesión.
+2. Jarvis lo detecta solo (`agy models` debe listar modelos).
+3. Los términos de Google no admiten cuentas de consumo en aplicaciones de terceros: úselo bajo su responsabilidad. Desactive la recogida de datos en los ajustes de agy si no desea compartirlos.
+4. Elija "Gemini" en el selector del chat o escriba `/gemini ...`. Con "privado" marcado nunca se usa Gemini.

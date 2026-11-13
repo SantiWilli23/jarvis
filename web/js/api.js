@@ -21,11 +21,12 @@ export async function api(path, { method = "GET", body, raw, headers = {}, auth 
 
 export const login = (password) => api("/auth/login", { method: "POST", body: { password, deviceName: navigator.userAgent.includes("iPhone") ? "iPhone" : "Navegador" }, auth: false });
 export const getStatus = () => api("/status");
-export const sendChat = (text, priv, conversationId) => api("/chat", { method: "POST", body: { text, private: !!priv, conversationId, source: "voz" } });
+export const sendChat = (text, priv, conversationId, engine = "auto") => api("/chat", { method: "POST", body: { text, private: !!priv, conversationId, source: "voz", engine } });
 export const transcribe = (blob) => api("/stt", { method: "POST", raw: blob, headers: { "content-type": blob.type || "audio/mp4" } });
 export const decideApproval = (id, approve) => api(`/approvals/${id}`, { method: "POST", body: { approve } });
 export const pendingApprovals = () => api("/approvals");
 export const deleteTask = (id) => api(`/tasks/${id}`, { method: "DELETE" });
+export const passToClaude = (id) => api(`/tasks/${id}/pass-to-claude`, { method: "POST", body: {} });
 export const approveReview = (id) => api(`/tasks/${id}/approve-review`, { method: "POST", body: {} });
 export const logout = () => api("/auth/logout", { method: "POST", body: {} });
 

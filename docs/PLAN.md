@@ -75,3 +75,14 @@ Push o deploy sin permiso, `--dangerously-skip-permissions`, claves en git o en 
 - Ronda: plan -> usted aprueba -> programar -> verifica el otro motor (informe vs. diff real de git) -> hasta 2 correcciones -> aceptar = commit local. Gemini = Antigravity CLI (`agy`, cuenta AI Pro).
 - Etapa 3 (integración): servidor y runner, hechos en paralelo, se ajustaron al contrato (rol `commit` en el runner; plan como texto). Prueba extremo a extremo `test/pro-e2e.test.js` (servidor real + worker real + claude/agy falsos).
 - Pendiente de verificar a mano: `claude` y `agy` reales (flags, id del modelo, login), Render real, la web Pro con una ronda real.
+
+## Motores del PC (Flash / Gemini / Claude)
+
+- Selector Auto/Flash/Gemini/Claude en el chat (`localStorage jarvis_motor`). "Privado" desactiva Gemini.
+- Flash: cadena de nube (Gemini `gemini-3.8-flash`), siempre disponible. Con el PC apagado responde preguntas con la nota "(Flash: PC apagado)".
+- Gemini PC: tareas con `engine='gemini'` ejecutadas por `agy -p` (Antigravity CLI) con `gemini-3.8-flash-high` (`config/providers.json > motores_pc`). Planificación con `gemini-4-hydrogen` por API.
+- Disparadores: `/gemini`, `díselo a Gemini:`, `directo a Gemini:` (texto exacto, sin modelo).
+- Lo privado nunca va a Gemini: se comprueba antes de encolar (`privado_no_gemini`).
+- Solo trabaja en `carpetas_gemini` (por defecto Documentos\Jarvis\gemini). Topes propios en `ai_usage`.
+- Límite conocido: `agy --sandbox` no confina en Windows; el runner vigila comandos y rutas (`guardTool`), best-effort. El pedido va por argumento (máx. 28000 caracteres).
+- "Pasar a Claude" reasigna una tarea fallida/rechazada/pendiente a Claude.
