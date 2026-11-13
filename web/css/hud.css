@@ -296,3 +296,11 @@ body[data-state="permiso"] { --accent: var(--amber); }
 .states button { background: var(--panel); color: var(--fg); }
 .say-form button { background: var(--panel); color: var(--fg); }
 .task .acts button { background: var(--panel-2); color: var(--fg); }
+.modo-tag { display: inline-block; margin-top: 4px; padding: 1px 8px; font-style: normal; font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); }
+.modo-tag[hidden] { display: none; }
+.cfg-lbl { display: block; font-family: var(--mono); font-size: 11px; color: var(--dim); margin-bottom: 8px; }
+.cfg-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cfg-opts button { min-height: 44px; background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; }
+.cfg-opts button:hover { border-color: var(--accent); }
+.cfg-opts button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.cfg-nota { margin: 8px 0 0; font-family: var(--mono); font-size: 11px; line-height: 1.4; color: var(--dim); }

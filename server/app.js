@@ -5,6 +5,7 @@ import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
 import { deviceRoutes } from "./routes/devices.js";
 import { chatRoutes } from "./routes/chat.js";
+import { settingsRoutes } from "./routes/settings.js";
 import { sttRoutes } from "./routes/stt.js";
 import { ttsRoutes } from "./routes/tts.js";
 import { taskRoutes } from "./routes/tasks.js";
@@ -47,6 +48,7 @@ export function createApp(ctx) {
   api.use("/devices", auth, deviceRoutes(ctx));
   api.use("/pro", auth, proRoutes(ctx));
   api.use("/chat", auth, chatRoutes(ctx));
+  api.use("/settings", auth, settingsRoutes(ctx));
   api.use("/stt", auth, sttRoutes(ctx));
   api.use("/tts", auth, ttsRoutes(ctx));
   api.use("/tasks", auth, taskRoutes(ctx));

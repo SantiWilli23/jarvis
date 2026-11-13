@@ -1,5 +1,5 @@
 // Punto de entrada: pantalla de contraseña, WebSocket, orbe, voz y paneles.
-import { api, login, getToken, setToken, onAuthLost, getStatus, sendChat, transcribe, decideApproval, pendingApprovals, deleteTask, approveReview, passToClaude, logout, waitForServer } from "./api.js";
+import { getSettings, putSettings, api, login, getToken, setToken, onAuthLost, getStatus, sendChat, transcribe, decideApproval, pendingApprovals, deleteTask, approveReview, passToClaude, logout, waitForServer } from "./api.js";
 import { connectWs, closeWs } from "./ws.js";
 import { store, setState, subscribe, LABELS, VISUAL } from "./state.js";
 import { initOrb, setVisual } from "./orb.js";
@@ -165,10 +165,30 @@ function showLogin() {
   $("login").hidden = false; $("app").style.visibility = "hidden";
   $("pw").value = ""; setTimeout(() => $("pw").focus(), 50);
 }
+/* ---------- configuración: modo IA / Chat (se guarda en el servidor) ---------- */
+const NOTAS_MODO = { ia: "IA: con búsqueda web, herramientas y tareas para el PC.", chat: "Chat: solo conversar. Sin búsqueda web, acciones ni tareas." };
+function pintarModo(m) {
+  const modo = m === "chat" ? "chat" : "ia";
+  for (const b of document.querySelectorAll("#panel-config [data-modo]")) b.setAttribute("aria-pressed", String(b.dataset.modo === modo));
+  const nota = document.getElementById("cfg-nota"), tag = document.getElementById("modotag"); // solo existen en index.html (m.html no los trae)
+  if (nota) nota.textContent = NOTAS_MODO[modo];
+  if (tag) tag.hidden = modo !== "chat";
+  document.body.dataset.modo = modo;
+}
+async function cargarModo() { try { pintarModo((await getSettings()).modo); } catch { /* sin conexión: queda el último */ } }
+for (const b of document.querySelectorAll("#panel-config [data-modo]")) {
+  b.addEventListener("click", async () => {
+    const antes = document.body.dataset.modo || "ia";
+    pintarModo(b.dataset.modo);
+    try { pintarModo((await putSettings(b.dataset.modo)).modo); } catch { pintarModo(antes); const n = document.getElementById("cfg-nota"); if (n) n.textContent = "No se pudo guardar el modo. Reintente."; }
+  });
+}
+
 async function enter() {
   $("login").hidden = true; $("app").style.visibility = "visible";
   if (started) return; started = true;
   await refreshStatus();
+  cargarModo();
   try { const { approvals } = await pendingApprovals(); if (approvals[0]) setApproval(approvals[0]); } catch { /* sin pendientes */ }
   connectWs(onWs);
   say("Jarvis", "A su servicio, señor. Toque el orbe.");

@@ -22,6 +22,8 @@ export async function api(path, { method = "GET", body, raw, headers = {}, auth 
 export const login = (password) => api("/auth/login", { method: "POST", body: { password, deviceName: navigator.userAgent.includes("iPhone") ? "iPhone" : "Navegador" }, auth: false });
 export const getStatus = () => api("/status");
 export const sendChat = (text, priv, conversationId, engine = "auto") => api("/chat", { method: "POST", body: { text, private: !!priv, conversationId, source: "voz", engine } });
+export const getSettings = () => api("/settings");
+export const putSettings = (modo) => api("/settings", { method: "PUT", body: { modo } });
 export const transcribe = (blob) => api("/stt", { method: "POST", raw: blob, headers: { "content-type": blob.type || "audio/mp4" } });
 export const decideApproval = (id, approve) => api(`/approvals/${id}`, { method: "POST", body: { approve } });
 export const pendingApprovals = () => api("/approvals");

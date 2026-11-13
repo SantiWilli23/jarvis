@@ -72,7 +72,7 @@
     <section class="stage" aria-label="Orbe de Jarvis">
       <div class="orbwrap">
         <canvas id="orb" aria-label="Orbe de Jarvis, toque para hablar" role="img"></canvas>
-        <div class="readout"><b id="slabel">En espera</b><span id="smodel">toque el orbe</span></div>
+        <div class="readout"><b id="slabel">En espera</b><span id="smodel">toque el orbe</span><i class="modo-tag" id="modotag" hidden>Chat</i></div>
         <div class="perm" id="perm" role="alertdialog" aria-label="Pedido de permiso">
           <div class="k" id="permk">Claude pide permiso</div>
           <code id="permcode"></code>
@@ -100,6 +100,17 @@
       <div class="panel">
         <h2>Cola para el PC <em id="qcount">0</em></h2>
         <div id="queue"></div>
+      </div>
+      <div class="panel" id="panel-config">
+        <h2 id="cfg-titulo">Configuración</h2>
+        <div class="cfg-modo" role="group" aria-labelledby="cfg-modo-lbl">
+          <span class="cfg-lbl" id="cfg-modo-lbl">Modo de Jarvis</span>
+          <div class="cfg-opts">
+            <button type="button" id="modo-ia" data-modo="ia" aria-pressed="true">IA</button>
+            <button type="button" id="modo-chat" data-modo="chat" aria-pressed="false">Chat</button>
+          </div>
+          <p class="cfg-nota" id="cfg-nota">IA: con búsqueda web, herramientas y tareas para el PC.</p>
+        </div>
       </div>
       <div id="voz" hidden></div><!-- panels.js lo rellena; el panel visible se quitó -->
     </section>

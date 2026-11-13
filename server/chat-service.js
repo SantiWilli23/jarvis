@@ -3,6 +3,10 @@ import { all, get, run } from "./db/client.js";
 import { detectDirect } from "./queue/direct.js";
 import { classify } from "./router/classify.js";
 import { parsePhoneIntent, phoneReply } from "./phone/intents.js";
+import { getModo } from "./settings.js";
+
+// Modo Chat: solo conversar. Sin búsqueda web, sin acciones ni tareas para el PC o el teléfono.
+const PROMPT_MODO_CHAT = "\n\nMODO CHAT: el señor eligió que solo converse. Responda únicamente con texto: no busque en la web, no use herramientas ni ofrezca acciones (correo, calendario, Spotify, WhatsApp, teléfono) y no prepare ni encole tareas para el PC. Si le piden algo así, explique con amabilidad que está en modo Chat y que puede cambiarlo a IA en Configuración.";
 
 const MSG_SIN_CUOTA = "Mis proveedores gratuitos llegaron a su límite por ahora, señor. Lo reintento en cuanto se reinicien.";
 
@@ -42,13 +46,14 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
     },
     async handle({ userId, text, conversationId, flagPrivate = false, source = "texto", engine = "auto" }) {
       const motor = MOTORES.includes(engine) ? engine : "auto";
+      const chatSolo = (await getModo(db, userId)) === "chat"; // el servidor decide, no el cliente
       const original = String(text ?? "");
       if (!original.trim()) return { status: "vacio", reply: "No le oí nada, señor." };
       const conv = await ensureConversation(userId, conversationId, original);
       state(userId, "thinking");
 
       // 1) Directo a Claude o a Gemini: se guarda el texto exacto, sin modelo.
-      const d = detectDirect(original);
+      const d = chatSolo ? { direct: false } : detectDirect(original);
       if (d.direct) {
         const quien = d.engine === "gemini" ? "Gemini" : "Claude";
         if (!d.text.length) { state(userId, "idle"); return { status: "vacio", conversationId: conv, reply: `¿Qué quiere que le diga a ${quien}, señor?` }; }
@@ -72,7 +77,7 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       }
 
       // 1b) Orden fija para el teléfono ("enciende la linterna", "brillo al 30"): sin modelo
-      const pi = phone && !flagPrivate ? parsePhoneIntent(original, phone.config) : null;
+      const pi = !chatSolo && phone && !flagPrivate ? parsePhoneIntent(original, phone.config) : null;
       if (pi) {
         const out = await phone.create({ userId, action: pi.action, args: pi.args, source });
         if (out.ok) {
@@ -93,7 +98,7 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       // 3) Acción para el PC: modo Preparar. Motor: lo privado SIEMPRE Claude; Auto = Claude (o Gemini si Claude
       // llegó a su tope diario y el PC tiene agy); Gemini = cola para Gemini aunque el PC esté apagado;
       // Flash = no actúa en el PC, responde la nube.
-      if (cls.kind === "accion_pc" && !(motor === "flash" && !isPrivate)) {
+      if (!chatSolo && cls.kind === "accion_pc" && !(motor === "flash" && !isPrivate)) {
         if (motor === "gemini" && !isPrivate && !(agent?.geminiActive?.())) return geminiOff({ userId, conv, original });
         let eng = "claude";
         if (!isPrivate) {
@@ -117,7 +122,7 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       const notaFlash = () => { agent?.sweep?.(); return motor === "gemini" && !isPrivate && agent && !(agent.view().online && agent.geminiReady()) ? NOTA_PC_APAGADO : ""; };
 
       // 3b) Consulta actual y NO privada: búsqueda web con citas (si falla, sigue la cadena normal)
-      if (cls.kind === "investigacion" && !isPrivate && webSearch) {
+      if (!chatSolo && cls.kind === "investigacion" && !isPrivate && webSearch) {
         const w = await webSearch.search({ userId, query: original, isPrivate });
         if (w.ok) {
           const reply = webSearch.format(w) + notaFlash();
@@ -132,10 +137,10 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       // 4) Charla normal por la cadena de modelos
       const hist = await all(db, "SELECT role, content, private FROM messages WHERE conversation_id=? AND user_id=? ORDER BY id DESC LIMIT 10", [conv, userId]);
       const history = hist.reverse().filter((m) => isPrivate || !m.private).map((m) => ({ role: m.role, content: m.content }));
-      let system = persona;
+      let system = persona + (chatSolo ? PROMPT_MODO_CHAT : "");
       if (found.notes.length) system += "\n\nNotas del señor que pueden servir:\n" + found.notes.map((n) => `- ${n.title ? n.title + ": " : ""}${n.body}`).join("\n");
       await saveMsg(userId, conv, "user", original, null, isPrivate);
-      const r = await router.route({ userId, kind: cls.kind, system, isPrivate, messages: [...history, { role: "user", content: original }] });
+      const r = await router.route({ userId, kind: chatSolo && (cls.kind === "accion_pc" || cls.kind === "investigacion") ? "charla" : cls.kind, system, isPrivate, messages: [...history, { role: "user", content: original }] });
       bus?.emit("providers.update", { userId });
       if (!r.ok) {
         await saveMsg(userId, conv, "assistant", MSG_SIN_CUOTA, null, isPrivate);
