@@ -16,6 +16,7 @@ import { stubRoutes } from "./routes/stubs.js";
 import { agentRoutes } from "./routes/agent.js";
 import { extensionRoutes } from "./routes/extensions.js";
 import { phoneRoutes } from "./routes/phone.js";
+import { pushRoutes } from "./routes/push.js";
 
 const WEB = fileURLToPath(new URL("../web", import.meta.url));
 
@@ -39,6 +40,7 @@ export function createApp(ctx) {
   api.use(extensionRoutes(ctx, auth));        // telegram, cron, whatsapp, connect, tools, search (fases 4-6)
   api.use("/shortcut", requireAuth(ctx.sessions, { kinds: ["shortcut"] }), shortcutRoutes(ctx));
   api.use("/phone", phoneRoutes(ctx));         // cola del iPhone: token "phone" en next/done, sesión web en actions
+  api.use("/push", auth, pushRoutes(ctx));
   api.use("/devices", auth, deviceRoutes(ctx));
   api.use("/chat", auth, chatRoutes(ctx));
   api.use("/stt", auth, sttRoutes(ctx));

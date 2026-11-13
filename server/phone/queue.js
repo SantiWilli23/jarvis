@@ -115,6 +115,7 @@ export function createPhoneQueue({ db, bus, approvals, audit, config, now = () =
       }
       await log(userId, "phone.creada", `${action} ${status} (${source})`);
       emit(userId, { action: { id: r.id, status } });
+      if (status === "lista") bus?.emit("phone.lista", { userId, id: r.id });
       return { ok: true, item: view(await get(db, "SELECT * FROM phone_actions WHERE id=?", [r.id])) };
     },
 
@@ -171,6 +172,7 @@ export function createPhoneQueue({ db, bus, approvals, audit, config, now = () =
         if (vivo) await run(db, "UPDATE phone_actions SET status='lista', expires_at=? WHERE id=? AND status='aprobacion'", [t + minCad, row.id]);
         else await run(db, "UPDATE phone_actions SET status='caducada', done_at=? WHERE id=? AND status='aprobacion'", [t, row.id]);
         await log(userId, "phone.aprobada", row.action);
+        if (vivo) bus?.emit("phone.lista", { userId, id: row.id });
       } else {
         await run(db, "UPDATE phone_actions SET status='rechazada', done_at=? WHERE id=? AND status='aprobacion'", [now(), row.id]);
         await log(userId, "phone.rechazada", row.action);
