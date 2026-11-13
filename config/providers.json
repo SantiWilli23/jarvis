@@ -19,7 +19,7 @@
     "nota": "Búsqueda web: Perplexity si hay PERPLEXITY_API_KEY; si no, Gemini con Google Search (GEMINI_API_KEY); si no, respuestas instantáneas de DuckDuckGo (sin clave). Nunca se busca con texto privado.",
     "gemini_modelo": "gemini-2.5-flash"
   },
-  "cadena_gratis": ["gemini", "groq", "mistral", "openrouter", "cloudflare", "ollama"],
+  "cadena_gratis": ["gemini", "groq", "openrouter", "cloudflare", "ollama"],
   "proveedores": {
     "gemini":     { "nombre": "Gemini Flash-Lite", "rol": "Fotos · preguntas medias", "env": "GEMINI_API_KEY", "modelo": "gemini-2.0-flash-lite", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
     "groq":       { "nombre": "Groq gpt-oss-120b", "rol": "Rápido · lo privado", "env": "GROQ_API_KEY", "modelo": "openai/gpt-oss-120b", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },

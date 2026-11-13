@@ -143,7 +143,7 @@ test("OpenRouter: apagado sin clave y con modelo que no es :free", () => {
   assert.equal(buildProviders({ env: { OPENROUTER_API_KEY: "k" }, config: cfg }).openrouter.enabled, false);
   assert.ok(config.permite_privado.every((id) => id !== "openrouter"));
   assert.equal(config.proveedores.openrouter.limites.rpd, 50);
-  assert.deepEqual(config.cadena_gratis.slice(0, 4), ["gemini", "groq", "mistral", "openrouter"]);
+  assert.deepEqual(config.cadena_gratis.slice(0, 3), ["gemini", "groq", "openrouter"]);
 });
 
 async function orSetup(f) {
