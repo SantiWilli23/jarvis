@@ -13,7 +13,7 @@
     "max_caracteres": 400,
     "cachear": ["Hola, señor."],
     "gemini": { "enabled": true, "modelo": "gemini-2.5-flash-preview-tts", "voz": "Charon", "tope_dia": 30 },
-    "minimax": { "enabled": false, "modelo": "speech-2.8-hd", "tope_caracteres_dia": 5000, "nota": "APAGADO: la cuenta no tiene saldo (error 1008). Ponga enabled:true cuando tenga saldo." }
+    "minimax": { "enabled": true, "modelo": "speech-2.8-hd", "tope_caracteres_dia": 5000, "nota": "ENCENDIDO: se usa mientras haya saldo. Sin saldo (error 1008) se pausa 10 min y cae a la siguiente voz." }
   },
   "cadena_gratis": ["gemini", "groq", "mistral", "openrouter", "cloudflare", "ollama"],
   "proveedores": {
