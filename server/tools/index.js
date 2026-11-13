@@ -4,8 +4,9 @@
 // Los resultados traen `private:true` cuando son datos personales; se devuelven tal cual al dueño
 // y NUNCA se pasan a ningún modelo desde aquí (este módulo no llama al enrutador).
 import { run } from "../db/client.js";
+import { parsePhoneIntent, phoneReply } from "../phone/intents.js";
 
-export function createTools({ db, approvals, audit, bus, permissions, websearch, google, spotify, games, whatsapp, notify, status, now = () => Date.now() }) {
+export function createTools({ db, approvals, audit, bus, permissions, websearch, google, spotify, games, whatsapp, phone, notify, status, now = () => Date.now() }) {
   const list = new Map();
   const add = (t) => list.set(t.name, t);
   const off = (c) => () => !!c?.enabled;
@@ -30,6 +31,20 @@ export function createTools({ db, approvals, audit, bus, permissions, websearch,
       if (!a.text || !Number.isFinite(due)) throw new Error("faltan texto y hora");
       await run(db, "INSERT INTO reminders (user_id, text, due_at, created_at) VALUES (?,?,?,?)", [userId, String(a.text).slice(0, 500), due, now()]);
       return { text: `Anotado: "${String(a.text).slice(0, 80)}" en ${Math.max(1, Math.round((due - now()) / 60_000))} min.` };
+    } });
+
+  // Teléfono: deja una acción de la lista blanca en la cola del iPhone (las sensibles piden aprobación dentro de la cola)
+  add({ name: "telefono.accion", desc: "Deja una acción en la cola del iPhone (args: accion+valor, o frase)", mode: "auto", private: false, enabled: () => !!phone,
+    run: async (userId, a) => {
+      let accion = a.accion, args = a;
+      if (a.frase && !accion) {
+        const p = parsePhoneIntent(a.frase, phone.config);
+        if (p) { accion = p.action; args = p.args; }
+        else { const [x, ...v] = String(a.frase).trim().split(/s+/); accion = x; args = { valor: v.join(" ") }; }
+      }
+      const out = await phone.create({ userId, action: String(accion || ""), args, source: "tool" });
+      if (!out.ok) throw new Error(out.error);
+      return { text: phoneReply(out.item) };
     } });
 
   // Google

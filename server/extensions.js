@@ -24,7 +24,7 @@ export function buildExtensions(ctx, { fetch: f } = {}) {
   const games = createGames({ env, fetch: f });
   const whatsapp = createWhatsApp({ env, fetch: f, db, notify, ownerId: ctx.ownerId, now });
   const tools = createTools({ db, approvals: ctx.approvals, audit: ctx.audit, bus, permissions: ctx.permissions, websearch: ctx.websearch,
-    google, spotify, games, whatsapp, notify, status: ctx.status, now });
+    google, spotify, games, whatsapp, phone: ctx.phone, notify, status: ctx.status, now });
   const cron = createCron({ db, notify, state: ctx.state, status: ctx.status, ownerId: ctx.ownerId, env, now, bus });
   return { crypto, connections, oauthStates, telegram, notify, google, spotify, games, whatsapp, tools, cron };
 }

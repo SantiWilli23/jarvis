@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual">
+<meta name="theme-color" content="#080b10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Jarvis">
+<title>Jarvis</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="css/hud.css">
+<link rel="stylesheet" href="css/movil.css">
+</head>
+<body class="movil" data-state="idle">
+
+<div class="wake" id="wake" hidden>Despertando… el servidor estaba dormido, reintentando.</div>
+
+<div class="login" id="login" hidden>
+  <form id="loginform" autocomplete="on">
+    <div class="brand">JARVIS</div>
+    <label for="pw">Contraseña</label>
+    <input id="pw" name="password" type="password" autocomplete="current-password" required>
+    <div class="err" id="loginerr" role="alert"></div>
+    <button type="submit">Entrar</button>
+  </form>
+</div>
+
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand">JARVIS</div>
+    <span class="sp"></span>
+    <span class="chip" title="Estado del PC"><i class="dot off" id="pcdot"></i><span id="clock">--:--</span></span>
+    <button class="globe" id="apbtn" type="button" aria-label="Aprobaciones pendientes">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 4 5.6 4 9s-1.4 6.4-4 9c-2.6-2.6-4-5.6-4-9s1.4-6.4 4-9z"/></svg>
+      <b id="apcount" hidden>0</b>
+    </button>
+  </header>
+
+  <main class="stage" aria-label="Orbe de Jarvis">
+    <div class="orbwrap">
+      <canvas id="orb" aria-label="Orbe de Jarvis, toque para hablar" role="img"></canvas>
+      <div class="readout"><b id="slabel">En espera</b><span id="smodel">toque el orbe</span></div>
+    </div>
+    <div class="say" aria-live="polite">
+      <div class="who" id="who">Jarvis</div>
+      <div class="txt" id="txt"></div>
+    </div>
+    <div class="hint" id="hint">Toque el orbe para saludar. Después, un toque para hablar y otro para enviar.</div>
+  </main>
+
+  <nav class="dock" aria-label="Acciones">
+    <button type="button" data-open="kb"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg><span>Teclado</span></button>
+    <button type="button" data-open="cola"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Cola</span><b class="badge" id="colabadge" hidden>0</b></button>
+    <button type="button" data-open="tel"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path d="M11 18.5h2"/></svg><span>Teléfono</span></button>
+    <button type="button" data-open="estado"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h4l3-8 4 15 3-7h4"/></svg><span>Estado</span></button>
+    <button type="button" data-open="mas"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg><span>Más</span></button>
+  </nav>
+
+  <form class="say-form" id="sayform">
+    <label class="sr" for="sayin">Escribir a Jarvis</label>
+    <input type="text" id="sayin" placeholder="Escriba a Jarvis…" autocomplete="off" enterkeyhint="send" maxlength="4000">
+    <label class="priv"><input type="checkbox" id="saypriv"> privado</label>
+    <button type="submit">Enviar</button>
+  </form>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+
+<!-- Hoja: Cola (PC / Teléfono) -->
+<section class="sheet" id="sh-cola" role="dialog" aria-label="Cola" hidden>
+  <div class="grip" aria-hidden="true"></div>
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" class="on" data-tab="pc">PC</button>
+    <button type="button" role="tab" data-tab="tel">Teléfono <b id="qtelcount">0</b></button>
+  </div>
+  <div class="body">
+    <div class="tabpane" id="tab-pc">
+      <div class="panel">
+        <h2>Cola para el PC <em id="qcount">0</em></h2>
+        <div id="queue"></div>
+      </div>
+    </div>
+    <div class="tabpane" id="tab-tel" hidden>
+      <div class="panel">
+        <h2>Cola del teléfono <em>últimas acciones</em></h2>
+        <div id="phqueue"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Hoja: Teléfono -->
+<section class="sheet" id="sh-tel" role="dialog" aria-label="Teléfono" hidden>
+  <div class="grip" aria-hidden="true"></div>
+  <div class="body">
+    <a class="run" id="phrun" href="shortcuts://run-shortcut?name=Jarvis%20Puente">Ejecutar en el iPhone (<span id="phn">0</span>)</a>
+    <p class="note" id="phnote">Deje acciones aquí y el Atajo «Jarvis Puente» las hace en el iPhone.</p>
+    <div class="phgrid" id="phgrid"></div>
+    <div class="phrow">
+      <label for="phbri">Brillo <output id="phbrio">50</output>%</label>
+      <input type="range" id="phbri" min="0" max="100" value="50">
+      <button type="button" id="phbrib">Poner</button>
+    </div>
+    <div class="phrow">
+      <label for="phvol">Volumen <output id="phvolo">50</output>%</label>
+      <input type="range" id="phvol" min="0" max="100" value="50">
+      <button type="button" id="phvolb">Poner</button>
+    </div>
+    <form class="phrow" id="phsay">
+      <label class="sr" for="phsayin">Texto para decir en voz alta</label>
+      <input type="text" id="phsayin" placeholder="Decir en el iPhone…" maxlength="300" autocomplete="off">
+      <button type="submit">Decir</button>
+    </form>
+    <div class="panel">
+      <h2>Historial <em id="phmsg"></em></h2>
+      <div id="phhist"></div>
+    </div>
+  </div>
+</section>
+
+<!-- Hoja: Estado -->
+<section class="sheet" id="sh-estado" role="dialog" aria-label="Estado" hidden>
+  <div class="grip" aria-hidden="true"></div>
+  <div class="body">
+    <div class="panel">
+      <h2>PC</h2>
+      <div class="mem" id="pctext">PC apagado · modo nube</div>
+    </div>
+    <div class="panel">
+      <h2>Conexiones</h2>
+      <div class="conn" id="conn"></div>
+    </div>
+    <div class="panel">
+      <h2>Memoria <em id="membd">local</em></h2>
+      <div class="mem">
+        <b id="memtotal">0</b> notas · <b id="mempriv">0</b> privadas · <b id="memrev">0</b> por revisar<br>
+        Última sincronización con el PC: <b id="memsync">nunca</b><br>
+        Leídas en esta consulta: <b id="memread">0</b>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Voz <em>consumo de hoy</em></h2>
+      <div id="voz"></div>
+    </div>
+  </div>
+</section>
+
+<!-- Hoja: Más -->
+<section class="sheet" id="sh-mas" role="dialog" aria-label="Más" hidden>
+  <div class="grip" aria-hidden="true"></div>
+  <div class="body">
+    <div class="menu">
+      <button type="button" id="mnotif">Activar notificaciones</button>
+      <button type="button" id="mdesk">Vista escritorio</button>
+      <button type="button" id="mdev">Dispositivos</button>
+      <button type="button" class="danger" id="logout">Salir</button>
+    </div>
+    <div class="panel" id="devpanel" hidden>
+      <h2>Dispositivos <em id="devmsg"></em></h2>
+      <div id="devlist"></div>
+      <button type="button" class="wide" id="devnew">Crear token para el Atajo del iPhone</button>
+      <div class="token" id="devtoken" hidden></div>
+    </div>
+  </div>
+</section>
+
+<!-- Aprobación: hoja ámbar modal -->
+<div class="permwrap" id="permwrap">
+  <div class="perm" id="perm" role="alertdialog" aria-modal="true" aria-label="Pedido de permiso">
+    <div class="k" id="permk">Claude pide permiso</div>
+    <code id="permcode"></code>
+    <p id="permp"></p>
+    <div class="btns"><button type="button" id="no">Rechazar</button><button type="button" class="yes" id="yes">Aprobar</button></div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+<script type="module" src="js/movil.js"></script>
+</body>
+</html>

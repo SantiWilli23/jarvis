@@ -8,7 +8,7 @@ export function deviceRoutes(ctx) {
   // Crea un dispositivo (p. ej. el token del widget de Atajos). El token se muestra UNA sola vez.
   r.post("/", async (req, res, next) => {
     try {
-      const kind = ["web", "shortcut", "pc"].includes(req.body?.kind) ? req.body.kind : "shortcut";
+      const kind = ["web", "shortcut", "pc", "phone"].includes(req.body?.kind) ? req.body.kind : "shortcut";
       const out = await ctx.sessions.create(req.user.id, { name: String(req.body?.name || "Atajo").slice(0, 60), kind });
       await ctx.audit.log({ userId: req.user.id, action: "dispositivo.creado", detail: `${kind} ${out.deviceId}` });
       res.status(201).json(out);

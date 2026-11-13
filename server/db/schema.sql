@@ -146,3 +146,17 @@ CREATE TABLE IF NOT EXISTS settings (
   created_at INTEGER NOT NULL,
   PRIMARY KEY (user_id, key)
 );
+CREATE TABLE IF NOT EXISTS phone_actions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  action TEXT NOT NULL,
+  args_json TEXT,
+  status TEXT NOT NULL,
+  approval_id INTEGER,
+  result TEXT,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  delivered_at INTEGER,
+  done_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_phone_actions_user_status ON phone_actions (user_id, status, id);

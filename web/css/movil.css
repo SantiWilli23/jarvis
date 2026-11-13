@@ -1,0 +1,198 @@
+/* Vista móvil (/m): una sola pantalla, sin scroll de página. Todo bajo body.movil.
+   Usa los tokens de hud.css (grafito, orbe azul, gris claro, rojo --used). */
+body.movil {
+  --top-h: 44px;
+  --bar-h: 56px;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --kb: 0px;
+  --barh: calc(var(--bar-h) + var(--safe-b));
+  padding: 0;
+  min-height: 0;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+}
+html:has(body.movil) { height: 100dvh; overflow: hidden; overscroll-behavior: none; }
+body.movil input, body.movil textarea { user-select: text; -webkit-user-select: text; font-size: 16px; }
+body.movil button, body.movil a { touch-action: manipulation; }
+
+/* ---------- rejilla principal: barra superior / centro / barra inferior ---------- */
+body.movil .app {
+  max-width: none; margin: 0; gap: 0;
+  height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+}
+body.movil .top {
+  height: calc(var(--top-h) + var(--safe-t)); padding: var(--safe-t) 0 0; flex-wrap: nowrap; gap: 8px; align-items: center;
+  border-bottom: 1px solid var(--line);
+}
+body.movil .top .brand { font-size: 15px; letter-spacing: 0.34em; }
+body.movil .chip { padding: 4px 8px; font-size: 12px; }
+body.movil .globe {
+  position: relative; width: 44px; height: 44px; margin-right: -8px; display: grid; place-items: center;
+  background: transparent; border: 0; color: var(--dim);
+}
+body.movil .globe svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+body.movil .globe b {
+  position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px;
+  background: var(--amber); color: #1a0f00; font: 700 11px/18px var(--mono); text-align: center;
+}
+body.movil .globe.has { color: var(--amber); }
+
+/* ---------- centro ---------- */
+body.movil .stage {
+  display: grid; grid-template-rows: auto auto auto; align-content: center; justify-items: center; gap: 10px;
+  min-height: 0; padding: 6px 0; order: 0;
+}
+body.movil .orbwrap { width: min(80vw, 48dvh); height: min(80vw, 48dvh); aspect-ratio: 1; }
+body.movil .readout { bottom: 2%; }
+body.movil .say {
+  width: min(100%, 560px); min-height: 0; padding: 10px 14px; gap: 2px;
+}
+body.movil .say .txt {
+  font-size: 15px; line-height: 1.45; max-height: calc(1.45em * 4); overflow-y: auto; overscroll-behavior: contain;
+  user-select: text; -webkit-user-select: text;
+}
+body.movil .hint { font-size: 11px; max-width: 34ch; }
+
+/* ---------- barra inferior (al pulgar) ---------- */
+body.movil .dock {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
+  padding: 6px 0 calc(6px + var(--safe-b)); border-top: 1px solid var(--line);
+}
+body.movil .dock button {
+  position: relative; min-height: 48px; display: grid; justify-items: center; align-content: center; gap: 2px;
+  background: var(--panel); border: 1px solid var(--line); color: var(--fg); font-size: 11px; letter-spacing: 0.04em;
+}
+body.movil .dock button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+body.movil .dock button:active, body.movil .dock button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--panel)); color: var(--accent); }
+body.movil .dock .badge {
+  position: absolute; top: 3px; right: 6px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px;
+  background: var(--amber); color: #1a0f00; font: 700 10px/17px var(--mono); text-align: center;
+}
+
+/* ---------- escribir (sobre la barra, sigue al teclado) ---------- */
+body.movil .say-form {
+  position: fixed; left: 0; right: 0; z-index: 20; width: auto; align-items: center;
+  bottom: calc(var(--kb) + var(--barh)); padding: 8px max(12px, env(safe-area-inset-left, 0px));
+  background: var(--panel); border-top: 1px solid var(--accent);
+  transform: translateY(130%); visibility: hidden; transition: transform .2s ease, visibility 0s .2s;
+}
+body.movil.kbopen { --barh: 0px; }
+body.movil.kbopen .say-form { padding-bottom: 8px; }
+body.movil .say-form.open { transform: none; visibility: visible; transition: transform .2s ease; }
+body.movil .say-form input[type="text"] { min-height: 44px; padding: 8px 10px; }
+body.movil .say-form button[type="submit"] { min-height: 44px; min-width: 64px; }
+body.movil .say-form .priv { font-size: 11px; min-height: 44px; }
+
+/* ---------- hojas inferiores ---------- */
+body.movil .scrim { position: fixed; inset: 0; z-index: 30; background: rgba(0, 0, 0, 0.55); opacity: 0; transition: opacity .2s; }
+body.movil .scrim.on { opacity: 1; }
+body.movil .sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 31; max-height: 72dvh; display: flex; flex-direction: column;
+  background: var(--bg); border-top: 1px solid var(--line-strong); box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.6);
+  transform: translateY(105%); transition: transform .24s ease; will-change: transform;
+  padding-bottom: var(--safe-b);
+}
+body.movil .sheet.on { transform: translateY(0); }
+body.movil .sheet.drag { transition: none; }
+body.movil .grip { flex: none; height: 24px; display: grid; place-items: center; touch-action: none; cursor: grab; }
+body.movil .grip::before { content: ""; width: 44px; height: 5px; border-radius: 3px; background: var(--line-strong); }
+body.movil .sheet .body { overflow-y: auto; overscroll-behavior: contain; padding: 4px 14px 14px; display: grid; gap: 12px; align-content: start; -webkit-overflow-scrolling: touch; }
+body.movil .tabs { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 0 14px 6px; }
+body.movil .tabs button { min-height: 44px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+body.movil .tabs button.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+body.movil .tabs b { font-family: var(--mono); font-weight: 500; opacity: .8; }
+body.movil .task .acts button { min-height: 40px; padding: 4px 14px; font-size: 12px; }
+body.movil .note { margin: 0; font-size: 12px; color: var(--dim); line-height: 1.4; }
+
+/* menú Más */
+body.movil .menu { display: grid; gap: 8px; }
+body.movil .menu button, body.movil .wide {
+  min-height: 48px; padding: 8px 14px; text-align: left; background: var(--panel); border: 1px solid var(--line); font-size: 14px;
+}
+body.movil .menu button:active, body.movil .wide:active { border-color: var(--accent); }
+body.movil .menu .danger { color: var(--used); border-color: color-mix(in srgb, var(--used) 45%, var(--line)); }
+body.movil .wide { width: 100%; margin-top: 10px; }
+body.movil .token { margin-top: 8px; padding: 8px; border: 1px solid var(--amber); background: rgba(255, 178, 63, 0.08); font: 12px/1.5 var(--mono); overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
+body.movil .dev { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; }
+body.movil .dev:first-child { border-top: 0; }
+body.movil .dev small { display: block; font: 11px var(--mono); color: var(--dim); }
+body.movil .dev button { min-height: 40px; padding: 4px 12px; background: var(--panel-2); border: 1px solid var(--line); font-size: 12px; }
+
+/* hoja Teléfono */
+body.movil .run {
+  display: block; min-height: 52px; line-height: 52px; text-align: center; text-decoration: none; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--fg); background: color-mix(in srgb, var(--cyan) 16%, var(--panel)); border: 1px solid var(--cyan);
+}
+body.movil .run.vacio { opacity: .6; border-color: var(--line); background: var(--panel); }
+body.movil .phgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+body.movil .phgrid button {
+  min-height: 56px; padding: 6px 4px; background: var(--panel); border: 1px solid var(--line); font-size: 12px; line-height: 1.25;
+}
+body.movil .phgrid button:active { border-color: var(--accent); }
+body.movil .phgrid button.ask { border-color: color-mix(in srgb, var(--amber) 60%, var(--line)); }
+body.movil .phgrid button small { display: block; font: 10px var(--mono); color: var(--dim); }
+body.movil .phgrid button.ask small { color: var(--amber); }
+body.movil .phrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+body.movil .phrow label { grid-column: 1 / -1; font: 11px var(--mono); color: var(--dim); }
+body.movil .phrow input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--cyan); }
+body.movil .phrow input[type="text"] { min-width: 0; min-height: 44px; padding: 8px 10px; color: var(--fg); background: var(--input-bg); border: 1px solid var(--line); }
+body.movil .phrow button { min-height: 44px; padding: 4px 14px; background: var(--panel); border: 1px solid var(--line); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+body.movil .phrow:has(input[type="text"]) label { display: none; }
+body.movil .ph { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
+body.movil .ph:first-child { border-top: 0; }
+body.movil .ph small { font: 11px var(--mono); color: var(--dim); white-space: nowrap; }
+body.movil .ph .st-hecha { color: var(--ok); }
+body.movil .ph .st-fallida, body.movil .ph .st-rechazada { color: var(--used); }
+body.movil .ph .st-aprobacion { color: var(--amber); }
+
+/* ---------- aprobación: hoja ámbar fija y modal ---------- */
+body.movil .permwrap { position: fixed; inset: 0; z-index: 50; display: none; align-items: flex-end; background: rgba(0, 0, 0, 0.7); }
+body.movil .permwrap:has(.perm.show) { display: flex; }
+body.movil .perm {
+  position: static; inset: auto; width: 100%; margin: 0; max-height: 80dvh; overflow-y: auto; gap: 12px;
+  padding: 18px max(16px, env(safe-area-inset-left, 0px)) calc(16px + var(--safe-b)); border: 0; border-top: 2px solid var(--amber);
+  background: #1c1204; box-shadow: 0 -10px 50px rgba(255, 178, 63, 0.3);
+}
+body.movil .perm .k { font-size: 12px; }
+body.movil .perm code { font-size: 14px; padding: 8px 10px; user-select: text; -webkit-user-select: text; }
+body.movil .perm p { font-size: 14px; }
+body.movil .perm .btns { gap: 10px; }
+body.movil .perm .btns button { min-height: 56px; font-size: 16px; }
+
+/* ---------- login y aviso ---------- */
+body.movil .login { padding-top: calc(16px + var(--safe-t)); }
+body.movil .login input { min-height: 48px; }
+body.movil .login button { min-height: 48px; }
+
+/* ---------- horizontal (poca altura): orbe a la izquierda, texto a la derecha, sin scroll ---------- */
+@media (orientation: landscape) and (max-height: 520px) {
+  body.movil { --top-h: 36px; --bar-h: 52px; }
+  body.movil .app { grid-template-rows: auto minmax(0, 1fr); }
+  body.movil .top { height: calc(var(--top-h) + var(--safe-t)); }
+  body.movil .top .brand { font-size: 13px; }
+  body.movil .stage {
+    grid-template-columns: auto minmax(0, 1fr); grid-template-rows: 1fr auto; column-gap: 16px; row-gap: 4px; align-content: stretch; align-items: center; justify-items: stretch;
+    padding: 4px 0 calc(var(--bar-h) + 8px + var(--safe-b));
+  }
+  body.movil .orbwrap { grid-row: 1 / 3; width: min(62dvh, 36vw); height: min(62dvh, 36vw); align-self: center; }
+  body.movil .say { grid-column: 2; grid-row: 1 / 3; align-self: center; width: 100%; }
+  body.movil .say .txt { max-height: calc(1.45em * 3); }
+  body.movil .hint { display: none; }
+  body.movil .dock {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--bg);
+    padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px));
+  }
+  body.movil .dock button { min-height: 44px; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 6px; }
+  body.movil .sheet { max-height: 86dvh; }
+  body.movil .perm { max-height: 92dvh; }
+}
+@media (prefers-reduced-motion: reduce) { body.movil .sheet, body.movil .say-form, body.movil .scrim { transition: none; } }

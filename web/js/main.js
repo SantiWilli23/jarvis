@@ -56,6 +56,7 @@ async function decide(approve) {
 
 /* ---------- mensajes del WebSocket ---------- */
 function onWs(m) {
+  window.dispatchEvent(new CustomEvent("jarvis:ws", { detail: m })); // la vista móvil (movil.js) también escucha
   switch (m.type) {
     case "state":
       // idle/listening/thinking/speaking los maneja este cliente; del servidor solo aceptamos los especiales

@@ -1,9 +1,9 @@
 // WebSocket /ws. Se autentica con el PRIMER mensaje {type:"auth", token} (nunca en la URL).
 // Eventos hacia el cliente: state, chat.delta, chat.done, task.update, approval.request,
-// approval.resolved, providers.update, pc.status.
+// approval.resolved, providers.update, pc.status, phone.update. Solo dispositivos "web" (lista blanca).
 import { WebSocketServer } from "ws";
 
-const EVENTOS = ["state", "chat.delta", "chat.done", "task.update", "approval.request", "approval.resolved", "providers.update", "pc.status", "task.progress"];
+const EVENTOS = ["state", "chat.delta", "chat.done", "task.update", "approval.request", "approval.resolved", "providers.update", "pc.status", "task.progress", "phone.update"];
 const AUTH_TIMEOUT_MS = 5000;
 
 export function createHub({ server, sessions, bus, initial = async () => [] }) {
@@ -23,7 +23,7 @@ export function createHub({ server, sessions, bus, initial = async () => [] }) {
       try {
         const m = JSON.parse(String(raw));
         const s = m?.type === "auth" ? await sessions.verify(m.token) : null;
-        if (!s || ["shortcut", "pc"].includes(s.device.kind)) return ws.close(4401, "no_autorizado");
+        if (!s || s.device.kind !== "web") return ws.close(4401, "no_autorizado");
         c.userId = Number(s.user.id); c.deviceId = s.device.id;
         clients.add(c); clearTimeout(timer);
         ws.send(JSON.stringify({ type: "auth.ok" }));

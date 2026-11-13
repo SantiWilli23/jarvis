@@ -1,6 +1,6 @@
 // Service worker mínimo: guarda la "cáscara" de la app para que abra rápido. Nunca toca /api ni /ws.
-const CACHE = "jarvis-shell-v3";
-const SHELL = ["/", "/css/hud.css", "/js/main.js", "/js/api.js", "/js/ws.js", "/js/state.js", "/js/orb.js", "/js/voice.js", "/js/panels.js", "/icon.svg"];
+const CACHE = "jarvis-shell-v4";
+const SHELL = ["/", "/m", "/css/hud.css", "/css/movil.css", "/js/movil.js", "/js/main.js", "/js/api.js", "/js/ws.js", "/js/state.js", "/js/orb.js", "/js/voice.js", "/js/panels.js", "/icon.svg", "/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => {

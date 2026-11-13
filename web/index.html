@@ -7,9 +7,18 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Jarvis</title>
+<script>
+// Teléfonos (lado corto de la pantalla < 600 px) van a la vista móvil /m, salvo que se haya elegido "vista escritorio". iPad y Electron se quedan aquí.
+(function () {
+  try {
+    var s = Math.min(screen.width, screen.height);
+    if (s < 600 && !/Electron/i.test(navigator.userAgent) && localStorage.getItem("jarvis_vista") !== "escritorio") location.replace("/m");
+  } catch (e) { /* sin redirección */ }
+})();
+</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="css/hud.css">
 </head>
@@ -87,9 +96,10 @@
       </div>
     </section>
   </div>
-  <div class="foot">Jarvis · Fase 1 · iPhone: Safari, un toque para hablar</div>
+  <div class="foot">Jarvis · Fase 1 · iPhone: Safari, un toque para hablar · <a href="/m" id="tomovil" style="color:inherit">Vista móvil</a></div>
 </div>
 
 <script type="module" src="js/main.js"></script>
+<script>document.getElementById("tomovil").addEventListener("click", function () { try { localStorage.removeItem("jarvis_vista"); } catch (e) {} });</script>
 </body>
 </html>

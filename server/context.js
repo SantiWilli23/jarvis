@@ -19,6 +19,7 @@ import { createPrepare } from "./queue/prepare.js";
 import { createApprovals } from "./approvals.js";
 import { createAgent } from "./agent.js";
 import { createAudit } from "./audit.js";
+import { createPhoneQueue } from "./phone/queue.js";
 import { createStt } from "./stt.js";
 import { createChatService } from "./chat-service.js";
 import { createTts } from "./tts.js";
@@ -56,12 +57,13 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const direct = createDirect({ tasks });
   const prepare = createPrepare({ router, tasks });
   const approvals = createApprovals({ db, bus, audit, now });
+  const phone = createPhoneQueue({ db, bus, approvals, audit, config: loadJson("phone-actions.json"), now });
   const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, now });
   const sessions = createSessions({ db, now });
   const limiter = createLoginLimiter({ db, now });
   const stt = createStt({ apiKey: env.GROQ_API_KEY, fetch: f });
   const websearch = createWebSearch({ providers, quota, config: config.busqueda, fetch: f, env, now });
-  const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, persona, webSearch: websearch, now });
+  const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, phone, persona, webSearch: websearch, now });
   let ext = null; // conectores de las fases 4-6 (se arman al final)
   const tts = createTts({ db, env, fetch: f, config: config.voz, privacy, now,
     phrasesDir: fileURLToPath(new URL("../web/audio/phrases", import.meta.url)),
@@ -109,7 +111,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   }
 
   const base = { db, env, config, permissions, persona, ownerId, providers, chain, keyless, privacy, quota, bus, state, router,
-    notes, search, inbox, audit, tasks, direct, prepare, approvals, agent, sessions, limiter, stt, tts, chat, websearch, status, now, fts };
+    notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, agent, sessions, limiter, stt, tts, chat, websearch, status, now, fts };
   ext = buildExtensions(base, { fetch: f });
   return { ...base, ...ext };
 }

@@ -36,7 +36,7 @@ export function createTelegram({ env = process.env, fetch: f = globalThis.fetch,
     bus.on("approval.request", ({ approval }) => { if (approval) { const c = card(approval); notify(c.text, { reply_markup: c.reply_markup }); } });
   }
 
-  const AYUDA = "Comandos: /estado, /aprobaciones, /buscar <consulta>, /recordar <minutos> <texto>, /correos, /agenda, /archivos, /suena, /pausa, /siguiente. O escriba o mande una nota de voz.";
+  const AYUDA = "Comandos: /estado, /aprobaciones, /buscar <consulta>, /recordar <minutos> <texto>, /correos, /agenda, /archivos, /suena, /pausa, /siguiente, /telefono <orden>. O escriba o mande una nota de voz.";
 
   async function command(chatId, text) {
     const [cmd, ...rest] = text.slice(1).split(/\s+/);
@@ -65,6 +65,7 @@ export function createTelegram({ env = process.env, fetch: f = globalThis.fetch,
       case "archivos": return send(chatId, await callTool("google.archivos", { q: arg }));
       case "suena": return send(chatId, await callTool("spotify.escuchando", {}));
       case "pausa": return send(chatId, await callTool("spotify.control", { accion: "pausa" }));
+      case "telefono": case "teléfono": return send(chatId, arg ? await callTool("telefono.accion", { frase: arg }) : "Uso: /telefono <orden>, por ejemplo: /telefono enciende la linterna · /telefono brillo al 30 · /telefono apaga el bluetooth");
       case "siguiente": return send(chatId, await callTool("spotify.control", { accion: "siguiente" }));
       default: return send(chatId, `No conozco ese comando. ${AYUDA}`);
     }

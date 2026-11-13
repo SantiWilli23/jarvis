@@ -2,10 +2,11 @@
 import { all, get, run } from "./db/client.js";
 import { detectDirect } from "./queue/direct.js";
 import { classify } from "./router/classify.js";
+import { parsePhoneIntent, phoneReply } from "./phone/intents.js";
 
 const MSG_SIN_CUOTA = "Mis proveedores gratuitos llegaron a su límite por ahora, señor. Lo reintento en cuanto se reinicien.";
 
-export function createChatService({ db, router, privacy, search, tasks, prepare, bus, persona = "", webSearch = null, now = () => Date.now() }) {
+export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, persona = "", webSearch = null, now = () => Date.now() }) {
   async function ensureConversation(userId, id, firstText) {
     if (id) {
       const c = await get(db, "SELECT id FROM conversations WHERE id=? AND user_id=?", [id, userId]);
@@ -37,6 +38,20 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
         bus?.emit("chat.done", { userId, text: reply, provider: "cola" });
         state(userId, "speaking");
         return { status: "tarea", conversationId: conv, reply, task: { id: task.id, seq: task.seq, sha256: task.sha256 } };
+      }
+
+      // 1b) Orden fija para el teléfono ("enciende la linterna", "brillo al 30"): sin modelo
+      const pi = phone && !flagPrivate ? parsePhoneIntent(original, phone.config) : null;
+      if (pi) {
+        const out = await phone.create({ userId, action: pi.action, args: pi.args, source });
+        if (out.ok) {
+          const reply = phoneReply(out.item);
+          await saveMsg(userId, conv, "user", original, null, false);
+          await saveMsg(userId, conv, "assistant", reply, "telefono", false);
+          bus?.emit("chat.done", { userId, text: reply, provider: "telefono" });
+          state(userId, "speaking");
+          return { status: "telefono", conversationId: conv, reply, phone: { id: out.item.id, status: out.item.status } };
+        }
       }
 
       // 2) Memoria + privacidad

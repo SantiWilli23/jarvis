@@ -14,6 +14,7 @@ export function initOrb(cv) {
     cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
   }
   window.addEventListener("resize", resize); resize();
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(cv); // el lienzo cambia de tamaño sin que cambie la ventana (hojas, giro, teclado)
 
     var N = 1100, pts = [];
     var ga = Math.PI * (3 - Math.sqrt(5));
