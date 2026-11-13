@@ -3,9 +3,9 @@
 // Formato real (agy 1.5.8): {"event":"init"|"step_update"|"result", ...}. Ver test/fixtures/fake-agy.mjs.
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { join, delimiter, resolve } from "node:path";
+import { join, delimiter } from "node:path";
 import { agyEnv } from "./agy-args.js";
-import { blockedForGemini } from "./danger.js";
+import { guardTool, pathsOf, inside, POLITICAS } from "./agy-policy.js";
 
 // Busca agy: JARVIS_AGY_PATH (o `configured`), PATH y %LOCALAPPDATA%\agy\bin\agy.exe.
 export function resolveAgy({ env = process.env, platform = process.platform, exists = existsSync, configured = null } = {}) {
@@ -27,43 +27,20 @@ export function classifyAgyError(text) {
 }
 
 const RECHAZO = /permission (denied|required|was denied)|not permitted|rejected|denied|requires? (user )?(approval|permission)|auto-?reject|no se permite|permiso/i;
-const norm = (p) => resolve(String(p)).replace(/\\/g, "/").toLowerCase();
-const inside = (p, dirs) => dirs.some((d) => { const a = norm(p), b = norm(d); return a === b || a.startsWith(b.endsWith("/") ? b : b + "/"); });
-
-// Textos con pinta de ruta dentro de los parámetros de una herramienta.
-function pathsOf(params) {
-  const out = [];
-  for (const [k, v] of Object.entries(params || {})) if (typeof v === "string" && /path|file|dir|target|cwd/i.test(k)) out.push(v);
-  return out;
-}
 const cmdOf = (params) => { const v = params?.CommandLine ?? params?.command ?? params?.Command; return typeof v === "string" ? v : null; };
-
-// Vigilancia (agy en Windows NO confina por sí mismo): comandos peligrosos y rutas fuera de las carpetas permitidas.
-export function guardTool({ tool, params }, allowedDirs = [], cwd = process.cwd()) {
-  const cmd = cmdOf(params);
-  if (cmd) {
-    const b = blockedForGemini(cmd);
-    if (b) return { ...b, detail: cmd };
-  }
-  if (allowedDirs.length) {
-    for (const p of pathsOf(params)) {
-      const abs = /^([a-z]:[\\/]|[\\/]{1,2})/i.test(p) ? p : join(cwd, p);
-      if (!inside(abs, allowedDirs)) return { kind: "fuera_de_carpeta", summary: "Tocar archivos fuera de las carpetas de Gemini", detail: `${tool}: ${p}` };
-    }
-    if (cmd) {
-      const sale = /(^|[\s"'=])\.\.[\\/]/.test(cmd) || [...cmd.matchAll(/[a-z]:[\\/][^\s"'|&;<>]*/gi)].some((m) => !inside(m[0], allowedDirs));
-      if (sale) return { kind: "fuera_de_carpeta", summary: "Comando que sale de las carpetas de Gemini", detail: cmd };
-    }
-  }
-  return null;
-}
+export { guardTool };
 
 // Devuelve { text, isError, errorKind, usage, commands, denials, blocked, aborted, conversationId, status, exitCode, stderr }.
-export function runAgy({ command, prefix = [], args, cwd, env = process.env, onEvents = () => {}, timeoutMs = 30 * 60_000, allowedDirs = [], spawnFn = spawn }) {
+export function runAgy({ command, prefix = [], args, cwd, env = process.env, onEvents = () => {}, timeoutMs = 30 * 60_000, allowedDirs = [], policy = POLITICAS.PROGRAMAR, spawnFn = spawn }) {
   return new Promise((resolveP) => {
+    // Sin carpeta permitida, o con cwd fuera de ella, NO se ejecuta agy.
+    if (!allowedDirs.length || !cwd || !inside(cwd, allowedDirs)) {
+      return resolveP({ text: "Gemini no se ejecutó: la carpeta de trabajo no está dentro de carpetas_gemini.", isError: true, errorKind: "carpeta", usage: { tokens_in: 0, tokens_out: 0 }, commands: [], denials: ["carpeta de trabajo fuera de carpetas_gemini"], blocked: { kind: "fuera_de_carpeta", summary: "Carpeta de trabajo fuera de carpetas_gemini", detail: String(cwd) }, aborted: null, conversationId: null, status: null, exitCode: null, stderr: "" });
+    }
     const child = spawnFn(command, [...prefix, ...args], { cwd, env: { ...agyEnv(env), ...(prefix.length && process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}) }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, shell: false });
     const out = { text: "", isError: false, errorKind: null, usage: { tokens_in: 0, tokens_out: 0 }, commands: [], denials: [], blocked: null, aborted: null, conversationId: null, status: null, exitCode: null, stderr: "" };
     let buf = "", raw = "", finished = false, errMsg = "";
+    const checked = new Set();
     const deltas = new Map(); // step_index -> texto acumulado
     const plain = [];
     const kill = (why) => { if (!out.aborted) { out.aborted = why; try { child.kill(); } catch { /* ya terminó */ } } };
@@ -89,13 +66,15 @@ export function runAgy({ command, prefix = [], args, cwd, env = process.env, onE
         } else if (u.step_type === "tool") {
           const params = u.tool_info?.parameters || {};
           const tool = u.tool_name || u.tool_info?.name || "herramienta";
-          if (u.state === "ACTIVE") {
+          if (!checked.has(u.step_index)) { // se revisa la PRIMERA vez que se ve la herramienta, sea cual sea su estado
+            checked.add(u.step_index);
             const cmd = cmdOf(params);
             if (cmd) out.commands.push(cmd);
             onEvents([{ kind: "herramienta", text: cmd ? `Comando: ${cmd.slice(0, 120)}` : `${tool}: ${pathsOf(params)[0] || ""}`.slice(0, 160) }]);
-            const b = guardTool({ tool, params }, allowedDirs, cwd);
+            const b = guardTool({ tool, params }, allowedDirs, cwd, policy);
             if (b) { out.blocked = b; deny(b.summary, b.detail); kill("comando_bloqueado"); }
-          } else {
+          }
+          if (u.state !== "ACTIVE") {
             const bad = /ERROR|REJECT|DENIED|CANCEL/i.test(String(u.state)) ? u.tool_info?.error || u.tool_info?.output || u.state : (u.tool_info?.error || null);
             const why = bad || (RECHAZO.test(String(u.tool_info?.output || "")) ? u.tool_info.output : null);
             if (why) deny(tool, typeof why === "string" ? why : JSON.stringify(why));

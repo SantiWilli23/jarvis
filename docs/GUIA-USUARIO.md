@@ -197,9 +197,32 @@ Abra la pestaña **Pro** en Jarvis, elija repo (nuevo hilo) y escriba el pedido.
 - Si cancela una ronda, el PC puede terminar el paso en curso (su resultado se descarta).
 - Sin probar con las CLIs reales ni con Render: solo con simuladores.
 
-## Gemini en el PC (agy)
+## Gemini en el PC (agy): APAGADO por defecto
 
+El agente Gemini del PC viene **apagado**. Mientras esté apagado: el servidor no encola nada para Gemini (responde que está apagado), el selector muestra "Gemini (apagado)", el puesto Gemini (PC) sale "apagado", el diagnóstico no ejecuta `agy` y Pro queda deshabilitado (motivo `gemini_apagado`). Claude y Flash siguen igual.
+
+### Cómo encenderlo
 1. Instale Antigravity CLI (`agy`) y ejecute `agy` una vez para iniciar sesión.
-2. Jarvis lo detecta solo (`agy models` debe listar modelos).
-3. Los términos de Google no admiten cuentas de consumo en aplicaciones de terceros: úselo bajo su responsabilidad. Desactive la recogida de datos en los ajustes de agy si no desea compartirlos.
-4. Elija "Gemini" en el selector del chat o escriba `/gemini ...`. Con "privado" marcado nunca se usa Gemini.
+2. En `config/providers.json` ponga `"motores_pc": { "gemini": { "activo": true, ... } }` y reinicie el servidor. Solo el valor `true` lo enciende.
+3. En `config/permissions.json`, `carpetas_gemini` = carpetas donde Gemini puede trabajar (si está vacío se usa DocumentosJarvisgemini; se crea sola). Gemini trabaja SIEMPRE con esa carpeta como directorio de trabajo; en Pro, el repo debe estar dentro de ellas.
+4. Los términos de Google no admiten cuentas de consumo en aplicaciones de terceros: úselo bajo su responsabilidad. Desactive la recogida de datos en agy.
+5. Elija "Gemini" en el selector o escriba `/gemini ...`. Con "privado" nunca se usa Gemini.
+
+### Qué política aplica Jarvis (por rol)
+- Planear y verificar (y todo trabajo de solo lectura): **sin comandos, sin escribir, sin navegador/red, sin MCP**; solo leer dentro de `carpetas_gemini`.
+- Programar/corregir y tareas de la cola: puede escribir **solo dentro de `carpetas_gemini`; comandos solo de una lista corta (`git status|diff|log|show`, `ls`/`dir`, `node -v`, `npm -v`), un solo comando sin `;`, `&`, `|`, `>`, `<`, `$`; nunca navegador, red ni MCP; nunca `git push`, borrar, desplegar ni `npm test`.
+- Nunca se usa `--dangerously-skip-permissions` ni modo automático. Se pasa `--sandbox`, pero **no se confía en él** (en Windows no confinó).
+- Lo privado no entra: ni la cola ni el planificador de Gemini lo reciben.
+
+### Límite exacto de seguridad (léalo)
+**Lo que SÍ garantiza Jarvis:** apagado por defecto; con Gemini apagado no se ejecuta `agy` ni se encola nada; con él activo, `agy` nunca arranca si su carpeta de trabajo no está dentro de `carpetas_gemini`; nunca recibe privado; el pedido y los modelos permitidos son una lista cerrada; cada evento de herramienta que agy emite (comando, ruta, navegador, MCP) se revisa y, si no cumple la política, **se mata el proceso** y la tarea queda fallida/rechazada; cualquier rechazo de permiso cuenta como fallo.
+
+**Lo que NO garantiza:**
+1. El guardián **reacciona a los eventos**: se entera cuando agy anuncia la herramienta y mata el proceso, pero no puede impedir por sí mismo que esa primera acción llegue a ejecutarse (hay una carrera de milisegundos). No es un confinamiento del sistema operativo.
+2. Un comando de la lista corta (por ejemplo `git log`) se permite tal cual; lo que haga por dentro no se vigila. Enlaces simbólicos/uniones dentro de `carpetas_gemini` que apunten fuera no se resuelven.
+3. Si agy no emite evento de una herramienta (herramientas nuevas, otros nombres, eventos que no conozco), no hay nada que vigilar. Los nombres de herramienta se reconocen por patrón (`write`, `edit`, `command`, `browser`, `url`, `mcp`...) y un nombre desconocido sin rutas ni comando pasa.
+4. No se controla lo que agy lee del sistema por su cuenta ni lo que envía a Google: todo lo que lea en `carpetas_gemini` va al servicio de Google. No ponga ahí secretos.
+5. **No se pudo fijar un HOME/config propio por ejecución**: la documentación de agy no ofrece variable ni flag para eso, y su `settings.json` es global (`~/.gemini/antigravity-cli/settings.json`). Jarvis **no toca esa configuración**. Para una segunda barrera real puede copiar `config/agy-settings.recomendado.json` (reglas `permissions.deny/ask/allow`, `enableTerminalSandbox`) a ese archivo a mano; está sin verificar con agy real y hay un reporte público de que las reglas `allow` a veces se ignoran en Windows.
+6. Los archivos `.geminiignore` pueden ser ignorados por agy.
+
+**Recomendación:** si necesita aislamiento fuerte, ejecute el PC de Gemini en una cuenta de Windows o máquina virtual sin acceso a nada privado.

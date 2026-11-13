@@ -80,9 +80,9 @@ Push o deploy sin permiso, `--dangerously-skip-permissions`, claves en git o en 
 
 - Selector Auto/Flash/Gemini/Claude en el chat (`localStorage jarvis_motor`). "Privado" desactiva Gemini.
 - Flash: cadena de nube (Gemini `gemini-3.8-flash`), siempre disponible. Con el PC apagado responde preguntas con la nota "(Flash: PC apagado)".
-- Gemini PC: tareas con `engine='gemini'` ejecutadas por `agy -p` (Antigravity CLI) con `gemini-3.8-flash-high` (`config/providers.json > motores_pc`). Planificación con `gemini-4-hydrogen` por API.
+- Gemini PC (APAGADO por defecto: `motores_pc.gemini.activo`; solo `true` lo enciende): tareas con `engine='gemini'` ejecutadas por `agy -p` (Antigravity CLI) con `gemini-3.8-flash-high` (`config/providers.json > motores_pc`). Planificación con `gemini-4-hydrogen` por API.
 - Disparadores: `/gemini`, `díselo a Gemini:`, `directo a Gemini:` (texto exacto, sin modelo).
 - Lo privado nunca va a Gemini: se comprueba antes de encolar (`privado_no_gemini`).
 - Solo trabaja en `carpetas_gemini` (por defecto Documentos\Jarvis\gemini). Topes propios en `ai_usage`.
-- Límite conocido: `agy --sandbox` no confina en Windows; el runner vigila comandos y rutas (`guardTool`), best-effort. El pedido va por argumento (máx. 28000 caracteres).
+- Seguridad (agy no confina en Windows, ver docs/GUIA-USUARIO.md > "Límite exacto"): apagado por defecto (el servidor no encola, el doctor no ejecuta agy, Pro deshabilitado); cwd fijo en `carpetas_gemini` y agy no arranca si no está dentro; política por rol en `desktop/runner/agy-policy.js` (lectura = sin comandos/escritura/red/MCP; programar = escribir solo en carpetas_gemini y comandos de lista corta); guardián de eventos (`guardTool`) que mata el proceso ante ruta/herramienta fuera de política (reactivo, con carrera; no es confinamiento del SO); nunca `--dangerously-skip-permissions` ni modo auto. No se fijó HOME/config por ejecución (agy no lo documenta); `config/agy-settings.recomendado.json` es opcional y manual. El pedido va por argumento (máx. 28000 caracteres).
 - "Pasar a Claude" reasigna una tarea fallida/rechazada/pendiente a Claude.

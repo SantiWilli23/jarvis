@@ -6,7 +6,7 @@ import { homedir } from "node:os";
 import { buildArgs, buildStdin } from "./claude-args.js";
 import { classifyDenial, allowRule } from "./danger.js";
 import { runClaude as realRun, resolveClaude } from "./claude-runner.js";
-import { buildAgyArgs, MAX_PEDIDO, MODELO_DEFECTO, isProhibited, normalizeModel } from "./agy-args.js";
+import { buildAgyArgs, buildAgyPrompt, MAX_PEDIDO, MODELO_DEFECTO, isProhibited, normalizeModel } from "./agy-args.js";
 import { runAgy as realRunAgy, resolveAgy } from "./agy-runner.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -45,9 +45,11 @@ export function createWorker({
 
   // Gemini (agy): solo en carpetas_gemini (separadas de las de Claude). v1 sin ronda de aprobación: lo que agy
   // rechaza o lo que el runner bloquea queda anotado como "[Sin permiso: ...]" y la cola ofrece "Pasar a Claude".
+  const geminiDirs = () => { const perm = serverCfg.permissions || {}; return (geminiFolders ?? (perm.carpetas_gemini?.length ? perm.carpetas_gemini : [geminiDefaultDir])).filter(Boolean); };
+  const geminiActive = () => serverCfg.motores?.gemini?.activo === true; // apagado por defecto: solo "true" lo enciende
   async function processGemini(task) {
-    const perm = serverCfg.permissions || {};
-    const dirs = (geminiFolders ?? (perm.carpetas_gemini?.length ? perm.carpetas_gemini : [geminiDefaultDir])).filter(Boolean);
+    if (!geminiActive()) return hub.finish(task.id, { status: "fallida", result: "Gemini del PC está apagado (motores_pc.gemini.activo=false en config/providers.json). No se ejecutó nada; use \"Pasar a Claude\"." });
+    const dirs = geminiDirs();
     const cwd = dirs[0] || geminiDefaultDir;
     try { mkdirSync(cwd, { recursive: true }); } catch { /* ya existe */ }
     const original = buildStdin({ ...task, mode: "directo", prepared: null });
@@ -58,11 +60,11 @@ export function createWorker({
     if (!bin) return hub.finish(task.id, { status: "fallida", result: "No encontré Antigravity CLI (agy) en este PC. Instálela e inicie sesión con `agy`." });
     const model = normalizeModel(serverCfg.motores?.gemini?.modelo || MODELO_DEFECTO);
     if (isProhibited(model)) return hub.finish(task.id, { status: "fallida", result: `Modelo no permitido para Gemini: ${model}.` });
-    const prompt = buildStdin(task).toString("utf8"); // directo: los bytes exactos del texto guardado
+    const prompt = buildAgyPrompt(buildStdin(task).toString("utf8"), "editar"); // texto guardado + límites (la integridad ya se comprobó arriba)
     if (prompt.length > MAX_PEDIDO) return hub.finish(task.id, { status: "fallida", result: "El pedido es demasiado largo para la línea de comandos de agy." });
     const queue = []; let flush = null;
     const send = () => { flush = null; const ev = queue.splice(0); if (ev.length) hub.events(task.id, ev).catch(() => {}); };
-    const r = await runAgy({ ...bin, args: buildAgyArgs({ prompt, model }), cwd, allowedDirs: dirs, onEvents: (ev) => { queue.push(...ev); flush ||= setTimeout(send, 800); } });
+    const r = await runAgy({ ...bin, args: buildAgyArgs({ prompt, model }), cwd, allowedDirs: dirs, policy: "programar", onEvents: (ev) => { queue.push(...ev); flush ||= setTimeout(send, 800); } });
     if (flush) { clearTimeout(flush); send(); }
     const usage = { tokens_in: r.usage.tokens_in, tokens_out: r.usage.tokens_out };
     const nota = r.denials.length ? `\n[Sin permiso: ${r.denials.join("; ")}]` : "";
@@ -123,6 +125,9 @@ export function createWorker({
     return hub.finish(task.id, { status: last.isError || last.exitCode ? "fallida" : "hecha", result: ((last.result || last.stderr || "") + nota).trim(), usage: total });
   }
 
+  // Avisa "PC en línea" y guarda la configuración del servidor (permisos, motores, Gemini activo o no).
+  const sync = async () => { serverCfg = await hub.hello({ version, host, ...capsBody() }); return serverCfg; };
+
   // Un ciclo: devuelve "tarea" | "vacia" | "tope_diario" | "pausada".
   async function tick() {
     if (paused) return "pausada";
@@ -142,7 +147,7 @@ export function createWorker({
     hbTimer = setInterval(beat, heartbeatMs); hbTimer.unref?.();
     while (running) {
       try {
-        if (!said) { serverCfg = await hub.hello({ version, host, ...capsBody() }); said = true; log("PC en línea"); status({ online: true }); }
+        if (!said) { await sync(); said = true; log("PC en línea"); status({ online: true }); }
         const out = await tick();
         if (out === "tarea") continue; // sigue de inmediato con la siguiente
         if (pro && out === "vacia" && !paused) { const j = await pro.tick().catch((e) => { log(`Pro: ${e.message}`); if (e.status === 401 || e.status === 403) throw e; return "vacio"; }); if (j === "job") continue; }
@@ -161,6 +166,6 @@ export function createWorker({
     async stop() { running = false; halted = true; try { await hub.bye(); } catch { /* sin red */ } status(); },
     pause(v = true) { paused = !!v; status(); hub.heartbeat({ paused, current_task: current }).catch(() => {}); },
     isPaused: () => paused,
-    tick, processTask,
+    geminiActive, geminiDirs, sync, tick, processTask,
   };
 }

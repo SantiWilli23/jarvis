@@ -33,7 +33,7 @@ function mkHub(extra = {}) {
   h.proFail = async (id, e) => { if (h.down) throw Object.assign(new Error("HTTP 503"), { status: 503 }); h.fails.push({ id, e }); };
   return h;
 }
-const worker = (hub, r, o = {}) => createProWorker({ hub, allowedFolders: () => [r], claude: CLAUDE, agy: AGY, ...o });
+const worker = (hub, r, o = {}) => createProWorker({ hub, allowedFolders: () => [r], claude: CLAUDE, agy: AGY, geminiActivo: () => true, geminiFolders: () => [dirname(r)], ...o });
 const args = (out, n = 0) => JSON.parse(readFileSync(`${out}.${n}.args.json`, "utf8"));
 const flag = (a, f) => a[a.indexOf(f) + 1];
 const clean = (...ds) => ds.forEach((d) => rmSync(d, { recursive: true, force: true }));

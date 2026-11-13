@@ -1,0 +1,24 @@
+{
+  "_nota": "NO se aplica solo. Es una copia sugerida para ~/.gemini/antigravity-cli/settings.json (la configuración GLOBAL de agy, que Jarvis no toca). Sintaxis action(target) según antigravity.google/docs/permissions; sin verificar con agy real. Cambie RUTA por su carpeta de Gemini. Deny > Ask > Allow.",
+  "toolPermission": "request-review",
+  "enableTerminalSandbox": true,
+  "permissions": {
+    "deny": [
+      "execute_url(*)",
+      "download_url(*)",
+      "read_url(*)",
+      "mcp(*)",
+      "unsandboxed(*)"
+    ],
+    "ask": [
+      "command(regex:.*)"
+    ],
+    "allow": [
+      "read_file(RUTA)",
+      "write_file(RUTA)",
+      "command(git status)",
+      "command(git diff)",
+      "command(git log)"
+    ]
+  }
+}

@@ -51,7 +51,9 @@ export function versionOk(v, min = VERSION_MINIMA) {
 }
 
 export const PREFIJO_LECTURA = "MODO SOLO LECTURA: no crees, modifiques ni borres archivos ni ejecutes comandos que cambien el repo.\n\n";
-export const buildAgyPrompt = (prompt, mode) => (mode === "editar" ? "" : PREFIJO_LECTURA) + prompt;
+export const PREFIJO_PROGRAMAR = "LÍMITES: trabaja SOLO dentro de la carpeta actual; no uses navegador ni internet; no ejecutes comandos salvo git status/diff/log/show; no leas ni escribas fuera de esta carpeta.\n\n";
+// Primera capa (consejo al modelo; NO es una garantía: la garantía es el guardián de eventos de agy-policy.js).
+export const buildAgyPrompt = (prompt, mode) => (mode === "editar" ? PREFIJO_PROGRAMAR : PREFIJO_LECTURA) + prompt;
 
 // Entorno sin claves de API: fuerza el login de la cuenta del PC.
 export function agyEnv(env = process.env) {

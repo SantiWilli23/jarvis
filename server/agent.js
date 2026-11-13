@@ -35,14 +35,16 @@ export function createAgent({ db, bus, tasks, approvals, audit, permissions, sta
     caps,
     capabilities: () => pc.capabilities,
     // Motores que el PC puede atender (según lo que informó): Claude siempre; Gemini solo con agy listo.
-    engines: () => ["claude", ...(pc.capabilities?.gemini_cli?.ok ? ["gemini"] : [])],
-    geminiReady: () => !!pc.capabilities?.gemini_cli?.ok,
+    // Gemini del PC está APAGADO por defecto: solo motores_pc.gemini.activo === true lo enciende (config/providers.json).
+    geminiActive: () => motores?.gemini?.activo === true,
+    engines: () => ["claude", ...(api.geminiReady() ? ["gemini"] : [])],
+    geminiReady: () => motores?.gemini?.activo === true && !!pc.capabilities?.gemini_cli?.ok,
     // ¿Este motor llegó a su tope diario? (tareas o tokens)
     async capped(userId, engine = "claude") {
       const c = caps(engine), u = await api.usageToday(userId), x = engine === "gemini" ? u.gemini : u;
       return (c.diario_tareas != null && x.tareas >= c.diario_tareas) || (c.diario_tokens != null && x.tokens >= c.diario_tokens);
     },
-    view() { return { online: pc.online, current_task: pc.current_task, paused: pc.paused, last_seen: pc.last_seen, host: pc.host, engines: api.engines() }; },
+    view() { return { online: pc.online, current_task: pc.current_task, paused: pc.paused, last_seen: pc.last_seen, host: pc.host, engines: api.engines(), gemini_activo: motores?.gemini?.activo === true }; },
     // Si el PC dejó de avisar, se marca desconectado (lo llama un temporizador y también /status).
     sweep(userId) {
       if (pc.online && now() - pc.last_seen > PC_TIMEOUT_MS) {
@@ -64,7 +66,7 @@ export function createAgent({ db, bus, tasks, approvals, audit, permissions, sta
       return {
         ok: true, interrumpidas: hung.changes || 0, caps: caps(), uso: await api.usageToday(userId),
         permissions: { automatico: permissions.automatico, requiere_aprobacion: permissions.requiere_aprobacion, carpetas_permitidas: permissions.carpetas_permitidas, carpetas_gemini: permissions.carpetas_gemini || [], aprobacion_caduca_minutos: permissions.aprobacion_caduca_minutos },
-        motores: { gemini: { modelo: geminiModel() } },
+        motores: { gemini: { modelo: geminiModel(), activo: motores?.gemini?.activo === true } },
       };
     },
     async heartbeat(userId, { paused = false, current_task = null, capabilities } = {}) {

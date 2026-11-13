@@ -3,7 +3,7 @@ import { proReasons } from "./reasons.js";
 
 export function availability({ agent, config }) {
   agent.sweep?.();
-  const motivos = proReasons({ pcOnline: agent.view().online, caps: agent.capabilities(), cfg: config });
+  const motivos = proReasons({ pcOnline: agent.view().online, caps: agent.capabilities(), cfg: config, geminiActivo: agent.geminiActive?.() ?? true });
   return { habilitado: motivos.length === 0, motivos };
 }
 export const reposOf = (agent) => agent.capabilities()?.repos || [];

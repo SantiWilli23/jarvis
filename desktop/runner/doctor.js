@@ -43,18 +43,20 @@ export async function discoverRepos(folders = [], isGit = isGitRepo) {
   return [...new Set(out)];
 }
 
-export async function runDoctor({ folders = [], claudePath = null, agyPath = null, exec: ex = exec, env = process.env, home = homedir(), exists = existsSync } = {}) {
+export async function runDoctor({ folders = [], claudePath = null, agyPath = null, exec: ex = exec, env = process.env, home = homedir(), exists = existsSync, geminiActivo = false } = {}) {
   const cb = claudePath ? { command: claudePath, prefix: [] } : resolveClaude({ env });
   let claude = { ok: false, modelos: [] };
   if (cb) { try { await ex(cb, ["--version"]); claude = { ok: true, modelos: ["opus", "sonnet"] }; } catch { /* no responde */ } } // los modelos no se pueden listar sin gastar cuota
   const ab = resolveAgy({ env, configured: agyPath, exists });
   let agy = { ok: false, cli: "agy", login: null, version: null, modelos: [], flags: null };
-  if (ab) {
+  // Gemini apagado (por defecto): no se ejecuta agy ni para diagnosticar; las capacidades lo dicen.
+  if (!geminiActivo) agy = { ...agy, activo: false, error: "gemini_apagado" };
+  else if (ab) {
     let version = null; try { version = (await ex(ab, ["--version"])).match(/\d+(\.\d+){1,2}/)?.[0] || null; } catch { /* no responde */ }
     if (version && versionOk(version)) {
       const modelos = await agyModels(ab, ex);
       const flags = await verifyAgyFlags(ab, ex);
-      agy = { ok: modelos.length > 0 && flags.ok, cli: "agy", login: modelos.length ? "google" : null, version, modelos, flags };
+      agy = { activo: true, ok: modelos.length > 0 && flags.ok, cli: "agy", login: modelos.length ? "google" : null, version, modelos, flags };
     } else agy = { ...agy, version, error: version ? `agy ${version} es anterior a ${VERSION_MINIMA}` : "agy no responde" };
   }
   const repos = await discoverRepos(folders);

@@ -30,6 +30,10 @@ step({ step_index: 0, state: "DONE", step_type: "user_input" });
 if (process.env.FAKE_CMD) {
   step({ step_index: 1, state: "ACTIVE", step_type: "tool", tool_name: "run_command", tool_info: { name: "run_command", parameters: { CommandLine: process.env.FAKE_CMD } } });
 }
+if (process.env.FAKE_TOOL) { // FAKE_TOOL=JSON {name, params}: una herramienta cualquiera en ACTIVE
+  const t = JSON.parse(process.env.FAKE_TOOL);
+  step({ step_index: 1, state: "ACTIVE", step_type: "tool", tool_name: t.name, tool_info: { name: t.name, parameters: t.params } });
+}
 if (process.env.FAKE_DENY) {
   step({ step_index: 2, state: "DONE", step_type: "tool", tool_name: "run_command", tool_info: { name: "run_command", parameters: { CommandLine: "x" }, error: process.env.FAKE_DENY } });
 }

@@ -7,6 +7,7 @@ import { parsePhoneIntent, phoneReply } from "./phone/intents.js";
 const MSG_SIN_CUOTA = "Mis proveedores gratuitos llegaron a su límite por ahora, señor. Lo reintento en cuanto se reinicien.";
 
 const MOTORES = ["auto", "flash", "gemini", "claude"]; // lista cerrada del selector del chat
+const GEMINI_APAGADO = "Gemini del PC está apagado, señor: no encolé nada. Puedo dárselo a Claude (/claude) o responderle con Flash; para encenderlo, motores_pc.gemini.activo en config/providers.json.";
 const NOTA_PC_APAGADO = " (Flash: PC apagado)";
 
 export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, persona = "", webSearch = null, agent = null, now = () => Date.now() }) {
@@ -22,6 +23,15 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
     run(db, "INSERT INTO messages (user_id, conversation_id, role, content, provider, private, created_at) VALUES (?,?,?,?,?,?,?)",
       [userId, conv, role, content, provider || null, priv ? 1 : 0, now()]);
   const state = (userId, s, extra = {}) => bus?.emit("state", { userId, state: s, ...extra });
+
+  // Gemini apagado: no se encola nada; se contesta con un mensaje claro.
+  async function geminiOff({ userId, conv, original }) {
+    await saveMsg(userId, conv, "user", original, null, false);
+    await saveMsg(userId, conv, "assistant", GEMINI_APAGADO, "gemini_apagado", false);
+    bus?.emit("chat.done", { userId, text: GEMINI_APAGADO, provider: "gemini_apagado" });
+    state(userId, "speaking");
+    return { status: "gemini_apagado", conversationId: conv, reply: GEMINI_APAGADO };
+  }
 
   return {
     // ¿El texto es privado? (marca, clasificador o notas privadas). Se usa ANTES de encolar algo para Gemini.
@@ -51,6 +61,7 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
           state(userId, "speaking");
           return { status: "privado_no_gemini", conversationId: conv, reply, private: true };
         }
+        if (d.engine === "gemini" && !(agent?.geminiActive?.())) return geminiOff({ userId, conv, original });
         const task = await tasks.create({ userId, rawText: d.text, mode: "directo", engine: d.engine, header: { source } });
         const reply = `Anotado, señor. Lo dejé en cola, palabra por palabra, y se lo entrego a ${quien} en cuanto encienda su PC.`;
         await saveMsg(userId, conv, "user", original, null, false);
@@ -83,6 +94,7 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       // llegó a su tope diario y el PC tiene agy); Gemini = cola para Gemini aunque el PC esté apagado;
       // Flash = no actúa en el PC, responde la nube.
       if (cls.kind === "accion_pc" && !(motor === "flash" && !isPrivate)) {
+        if (motor === "gemini" && !isPrivate && !(agent?.geminiActive?.())) return geminiOff({ userId, conv, original });
         let eng = "claude";
         if (!isPrivate) {
           if (motor === "gemini") eng = "gemini";

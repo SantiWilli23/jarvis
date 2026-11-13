@@ -1,6 +1,7 @@
 import express, { Router } from "express";
 import { ENGINES } from "../queue/tasks.js";
 
+export const GEMINI_APAGADO = "Gemini del PC está apagado, señor (motores_pc.gemini.activo=false). Use Claude o Flash, o enciéndalo en config/providers.json.";
 export function taskRoutes(ctx) {
   const r = Router();
   const view = (t) => t && ({ id: t.id, seq: t.seq, mode: t.mode, status: t.status, text: t.text, sha256: t.sha256, header: t.header, prepared: t.prepared, review_first: t.review_first, engine: t.engine, result: t.result });
@@ -14,6 +15,7 @@ export function taskRoutes(ctx) {
       if (typeof text !== "string" || !text.length) return res.status(400).json({ error: "texto_vacio" });
       const engine = req.body.engine ?? "claude";
       if (!ENGINES.includes(engine)) return res.status(400).json({ error: "motor_invalido" }); // lista cerrada
+      if (engine === "gemini" && !ctx.agent?.geminiActive?.()) return res.status(409).json({ error: "gemini_apagado", message: GEMINI_APAGADO });
       // Privacidad ANTES de encolar para Gemini: lo privado nunca va allí.
       if (engine === "gemini" && await ctx.chat.checkPrivate({ userId: req.user.id, text, flagPrivate: !!req.body.private })) return res.status(409).json({ error: "privado_no_gemini" });
       if (req.body.mode === "preparar") {

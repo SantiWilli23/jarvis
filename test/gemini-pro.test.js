@@ -24,6 +24,7 @@ before(async () => {
   tmp = mkdtempSync(join(tmpdir(), "jarvis-gem-"));
   ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "prueba-123" } });
   ctx.permissions.carpetas_gemini = [join(tmp, "gem")];
+  ctx.config.motores_pc.gemini.activo = true; // viene apagado por defecto
   server = createServer(createApp(ctx));
   ctx.hub = createHub({ server, sessions: ctx.sessions, bus: ctx.bus });
   await new Promise((r) => server.listen(0, r));
@@ -82,6 +83,7 @@ test("worker con agy falso: tarea hecha y uso en ai_usage, no en claude_usage", 
   const hub = createHubClient({ baseUrl: base, token: pc });
   const w = createWorker({ hub, agy: { command: process.execPath, prefix: [FAKE] }, geminiFolders: [join(tmp, "gem")], claude: { command: process.execPath, prefix: [FAKE] }, fallbackCwd: tmp, getCapabilities: () => ({ claude: { ok: true }, gemini_cli: { ok: true, cli: "agy" } }) });
   await hub.hello({ version: "0", host: "PC", capabilities: { claude: { ok: true }, gemini_cli: { ok: true, cli: "agy" } } });
+  await w.sync();
   for (let i = 0; i < 5 && !["hecha", "fallida"].includes((await ctx.tasks.get(1, t.id)).status); i++) await w.tick();
   assert.equal((await ctx.tasks.get(1, t.id)).status, "hecha");
   const ai = await all(ctx.db, "SELECT * FROM ai_usage WHERE engine='gemini'");

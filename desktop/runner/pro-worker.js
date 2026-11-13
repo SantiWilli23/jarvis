@@ -3,6 +3,7 @@
 import { appendFileSync, existsSync, writeFileSync, readFileSync } from "node:fs";
 import { join, isAbsolute } from "node:path";
 import { buildProArgs } from "./claude-args.js";
+import { policyFor } from "./agy-policy.js";
 import { buildAgyArgs, buildAgyPrompt, MAX_PEDIDO, modelChain, isProhibited, normalizeModel, IGNORE_PRIVADOS } from "./agy-args.js";
 import { classifyDenial, allowRule } from "./danger.js";
 import { runClaude as realRunClaude, resolveClaude as realResolveClaude } from "./claude-runner.js";
@@ -40,6 +41,8 @@ export function createProWorker({
   hub, outbox = null, allowedFolders = () => [], log = () => {},
   claude = null, agy = null,                      // { command, prefix } o función que lo resuelve (agy = Antigravity CLI, motor "gemini" del contrato)
   runClaude = realRunClaude, runAgy = realRunAgy, resolveClaude = realResolveClaude,
+  geminiActivo = () => false,            // Gemini del PC apagado por defecto (lo enciende el servidor: motores_pc.gemini.activo)
+  geminiFolders = () => [],              // carpetas_gemini: el repo debe estar DENTRO de ellas
   snap = gitSnap, diffMax = 200000, approvalPollMs = 3000, approvalTtlMs = 30 * 60_000, onStatus = () => {},
 }) {
   const bin = (b, fallback) => { const v = typeof b === "function" ? b() : b; return v || (fallback ? fallback() : null); };
@@ -108,13 +111,15 @@ export function createProWorker({
   // Gemini: programar baja de modelo SOLO ante 503; cuota (429) falla con sin_cuota sin bajar.
   async function withGemini(job, ev) {
     const b = bin(agy);
+    if (!geminiActivo()) return { error: "gemini_apagado" };
+    if (!snap.isInsideAllowed(job.repo, geminiFolders())) return { error: "repo_fuera_de_carpetas_gemini" };
     if (!b) return { error: "gemini_no_instalado" };
     await ensureGeminiIgnore(job.repo);
     let lastErr = "gemini_error";
     const prompt = buildAgyPrompt(job.prompt, job.mode);
     if (prompt.length > MAX_PEDIDO) return { error: "pedido_largo_para_agy" }; // agy recibe el pedido en la línea de comandos
     for (const model of modelChain(job.role, job.model)) {
-      const r = await runAgy({ ...b, args: buildAgyArgs({ prompt, model }), allowedDirs: [job.repo], cwd: job.repo, timeoutMs: (job.timeout_s || 1800) * 1000, onEvents: ev.push });
+      const r = await runAgy({ ...b, args: buildAgyArgs({ prompt, model }), allowedDirs: geminiFolders(), policy: policyFor({ role: job.role, mode: job.mode }), cwd: job.repo, timeoutMs: (job.timeout_s || 1800) * 1000, onEvents: ev.push });
       if (r.aborted === "tiempo") return { error: "timeout" };
       if (r.blocked) return { error: `comando_bloqueado: ${r.blocked.kind}: ${r.blocked.detail}`.slice(0, 400), usage: r.usage };
       if (!r.isError) return { text: r.text, usage: r.usage, commands: r.commands, model };

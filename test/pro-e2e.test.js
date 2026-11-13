@@ -57,7 +57,7 @@ const tick = (o = {}) => { env(o); return worker.tick(); };
 before(async () => {
   root = realpathSync.native(mkdtempSync(join(tmpdir(), "e2e-pro-")));
   repo = mkRepo("app"); repoB = mkRepo("otro");
-  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } });
+  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.config.motores_pc.gemini.activo = true;
   ctx.permissions.carpetas_permitidas = [root];
   server = createServer(createApp(ctx));
   await new Promise((r) => server.listen(0, r));
@@ -74,7 +74,7 @@ before(async () => {
   hub = createHubClient({ baseUrl: base, token: pc, fetchFn });
   outbox = createOutbox(mkdtempSync(join(tmpdir(), "e2e-box-")));
   // El worker solo permite `repo` (no `repoB`): sirve para el rechazo del lado del PC.
-  worker = createProWorker({ hub, outbox, allowedFolders: () => [repo], claude: CLAUDE, agy: AGY });
+  worker = createProWorker({ hub, outbox, allowedFolders: () => [repo], claude: CLAUDE, agy: AGY, geminiActivo: () => true, geminiFolders: () => [dirname(repo)] });
   await hub.hello({ host: "pc-test", version: "t", capabilities: { claude: { ok: true, modelos: ["opus", "sonnet"] }, agy: { ok: true, login: "google" }, repos: [repo, repoB] } });
 });
 after(() => { server.close(); rmSync(root, { recursive: true, force: true }); });

@@ -1,8 +1,8 @@
 {
   "nota": "Los límites son null a propósito: no se inventan cifras. Verifíquelos en la consola de cada proveedor y rellene rpm (por minuto) y rpd (por día).",
   "permite_privado": ["claude", "groq"],
-  "nota_motores_pc": "Motores del PC. por_defecto: motor de las acciones en el PC en modo Auto. gemini.cli = Antigravity CLI (agy) con sesión iniciada en el PC; gemini.modelo = modelo que PROGRAMA en el PC (cámbielo aquí cuando haya otro en su cuenta: no hay Argon/Pro); gemini.planificador = modelo que PLANEA por la API de Google (nivel gratis, sin PC; no use argon/carbon/3.1-pro: no tienen nivel gratis).",
-  "motores_pc": { "por_defecto": "claude", "gemini": { "cli": "agy", "modelo": "gemini-3.8-flash-high", "planificador": "gemini-4-hydrogen" } },
+  "nota_motores_pc": "Motores del PC. por_defecto: motor de las acciones en el PC en modo Auto. gemini.activo = APAGADO por defecto (el agente Gemini del PC solo se enciende poniendo true; ver docs/GUIA-USUARIO.md, límites de seguridad). gemini.cli = Antigravity CLI (agy) con sesión iniciada en el PC; gemini.modelo = modelo que PROGRAMA en el PC (cámbielo aquí cuando haya otro en su cuenta: no hay Argon/Pro); gemini.planificador = modelo que PLANEA por la API de Google (nivel gratis, sin PC; no use argon/carbon/3.1-pro: no tienen nivel gratis).",
+  "motores_pc": { "por_defecto": "claude", "gemini": { "activo": false, "cli": "agy", "modelo": "gemini-3.8-flash-high", "planificador": "gemini-4-hydrogen" } },
   "puestos": [
     { "id": "claude", "nombre": "Claude Pro", "rol": "Solo PC · tope diario", "pc": true },
     { "id": "gemini_pc", "nombre": "Gemini (PC)", "rol": "Agente en el PC · agy · planea con Hydrogen", "pc": true },

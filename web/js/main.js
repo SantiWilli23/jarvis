@@ -32,7 +32,7 @@ subscribe((what) => {
 
 async function refreshStatus() {
   try { store.status = await getStatus(); } catch { return; }
-  renderMemory(store.status); renderQueue(store.status, onQueueAction); renderConn(store.status, lastUsed, store.state === "thinking"); renderPc(store.status.pc);
+  renderMemory(store.status); renderQueue(store.status, onQueueAction); renderConn(store.status, lastUsed, store.state === "thinking"); renderPc(store.status.pc); try { aplicarMotor(); } catch { /* aún no existe */ }
 }
 
 async function onQueueAction(kind, id) {
@@ -77,12 +77,14 @@ function onWs(m) {
 const MOTORES = ["auto", "flash", "gemini", "claude"];
 const motorGuardado = () => { try { const v = localStorage.getItem("jarvis_motor"); return MOTORES.includes(v) ? v : "auto"; } catch { return "auto"; } };
 // Con "privado" marcado Gemini queda desactivado (lo privado nunca va a Gemini): se usa Auto.
-const motorEfectivo = (priv) => { const m = $("saymotor")?.value || motorGuardado(); return priv && m === "gemini" ? "auto" : m; };
+const geminiApagado = () => store.status?.pc?.gemini_activo === false; // apagado por defecto en el servidor
+const motorEfectivo = (priv) => { const m = $("saymotor")?.value || motorGuardado(); return (priv || geminiApagado()) && m === "gemini" ? "auto" : m; };
 function aplicarMotor() {
   const sel = $("saymotor"); if (!sel) return;
   const priv = $("saypriv").checked;
-  sel.querySelector('option[value="gemini"]').disabled = priv;
-  sel.value = priv && motorGuardado() === "gemini" ? "auto" : motorGuardado();
+  const off = priv || geminiApagado(), op = sel.querySelector('option[value="gemini"]');
+  op.disabled = off; op.textContent = geminiApagado() ? "Gemini (apagado)" : "Gemini";
+  sel.value = off && motorGuardado() === "gemini" ? "auto" : motorGuardado();
 }
 if ($("saymotor")) {
   aplicarMotor();
