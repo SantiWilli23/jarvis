@@ -1,0 +1,19 @@
+{
+  "name": "jarvis",
+  "version": "0.1.0",
+  "description": "Asistente personal por voz de costo cero (Fase 1)",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "dev": "node --watch server/index.js",
+    "start": "node server/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.15.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}

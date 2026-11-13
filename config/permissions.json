@@ -1,0 +1,8 @@
+{
+  "nota": "Qué puede hacer Claude en el PC sin pedir permiso y qué siempre se aprueba en el teléfono. Se aplica en la Fase 2.",
+  "automatico": ["leer_carpetas_permitidas", "escribir_carpetas_permitidas"],
+  "requiere_aprobacion": ["borrar", "terminal_libre", "enviar_mensaje", "git_push", "desplegar"],
+  "carpetas_permitidas": [],
+  "tope_claude": { "por_tarea_tokens": null, "diario_tareas": null, "nota": "verificar según el plan Pro" },
+  "aprobacion_caduca_minutos": 30
+}

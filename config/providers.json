@@ -1,0 +1,29 @@
+{
+  "nota": "Los límites son null a propósito: no se inventan cifras. Verifíquelos en la consola de cada proveedor y rellene rpm (por minuto) y rpd (por día).",
+  "permite_privado": ["claude", "groq"],
+  "puestos": [
+    { "id": "claude", "nombre": "Claude Pro", "rol": "Solo PC · tope diario", "pc": true },
+    { "id": "chatgpt", "nombre": "ChatGPT", "rol": "Puesto apagado hasta pegar clave", "sustituto": "gemini", "apagado": true },
+    { "id": "gemini", "nombre": "Gemini", "rol": "Fotos · preguntas medias" },
+    { "id": "grok", "nombre": "Grok", "rol": "Puesto apagado hasta pegar clave", "sustituto": "groq", "apagado": true },
+    { "id": "perplexity", "nombre": "Perplexity", "rol": "Puesto apagado hasta pegar clave", "sustituto": "gemini", "apagado": true }
+  ],
+  "cadena_gratis": ["gemini", "groq", "mistral", "openrouter", "cloudflare", "ollama"],
+  "proveedores": {
+    "gemini":     { "nombre": "Gemini Flash-Lite", "rol": "Fotos · preguntas medias", "env": "GEMINI_API_KEY", "modelo": "gemini-2.0-flash-lite", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
+    "groq":       { "nombre": "Groq gpt-oss-120b", "rol": "Rápido · lo privado", "env": "GROQ_API_KEY", "modelo": "openai/gpt-oss-120b", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
+    "mistral":    { "nombre": "Mistral / Ministral", "rol": "Español · cortas", "env": "MISTRAL_API_KEY", "apagado": true, "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
+    "openrouter": { "nombre": "OpenRouter :free", "rol": "Relevo · DeepSeek :free", "env": "OPENROUTER_API_KEY", "modelo": "deepseek/deepseek-chat-v3-0324:free", "apagado": true, "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
+    "cloudflare": { "nombre": "Cloudflare Workers AI", "rol": "Relevo", "env": "CLOUDFLARE_API_TOKEN", "apagado": true, "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
+    "ollama":     { "nombre": "Ollama (local)", "rol": "Relevo en el PC", "env": "OLLAMA_URL", "apagado": true, "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
+    "fake":       { "nombre": "Proveedor de pruebas", "rol": "Sin claves · respuestas simuladas", "limites": { "rpm": null, "rpd": null } }
+  },
+  "orden_por_tipo": {
+    "charla": ["groq", "gemini"],
+    "razonamiento": ["gemini", "groq"],
+    "foto_video": ["gemini"],
+    "investigacion": ["gemini", "groq"],
+    "accion_pc": ["groq", "gemini"],
+    "privado": ["groq"]
+  }
+}
