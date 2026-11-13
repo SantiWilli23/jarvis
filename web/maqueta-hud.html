@@ -1,0 +1,488 @@
+<title>Jarvis HUD</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Concepto: sala de mando oscura; el orbe manda y los paneles son instrumentos a los lados. Un solo look a propósito (HUD nocturno). */
+:root {
+  --bg: #02070d;
+  --panel: rgba(8, 28, 44, 0.55);
+  --line: rgba(63, 216, 255, 0.2);
+  --cyan: #3fd8ff;
+  --cyan-deep: #0a6fb0;
+  --amber: #ffb23f;
+  --red: #ff4d5e;
+  --ok: #4de3a0;
+  --fg: #d4f0ff;
+  --dim: #6a93ab;
+  --display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --accent: var(--cyan);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); }
+body {
+  margin: 0;
+  color: var(--fg);
+  font-family: var(--display);
+  font-size: 14px;
+  padding-block: 14px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background:
+    radial-gradient(1200px 700px at 50% 38%, rgba(10, 111, 176, 0.22), transparent 70%),
+    linear-gradient(rgba(63, 216, 255, 0.045) 1px, transparent 1px) 0 0 / 44px 44px,
+    linear-gradient(90deg, rgba(63, 216, 255, 0.045) 1px, transparent 1px) 0 0 / 44px 44px,
+    var(--bg);
+  min-height: 100vh;
+}
+body[data-state="permission"] { --accent: var(--amber); }
+body[data-state="error"] { --accent: var(--red); }
+.app { max-width: 1280px; margin: 0 auto; display: grid; gap: 14px; }
+
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.brand { font-weight: 700; letter-spacing: 0.42em; font-size: 18px; color: var(--accent); text-shadow: 0 0 14px color-mix(in srgb, var(--accent) 60%, transparent); transition: color .4s; }
+.top .sp { flex: 1; }
+.chip { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; padding: 5px 10px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); box-shadow: 0 0 0 0 transparent; }
+.dot.on { background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+.dot.off { background: var(--amber); box-shadow: 0 0 10px var(--amber); }
+button { font: inherit; color: inherit; cursor: pointer; }
+.chip-btn { background: var(--panel); border: 1px solid var(--line); padding: 5px 10px; font-family: var(--mono); font-size: 12px; }
+.chip-btn:hover { border-color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 270px) minmax(0, 1fr) minmax(0, 290px); gap: 14px; align-items: start; }
+.stage { display: grid; gap: 12px; justify-items: center; min-width: 0; }
+.orbwrap { position: relative; width: min(100%, 600px); aspect-ratio: 1; }
+canvas#orb { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: pointer; }
+.readout { position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%); text-align: center; pointer-events: none; }
+.readout b { display: block; font-size: 13px; letter-spacing: 0.4em; text-transform: uppercase; color: var(--accent); transition: color .4s; }
+.readout span { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+
+.say { width: min(100%, 680px); border: 1px solid var(--line); background: var(--panel); padding: 12px 16px; min-height: 76px; display: grid; gap: 4px; }
+.say .who { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); transition: color .4s; }
+.say .txt { font-size: 16px; line-height: 1.45; }
+.say .txt::after { content: "▍"; color: var(--accent); margin-left: 2px; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+.states { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.states button { background: transparent; border: 1px solid var(--line); padding: 6px 12px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+.states button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.hint { font-family: var(--mono); font-size: 11px; color: var(--dim); text-align: center; }
+
+.panel { border: 1px solid var(--line); background: var(--panel); padding: 12px 14px 14px; position: relative; min-width: 0; }
+.panel::before, .panel::after { content: ""; position: absolute; width: 10px; height: 10px; border: 2px solid var(--cyan); }
+.panel::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
+.panel::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
+.panel h2 { margin: 0 0 10px; font-size: 11px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--dim); display: flex; justify-content: space-between; gap: 8px; }
+.panel h2 em { font-style: normal; font-family: var(--mono); letter-spacing: 0; color: var(--dim); opacity: .8; }
+.col { display: grid; gap: 14px; min-width: 0; }
+
+.model { padding: 8px 0; border-top: 1px solid rgba(63, 216, 255, 0.1); display: grid; gap: 5px; transition: background .3s; }
+.model:first-of-type { border-top: 0; }
+.model .row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.model .row span:last-child { font-family: var(--mono); font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.model .role { font-size: 11px; color: var(--dim); }
+.bar { height: 4px; background: rgba(63, 216, 255, 0.12); position: relative; }
+.bar i { position: absolute; inset: 0 auto 0 0; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.bar i.warn { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+.model.active { background: linear-gradient(90deg, color-mix(in srgb, var(--cyan) 14%, transparent), transparent); }
+.model.active .row span:first-child { color: var(--cyan); }
+.model.dead .row span:first-child { color: var(--dim); text-decoration: line-through; }
+
+.task { padding: 9px 0; border-top: 1px solid rgba(63, 216, 255, 0.1); display: grid; gap: 4px; }
+.task:first-of-type { border-top: 0; }
+.task .tag { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 6px; justify-self: start; border: 1px solid var(--line); color: var(--cyan); }
+.task .tag.direct { color: var(--amber); border-color: rgba(255, 178, 63, 0.4); }
+.task p { margin: 0; font-size: 13px; line-height: 1.4; }
+.task small { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+.empty { color: var(--dim); font-size: 13px; }
+
+.conn { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.conn div { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 5px 8px; border: 1px solid rgba(63, 216, 255, 0.12); }
+.conn .dot { flex: none; }
+.mem { font-family: var(--mono); font-size: 11px; color: var(--dim); line-height: 1.7; }
+.mem b { color: var(--fg); font-weight: 500; }
+
+.perm { position: absolute; inset: auto 0 14% 0; margin: 0 auto; width: min(92%, 380px); border: 1px solid var(--amber); background: rgba(24, 14, 2, 0.88); padding: 14px; display: none; gap: 10px; box-shadow: 0 0 40px rgba(255, 178, 63, 0.25); z-index: 2; }
+.perm.show { display: grid; }
+.perm .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--amber); }
+.perm code { font-family: var(--mono); font-size: 13px; background: rgba(255, 178, 63, 0.1); padding: 6px 8px; overflow-wrap: anywhere; }
+.perm p { margin: 0; font-size: 13px; color: var(--dim); }
+.perm .btns { display: flex; gap: 8px; }
+.perm .btns button { flex: 1; padding: 8px; border: 1px solid var(--amber); background: transparent; font-weight: 600; letter-spacing: 0.06em; }
+.perm .btns button.yes { background: var(--amber); color: #1a0f00; }
+
+.foot { font-family: var(--mono); font-size: 11px; color: var(--dim); text-align: center; padding-top: 4px; }
+
+@media (max-width: 1020px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .stage { order: -1; }
+  .col { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) { .say .txt::after { animation: none; } }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">JARVIS</div>
+    <span class="chip"><i class="dot on"></i><span id="clock">--:--</span></span>
+    <span class="chip" id="pcchip"><i class="dot off" id="pcdot"></i><span id="pctext">PC apagado · modo nube</span></span>
+    <span class="sp"></span>
+    <button class="chip-btn" id="pcbtn" type="button">Simular: encender PC</button>
+  </header>
+
+  <div class="layout">
+    <section class="col" aria-label="Modelos y memoria">
+      <div class="panel">
+        <h2>Cadena de modelos <em>ejemplo</em></h2>
+        <div id="models"></div>
+      </div>
+      <div class="panel">
+        <h2>Memoria <em>Turso</em></h2>
+        <div class="mem">
+          <b>148</b> notas · <b>12</b> privadas<br>
+          Última sincronización con el PC: <b>ayer 22:40</b><br>
+          Leídas en esta consulta: <b id="memread">0</b>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage" aria-label="Orbe de Jarvis">
+      <div class="orbwrap">
+        <canvas id="orb" aria-label="Orbe de Jarvis, toque para hablar" role="img"></canvas>
+        <div class="readout"><b id="slabel">En espera</b><span id="smodel">toque el orbe</span></div>
+        <div class="perm" id="perm" role="alertdialog" aria-label="Pedido de permiso">
+          <div class="k">Claude pide permiso</div>
+          <code>git push origin main</code>
+          <p>Sube los cambios de Football Quiz. Esta acción siempre necesita su aprobación.</p>
+          <div class="btns"><button type="button" id="no">Rechazar</button><button type="button" class="yes" id="yes">Aprobar</button></div>
+        </div>
+      </div>
+      <div class="say" aria-live="polite">
+        <div class="who" id="who">Jarvis</div>
+        <div class="txt" id="txt"></div>
+      </div>
+      <div class="states" id="states" role="group" aria-label="Probar estados del orbe">
+        <button type="button" data-s="idle" aria-pressed="true">Espera</button>
+        <button type="button" data-s="listening" aria-pressed="false">Escucha</button>
+        <button type="button" data-s="thinking" aria-pressed="false">Piensa</button>
+        <button type="button" data-s="speaking" aria-pressed="false">Habla</button>
+        <button type="button" data-s="permission" aria-pressed="false">Permiso</button>
+        <button type="button" data-s="error" aria-pressed="false">Sin cuota</button>
+      </div>
+      <div class="hint">Toque el orbe para ver una conversación completa. Todo es una maqueta con datos de ejemplo.</div>
+    </section>
+
+    <section class="col" aria-label="Cola y conexiones">
+      <div class="panel">
+        <h2>Cola para el PC <em id="qcount">2</em></h2>
+        <div id="queue"></div>
+      </div>
+      <div class="panel">
+        <h2>Conexiones</h2>
+        <div class="conn" id="conn"></div>
+      </div>
+    </section>
+  </div>
+  <div class="foot">Maqueta de diseño · iPhone: misma pantalla, un solo toque para hablar</div>
+</div>
+
+<script>
+(function () {
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- datos de ejemplo ---------- */
+  var MODELS = [
+    { id: "gem", n: "Gemini Flash-Lite", r: "Fotos · preguntas medias", u: 312, m: 500 },
+    { id: "gro", n: "Groq gpt-oss-120b", r: "Rápido · lo privado", u: 41, m: 1000 },
+    { id: "mis", n: "Mistral / Ministral", r: "Español · cortas", u: 27, m: 200 },
+    { id: "ope", n: "OpenRouter :free", r: "Relevo · DeepSeek", u: 48, m: 50 },
+    { id: "cla", n: "Claude Pro", r: "Solo PC · tope diario", u: 0, m: 10, pc: true }
+  ];
+  var QUEUE = [
+    { t: "direct", tag: "Directo a Claude", p: "Revisa el bug del login en Football Quiz y arréglalo.", s: "dicho ayer 21:14 · se envía tal cual" },
+    { t: "prep", tag: "Preparada", p: "Ordenar las 912 piezas de Alquimia por liga y buscar repetidas.", s: "ordenada por Groq · 3 pasos" }
+  ];
+  var CONN = [["Telegram", 1], ["Gmail", 1], ["Calendar", 1], ["Drive", 1], ["Render", 1], ["Turso", 1], ["Spotify", 0], ["WhatsApp", 0]];
+
+  var pcOn = false, state = "idle", activeModel = null;
+
+  function renderModels() {
+    var h = "";
+    MODELS.forEach(function (m) {
+      var pct = Math.min(100, Math.round(m.u / m.m * 100));
+      var dead = (state === "error" && (m.id === "gem" || m.id === "gro" || m.id === "ope"));
+      var cls = "model" + (activeModel === m.id ? " active" : "") + (dead ? " dead" : "");
+      var txt = m.pc && !pcOn ? "PC apagado" : m.u + " / " + m.m;
+      h += '<div class="' + cls + '"><div class="row"><span>' + m.n + '</span><span>' + (dead ? "límite" : txt) + '</span></div>' +
+        '<div class="role">' + m.r + '</div><div class="bar"><i class="' + (pct > 85 || dead ? "warn" : "") + '" style="width:' + (dead ? 100 : pct) + '%"></i></div></div>';
+    });
+    $("models").innerHTML = h;
+  }
+  function renderQueue() {
+    var h = "";
+    if (!QUEUE.length) h = '<div class="empty">Cola vacía. Claude ya recibió todo.</div>';
+    QUEUE.forEach(function (q) {
+      h += '<div class="task"><span class="tag ' + (q.t === "direct" ? "direct" : "") + '">' + q.tag + '</span><p>' + q.p + '</p><small>' + q.s + '</small></div>';
+    });
+    $("queue").innerHTML = h;
+    $("qcount").textContent = QUEUE.length;
+  }
+  function renderConn() {
+    $("conn").innerHTML = CONN.map(function (c) {
+      return '<div><i class="dot ' + (c[1] ? "on" : "") + '"></i>' + c[0] + '</div>';
+    }).join("");
+  }
+  function tick() {
+    var d = new Date();
+    $("clock").textContent = d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+  }
+  tick(); setInterval(tick, 15000);
+
+  /* ---------- PC encendido ---------- */
+  function setPc(on) {
+    pcOn = on;
+    $("pcdot").className = "dot " + (on ? "on" : "off");
+    $("pctext").textContent = on ? "PC encendido · Claude trabajando" : "PC apagado · modo nube";
+    $("pcbtn").textContent = on ? "Simular: apagar PC" : "Simular: encender PC";
+    if (on && QUEUE.length) {
+      QUEUE = QUEUE.map(function (q) { return { t: q.t, tag: q.t === "direct" ? "Enviado a Claude" : "En ejecución", p: q.p, s: "Claude Code lo está trabajando ahora" }; });
+    } else if (!on) {
+      QUEUE = [
+        { t: "direct", tag: "Directo a Claude", p: "Revisa el bug del login en Football Quiz y arréglalo.", s: "dicho ayer 21:14 · se envía tal cual" },
+        { t: "prep", tag: "Preparada", p: "Ordenar las 912 piezas de Alquimia por liga y buscar repetidas.", s: "ordenada por Groq · 3 pasos" }
+      ];
+    }
+    renderModels(); renderQueue();
+  }
+  $("pcbtn").addEventListener("click", function () { setPc(!pcOn); });
+
+  /* ---------- estados ---------- */
+  var SCRIPT = {
+    idle:       { label: "En espera", model: "toque el orbe", who: "Jarvis", text: "Hola, señor. A su servicio. Toque el orbe y hable.", model_id: null },
+    listening:  { label: "Escuchando", model: "Groq Whisper · transcribiendo", who: "Usted", text: "Jarvis, díselo a Claude: revisa el bug del login y arréglalo.", model_id: "gro" },
+    thinking:   { label: "Pensando", model: "Gemini Flash-Lite", who: "Jarvis", text: "Su PC está apagado. Preparando la entrega…", model_id: "gem" },
+    speaking:   { label: "Hablando", model: "voz del navegador", who: "Jarvis", text: "Anotado, señor. Lo dejé en cola, palabra por palabra, y se lo entrego a Claude en cuanto encienda su PC.", model_id: "gem" },
+    permission: { label: "Esperando su permiso", model: "Claude Code · PC", who: "Jarvis", text: "Claude terminó el arreglo y quiere subirlo a GitHub. ¿Lo aprueba?", model_id: "cla" },
+    error:      { label: "Sin cuota", model: "cambiando de proveedor", who: "Jarvis", text: "Gemini y Groq llegaron a su límite, señor. Probando con Mistral.", model_id: "mis" }
+  };
+  var typeTimer = null, flowTimers = [];
+  function typeText(s) {
+    clearInterval(typeTimer);
+    var el = $("txt");
+    if (reduce) { el.textContent = s; return; }
+    var i = 0; el.textContent = "";
+    typeTimer = setInterval(function () {
+      i += 2; el.textContent = s.slice(0, i);
+      if (i >= s.length) clearInterval(typeTimer);
+    }, 22);
+  }
+  function setState(s) {
+    state = s;
+    document.body.setAttribute("data-state", s);
+    var sc = SCRIPT[s];
+    activeModel = sc.model_id;
+    $("slabel").textContent = sc.label;
+    $("smodel").textContent = sc.model;
+    $("who").textContent = sc.who;
+    $("memread").textContent = (s === "thinking" || s === "speaking") ? 3 : 0;
+    typeText(sc.text);
+    $("perm").classList.toggle("show", s === "permission");
+    var bs = $("states").querySelectorAll("button");
+    for (var i = 0; i < bs.length; i++) bs[i].setAttribute("aria-pressed", bs[i].dataset.s === s ? "true" : "false");
+    renderModels();
+  }
+  function clearFlow() { flowTimers.forEach(clearTimeout); flowTimers = []; }
+  function manual(s) { clearFlow(); setState(s); }
+  $("states").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (b) manual(b.dataset.s);
+  });
+  $("yes").addEventListener("click", function () { clearFlow(); setState("speaking"); SCRIPT.speaking.text; $("txt").textContent = ""; typeText("Hecho, señor. Subí los cambios y se los dejé listos."); flowTimers.push(setTimeout(function () { setState("idle"); }, 4500)); });
+  $("no").addEventListener("click", function () { clearFlow(); setState("idle"); typeText("Entendido, señor. No subí nada."); });
+  function demo() {
+    clearFlow();
+    setState("listening");
+    flowTimers.push(setTimeout(function () { setState("thinking"); }, 4200));
+    flowTimers.push(setTimeout(function () { setState("speaking"); }, 6800));
+    flowTimers.push(setTimeout(function () { setState("idle"); }, 13500));
+  }
+  /* ---------- orbe ---------- */
+  var cv = $("orb"), ctx = cv.getContext("2d");
+  var W = 0, H = 0, dpr = 1;
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var r = cv.getBoundingClientRect();
+    W = r.width; H = r.height;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  }
+  window.addEventListener("resize", resize); resize();
+  var greeted = false;
+  function speak(msg) {
+    try {
+      if (!window.speechSynthesis) return;
+      var u = new SpeechSynthesisUtterance(msg);
+      var vs = window.speechSynthesis.getVoices().filter(function (v) { return /^es/i.test(v.lang); });
+      var male = vs.filter(function (v) { return /jorge|diego|pablo|alvaro|enrique|raul|carlos|male/i.test(v.name); })[0];
+      var v = male || vs[0];
+      if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = "es-ES"; }
+      u.rate = 0.9; u.pitch = 0.7;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+  function greet() {
+    if (greeted) return; greeted = true;
+    $("who").textContent = "Jarvis";
+    typeText("Hola, señor.");
+    speak("Hola, señor.");
+  }
+  cv.addEventListener("click", function () {
+    if (!greeted) { greet(); flowTimers.push(setTimeout(demo, 2200)); }
+    else demo();
+  });
+
+  var N = 1100, pts = [];
+  var ga = Math.PI * (3 - Math.sqrt(5));
+  for (var i = 0; i < N; i++) {
+    var y = 1 - (i / (N - 1)) * 2, rr = Math.sqrt(1 - y * y), th = ga * i;
+    pts.push({ x: Math.cos(th) * rr, y: y, z: Math.sin(th) * rr, k: Math.sin(i * 12.9898) * 0.5 + 0.5 });
+  }
+  var P = {
+    idle:       { c: [63, 216, 255], spin: 0.18, amp: 0.02, ring: 0.25, glow: 0.5, pulse: 0.5 },
+    listening:  { c: [90, 235, 255], spin: 0.3,  amp: 0.16, ring: 0.5,  glow: 0.8, pulse: 0 },
+    thinking:   { c: [63, 190, 255], spin: 0.9,  amp: 0.07, ring: 2.4,  glow: 1.0, pulse: 0 },
+    speaking:   { c: [120, 240, 255], spin: 0.3, amp: 0.12, ring: 0.6,  glow: 0.95, pulse: 1 },
+    permission: { c: [255, 178, 63], spin: 0.12, amp: 0.03, ring: 0.2,  glow: 0.7, pulse: 0.6 },
+    error:      { c: [255, 77, 94],  spin: 0.05, amp: 0.05, ring: 0.1,  glow: 0.4, pulse: 0.3 }
+  };
+  var cur = JSON.parse(JSON.stringify(P.idle));
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  var yaw = 0, ringT = 0, last = performance.now();
+
+  function ringPoints(tilt, rot, R, out) {
+    var ct = Math.cos(tilt), st = Math.sin(tilt);
+    for (var a = 0; a <= 120; a++) {
+      var t = a / 120 * Math.PI * 2;
+      var x = Math.cos(t), z = Math.sin(t), y = 0;
+      var y1 = y * ct - z * st, z1 = y * st + z * ct;
+      var cr = Math.cos(rot), sr = Math.sin(rot);
+      var x2 = x * cr + z1 * sr, z2 = -x * sr + z1 * cr;
+      out.push([x2 * R, y1 * R, z2 * R]);
+    }
+  }
+
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    var tg = P[state], k = 1 - Math.pow(0.02, dt);
+    for (var q = 0; q < 3; q++) cur.c[q] = lerp(cur.c[q], tg.c[q], k);
+    cur.spin = lerp(cur.spin, tg.spin, k); cur.amp = lerp(cur.amp, tg.amp, k);
+    cur.ring = lerp(cur.ring, tg.ring, k); cur.glow = lerp(cur.glow, tg.glow, k);
+    var sp = reduce ? 0.25 : 1;
+    yaw += dt * cur.spin * sp; ringT += dt * cur.ring * sp;
+    var T = now / 1000;
+
+    var lvl = 0;
+    if (state === "listening") lvl = 0.45 + 0.35 * Math.sin(T * 7) * Math.sin(T * 2.3) + 0.2 * Math.sin(T * 17.3);
+    else if (state === "speaking") lvl = 0.5 + 0.5 * Math.abs(Math.sin(T * 5.1) * Math.sin(T * 1.7 + 1));
+    else if (state === "thinking") lvl = 0.3 + 0.3 * Math.sin(T * 3);
+    else if (state === "idle" || state === "permission") lvl = 0.5 + 0.5 * Math.sin(T * 1.3);
+    else lvl = 0.2 + 0.2 * Math.sin(T * 0.8);
+    if (reduce) lvl = 0.4;
+    lvl = Math.max(0, Math.min(1, lvl));
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    var cx = W / 2, cy = H / 2 - H * 0.02, R = Math.min(W, H) * 0.25;
+    var col = Math.round(cur.c[0]) + "," + Math.round(cur.c[1]) + "," + Math.round(cur.c[2]);
+    ctx.globalCompositeOperation = "lighter";
+
+    /* halo */
+    var gr = R * (1.9 + 0.25 * lvl * cur.glow);
+    var g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, gr);
+    g.addColorStop(0, "rgba(" + col + "," + (0.30 * cur.glow) + ")");
+    g.addColorStop(0.5, "rgba(" + col + "," + (0.08 * cur.glow) + ")");
+    g.addColorStop(1, "rgba(" + col + ",0)");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    /* anillo exterior con marcas */
+    var Ro = R * 1.95;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(" + col + ",0.35)";
+    for (var t = 0; t < 90; t++) {
+      var a = t / 90 * Math.PI * 2 + ringT * 0.15;
+      var l = t % 5 === 0 ? 10 : 5;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * Ro, cy + Math.sin(a) * Ro);
+      ctx.lineTo(cx + Math.cos(a) * (Ro - l), cy + Math.sin(a) * (Ro - l));
+      ctx.stroke();
+    }
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = "rgba(" + col + ",0.75)";
+    ctx.beginPath(); ctx.arc(cx, cy, Ro + 10, ringT * 0.5, ringT * 0.5 + 1.1); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, Ro + 10, ringT * 0.5 + Math.PI, ringT * 0.5 + Math.PI + 0.6); ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(" + col + ",0.3)";
+    ctx.beginPath(); ctx.arc(cx, cy, Ro + 22, -ringT * 0.35, -ringT * 0.35 + 2.2); ctx.stroke();
+    ctx.setLineDash([2, 7]);
+    ctx.beginPath(); ctx.arc(cx, cy, Ro - 18, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+
+    /* esfera de partículas */
+    var cyw = Math.cos(yaw), syw = Math.sin(yaw), tilt = 0.38, ct = Math.cos(tilt), st = Math.sin(tilt);
+    for (var i = 0; i < N; i++) {
+      var p = pts[i];
+      var wob = 1 + cur.amp * lvl * (Math.sin(i * 0.37 + T * 6) * 0.6 + Math.sin(i * 1.7 + T * 3) * 0.4 + 0.3);
+      var x = p.x * wob, y = p.y * wob, z = p.z * wob;
+      var x1 = x * cyw + z * syw, z1 = -x * syw + z * cyw;
+      var y2 = y * ct - z1 * st, z2 = y * st + z1 * ct;
+      var per = 1 / (1.9 - z2 * 0.8);
+      var sx = cx + x1 * R * per * 1.7, sy = cy + y2 * R * per * 1.7;
+      var depth = (z2 + 1) / 2;
+      var al = (0.12 + 0.88 * depth) * (0.5 + 0.5 * p.k) * cur.glow;
+      var s = (0.5 + 1.6 * depth) * (0.8 + 0.4 * p.k);
+      ctx.fillStyle = "rgba(" + col + "," + al.toFixed(3) + ")";
+      ctx.fillRect(sx - s / 2, sy - s / 2, s, s);
+    }
+
+    /* anillos 3D */
+    var rp = [];
+    for (var rI = 0; rI < 3; rI++) {
+      rp.length = 0;
+      ringPoints(0.5 + rI * 0.9, ringT * (rI % 2 ? -1 : 1) * (0.6 + rI * 0.35), R * (1.18 + rI * 0.16 + 0.04 * lvl), rp);
+      for (var j = 1; j < rp.length; j++) {
+        var a0 = rp[j - 1], b0 = rp[j];
+        var d = (b0[2] / (R * 1.5) + 1) / 2;
+        function pr(v) { var yy = v[1] * ct - v[2] * st, zz = v[1] * st + v[2] * ct; var pp = 1 / (1.9 - zz / R * 0.8); return [cx + v[0] * pp * 1.7, cy + yy * pp * 1.7]; }
+        var A = pr(a0), B = pr(b0);
+        ctx.strokeStyle = "rgba(" + col + "," + (0.12 + 0.6 * Math.max(0, Math.min(1, d))).toFixed(3) + ")";
+        ctx.lineWidth = rI === 0 ? 1.6 : 1;
+        ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+      }
+    }
+
+    /* núcleo */
+    var cr = R * (0.28 + 0.1 * lvl);
+    var cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, cr * 2.2);
+    cg.addColorStop(0, "rgba(255,255,255," + (0.55 * cur.glow) + ")");
+    cg.addColorStop(0.25, "rgba(" + col + "," + (0.5 * cur.glow) + ")");
+    cg.addColorStop(1, "rgba(" + col + ",0)");
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(cx, cy, cr * 2.2, 0, Math.PI * 2); ctx.fill();
+
+    /* línea de escaneo suave */
+    ctx.globalCompositeOperation = "source-over";
+    if (!reduce) {
+      var sy2 = ((T * 60) % (H + 80)) - 40;
+      var sg = ctx.createLinearGradient(0, sy2 - 30, 0, sy2 + 30);
+      sg.addColorStop(0, "rgba(" + col + ",0)"); sg.addColorStop(0.5, "rgba(" + col + ",0.05)"); sg.addColorStop(1, "rgba(" + col + ",0)");
+      ctx.fillStyle = sg; ctx.fillRect(0, sy2 - 30, W, 60);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  renderModels(); renderQueue(); renderConn(); setState("idle");
+  requestAnimationFrame(frame);
+})();
+</script>
