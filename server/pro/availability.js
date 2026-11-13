@@ -7,7 +7,7 @@ export function availability({ agent, config }) {
   return { habilitado: motivos.length === 0, motivos };
 }
 export const reposOf = (agent) => agent.capabilities()?.repos || [];
-const key = (p) => String(p || "").replace(/\/g, "/").replace(/\/+$/, "").toLowerCase();
+const key = (p) => String(p || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
 export const samePath = (a, b) => key(a) === key(b);
 export const insideAny = (p, dirs) => !dirs?.length || dirs.some((d) => key(p) === key(d) || key(p).startsWith(key(d) + "/"));
 

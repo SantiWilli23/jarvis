@@ -22,7 +22,7 @@ export function redact(text) {
 
 // Archivos que nunca se incluyen en prompts ni en el diff guardado (solo su nombre).
 export const isSensitivePath = (p) => {
-  const f = String(p || "").replace(/\/g, "/").split("/").pop().toLowerCase();
+  const f = String(p || "").replace(/\\/g, "/").split("/").pop().toLowerCase();
   return f === ".env" || f.startsWith(".env.") || f.endsWith(".pem") || f.endsWith(".key") || f.endsWith(".p12") || f === "id_rsa" || f === "id_ed25519";
 };
 

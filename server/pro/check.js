@@ -1,7 +1,7 @@
 // Comparación determinista informe vs. diff real (name-status y stat que manda el runner).
 import { isSensitivePath } from "./redact.js";
 
-const norm = (p) => String(p || "").trim().replace(/\/g, "/").replace(/^\.\//, "").replace(/^"|"$/g, "");
+const norm = (p) => String(p || "").trim().replace(/\\/g, "/").replace(/^\.\//, "").replace(/^"|"$/g, "");
 
 // Extrae rutas cambiadas de `git diff --name-status --stat -M` (y de cabeceras `diff --git`).
 export function parseChanged(diff) {

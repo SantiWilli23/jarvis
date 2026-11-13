@@ -117,6 +117,21 @@ Capacidades que el PC manda en `hello` y `heartbeat`:
 
 ```json
 { "capabilities": { "claude": {"ok": true, "modelos": ["opus","sonnet"]},
-                    "gemini_cli": {"ok": true, "login": "google"},
+                    "agy": {"ok": true, "login": "google"},
                     "repos": ["C:\\Users\\x\\proyecto"] } }
 ```
+
+## Ampliaciones P2
+
+Cambio de motor: el motor logico `gemini` es ahora **Antigravity CLI (`agy`)** con login de la cuenta Google AI Pro (Gemini CLI ya no atiende esas cuentas). Las capacidades pasan a `agy: {ok, login}` (se acepta `gemini_cli` por compatibilidad; el servidor lo guarda como `agy`). `config/pro.json`: `modelos.gemini.planear/verificar` son configurables (por defecto `argon`, id exacto por confirmar); ya no se prohibe `gemini-4-*`. El motivo de `status.pro` sigue llamandose `gemini_sin_login`.
+
+Roles e informes:
+- Job con `role: "commit"` (mode `editar`): el `prompt` es el mensaje de commit; el runner hace `git add -A && git commit` local (nunca push) y envia `report` con `informe.resultado: "ok"`. Se emite al aceptar (`aprobar` sobre una ronda ya programada).
+- `report` de `planear`: `informe` es texto (string) o `{plan|texto}`. De `verificar`: `informe` es el JSON de verificacion (o string que lo contenga). De `programar`: JSON del punto 6 (string aceptado).
+- `claim` acepta `{again: <job_id>}` para recuperar un job `reclamado`/`en_curso` cuya respuesta se perdio; los `reclamado` sin eventos tras `timeouts.job_reclamado_s` vuelven a `pendiente`. El job puede traer `fallback_models` y `fallback_solo_por` (solo ante 503) para Gemini/agy al programar.
+- `events` y `report` responden `{ok:true, cancelado:true}` / `{ignorado:true}` si la ronda se cancelo (el runner debe abortar). Reenviar `report`/`fail` de un job cerrado devuelve `{ok:true, duplicado:true}` (idempotente); `report` sobre un job `fallido` da 409 `job_cerrado`.
+- Aprobacion de `npm test` y otras acciones: `POST /api/agent/pro/jobs/:id/approval {kind, summary, detail}` crea la aprobacion (con `pro_job_id`); `GET /api/agent/pro/approvals/:id` consulta su estado. La web la resuelve con `/api/approvals`.
+- Estados de ronda: tras verificar `aprobado` la ronda queda en `esperando_aprobacion` (fase "aceptar"); `aprobar` ahi lanza el commit. `necesita_usuario` admite `aprobar` (aceptar igualmente), `corregir` (reinicia contador) o `rechazar`. `decision` acepta `motor: "claude"|"gemini"` al replanificar.
+- Errores: 409 `ronda_activa`, 409 `estado_invalido`, 422 `repo_invalido`, 422 `privado`, 400 `texto_invalido`, 409 `pro_deshabilitado` con `motivos`.
+- `fail {error}`: `sin_cuota` deja la ronda en `necesita_usuario` (sin bajar de modelo); `timeout` u otros la dejan `fallida`; un `commit` fallido deja la ronda en `esperando_aprobacion` para reintentar.
+- Eventos: `pc.using` con `id` `claude_pc` o `gemini`; `pro.status` cuando cambia la habilitacion.
