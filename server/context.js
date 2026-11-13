@@ -25,11 +25,13 @@ import { createChatService } from "./chat-service.js";
 import { createTts } from "./tts.js";
 import { createWebSearch } from "./tools/websearch.js";
 import { buildExtensions } from "./extensions.js";
+import { createDespertador } from "./phone/despertador.js";
+import { createPush, loadWebPush } from "./push.js";
 
 const cfgPath = (f) => fileURLToPath(new URL(`../config/${f}`, import.meta.url));
 export const loadJson = (f) => JSON.parse(readFileSync(cfgPath(f), "utf8"));
 
-export async function buildContext({ db, env = process.env, fetch: f, now = () => Date.now(), providers: providersOverride } = {}) {
+export async function buildContext({ db, env = process.env, fetch: f, now = () => Date.now(), providers: providersOverride, webpush: webpushOverride } = {}) {
   const config = loadJson("providers.json");
   const permissions = loadJson("permissions.json");
   const persona = readFileSync(cfgPath("persona.md"), "utf8");
@@ -113,7 +115,9 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const base = { db, env, config, permissions, persona, ownerId, providers, chain, keyless, privacy, quota, bus, state, router,
     notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, agent, sessions, limiter, stt, tts, chat, websearch, status, now, fts };
   ext = buildExtensions(base, { fetch: f });
-  return { ...base, ...ext };
+  const despertador = createDespertador({ env, bus, audit, getGoogle: () => ext?.google, now });
+  const push = createPush({ db, env, bus, audit, ownerId, webpush: webpushOverride === undefined ? await loadWebPush() : webpushOverride, now });
+  return { ...base, ...ext, despertador, push };
 }
 
 export { all };

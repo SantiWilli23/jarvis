@@ -136,15 +136,39 @@ setTimeout(refreshApprovals, 1500);
 
 /* ---------- Más: notificaciones, vista escritorio, dispositivos ---------- */
 function renderMas() {
+  renderDespertador();
   const supported = "Notification" in window;
   const b = $("mnotif");
-  b.hidden = !supported;
+  b.hidden = false; // sin soporte (p. ej. Safari sin instalar) el toque explica cómo instalar
   if (supported) b.textContent = Notification.permission === "granted" ? "Notificaciones activadas" : Notification.permission === "denied" ? "Notificaciones bloqueadas (ajustes de iOS)" : "Activar notificaciones";
 }
-$("mnotif").addEventListener("click", async () => {
-  try { await Notification.requestPermission(); } catch { /* sin soporte */ }
-  renderMas();
-});
+// Web Push: iOS exige un toque del usuario y la app instalada en la pantalla de inicio (iOS 16.4+).
+const b64ToU8 = (s) => { const p = "=".repeat((4 - (s.length % 4)) % 4); const r = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(r, (c) => c.charCodeAt(0)); };
+function pushMsg(t) { const m = $("mpushmsg"); m.textContent = t; m.hidden = !t; }
+async function activarPush() {
+  const instalada = navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    return pushMsg(instalada ? "Este navegador no admite notificaciones push." : "Instale Jarvis: Compartir, Añadir a pantalla de inicio, y ábralo desde el icono (iOS 16.4 o superior).");
+  }
+  if (!instalada) return pushMsg("Instale Jarvis: Compartir, Añadir a pantalla de inicio, y ábralo desde el icono.");
+  try {
+    if ((await Notification.requestPermission()) !== "granted") return pushMsg("Permiso denegado. Actívelo en Ajustes de iOS, Notificaciones, Jarvis.");
+    const reg = await navigator.serviceWorker.ready;
+    const { publicKey } = await api("/push/vapid");
+    const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(publicKey) });
+    await api("/push/subscribe", { method: "POST", body: { subscription: sub.toJSON() } });
+    pushMsg("Notificaciones activadas.");
+  } catch (e) { pushMsg("No se pudo activar: " + (e.message || "error")); }
+}
+$("mnotif").addEventListener("click", async () => { await activarPush(); renderMas(); });
+async function renderDespertador() {
+  const d = $("mdesp");
+  try { d.textContent = "Despertador del Atajo: " + ((await api("/phone/despertador")).configurado ? "sí, configurado" : "no (falta PHONE_NUDGE_EMAIL o conectar Gmail)"); }
+  catch { d.textContent = "Despertador del Atajo: no disponible"; }
+}
+// Abrir desde una notificación: /m#aprobacion-<id> muestra la tarjeta pendiente.
+window.addEventListener("hashchange", () => { if (/^#aprobacion-/.test(location.hash)) refreshApprovals(); });
+if (/^#aprobacion-/.test(location.hash)) setTimeout(refreshApprovals, 800);
 $("mdesk").addEventListener("click", () => {
   safe(() => localStorage.setItem("jarvis_vista", "escritorio"));
   location.href = "/";

@@ -160,3 +160,13 @@ CREATE TABLE IF NOT EXISTS phone_actions (
   done_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_phone_actions_user_status ON phone_actions (user_id, status, id);
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  device_id INTEGER,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions (user_id);

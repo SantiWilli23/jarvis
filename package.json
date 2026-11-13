@@ -4,7 +4,9 @@
   "description": "Asistente personal por voz de costo cero (Fase 1)",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "node --watch server/index.js",
     "start": "node server/index.js",
@@ -15,6 +17,7 @@
     "@libsql/client": "^0.15.0",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
+    "web-push": "^4.0.0",
     "ws": "^8.18.0"
   }
 }

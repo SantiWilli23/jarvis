@@ -56,6 +56,9 @@ export function phoneRoutes(ctx) {
       res.json({ atajo: ctx.phone.config.atajo_nombre || "Jarvis Puente", catalogo: ctx.phone.catalog(), acciones: await ctx.phone.list(uid), pendientes: await ctx.phone.counts(uid) });
     } catch (e) { next(e); }
   });
+  r.get("/despertador", web, async (req, res, next) => {
+    try { res.json({ configurado: await ctx.despertador.configurado(Number(req.user.id)), push: (await ctx.push.count(Number(req.user.id))) > 0 }); } catch (e) { next(e); }
+  });
   r.post("/actions", web, async (req, res, next) => {
     try {
       const b = req.body && typeof req.body === "object" ? req.body : {};
