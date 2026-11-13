@@ -81,3 +81,27 @@ Lo privado NUNCA se manda a Gemini ni a MiniMax. El saludo "Hola, señor." se gu
 
 ## 10. OpenRouter (relevo gratis)
 Ponga `OPENROUTER_API_KEY` (https://openrouter.ai/keys) y se activa solo, después de Gemini, Groq y Mistral. Usa solo modelos `:free` (el id está en `config/providers.json`, `proveedores.openrouter.modelo`; si no termina en `:free` queda apagado). Tope propio de 50 pedidos al día. Nunca recibe mensajes privados.
+
+## La app de Jarvis para Windows (Fase 2)
+
+Es una ventana con el orbe, un icono en la bandeja y un "runner" que recoge la cola y se la pasa a Claude Code en su PC.
+
+### 1. Instalar Claude Code e iniciar sesión con su plan Pro
+1. Instale Node 24 o superior y abra PowerShell.
+2. Instale Claude Code con el instalador oficial de Anthropic (o `npm install -g @anthropic-ai/claude-code`).
+3. Escriba `claude` una vez, elija iniciar sesión con su cuenta (plan Pro) y termine el aviso del navegador. Jarvis nunca ve su contraseña: usa la sesión que ya dejó Claude Code.
+4. Compruebe con `claude --version`. Si Jarvis no lo encuentra, ponga la ruta completa en `claudePath` del archivo de configuración.
+
+### 2. Arrancar la app
+1. En la carpeta del proyecto: `npm start` (servidor) y, en otra ventana, `cd desktop`, `npm install` y `npm start`.
+2. Por defecto abre `http://localhost:3055`. Para otra dirección: variable `JARVIS_HUB_URL` o `hubUrl` en el archivo de configuración (menú de la bandeja > "Abrir archivo de configuración").
+3. Inicie sesión en la ventana. La app pide por sí sola un token de dispositivo "PC" (se guarda cifrado en Windows) y el panel mostrará "PC en línea".
+4. Atajo global: **Ctrl+Alt+J** abre Jarvis y activa el micrófono (cámbielo con `hotkey`). Cerrar la ventana la oculta; para salir use la bandeja > Salir. "Pausar cola" detiene el runner sin apagarlo.
+5. Arranque con Windows: la versión empaquetada se registra sola al abrirse; al encender el PC la cola empieza de inmediato, el hub emite `pc_online` (Telegram lo avisará en la Fase 4) y Jarvis dice "Hola, señor.".
+6. Instalador: `cd desktop` y `npm run dist` (electron-builder genera un instalador en `desktop/dist`; sin probar en este equipo).
+
+### 3. Qué puede hacer Claude solo y qué le pide permiso
+- Solo: leer y escribir dentro de las carpetas de `config/permissions.json` (`carpetas_permitidas`; si está vacía solo lee).
+- Siempre con su sí (tarjeta ámbar en la web): borrar, terminal libre, enviar mensajes, `git push`, desplegar. El permiso caduca a los 30 minutos.
+- Topes de su plan Pro: `tope_claude` en `config/permissions.json` (`por_tarea_tokens`, `diario_tareas`, `diario_tokens`). Vacíos = sin tope hasta verificar sus límites reales.
+- Modo Directo: el texto llega a Claude exactamente igual, byte a byte; la hora del dictado va aparte.

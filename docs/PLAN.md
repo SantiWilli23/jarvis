@@ -57,3 +57,9 @@ Push o deploy sin permiso, `--dangerously-skip-permissions`, claves en git o en 
 - Voz del servidor: `POST /api/tts` con cadena pregrabadas > Gemini TTS > MiniMax (apagado) > voz del navegador; lo privado nunca sale; saludo en caché de disco.
 - HUD: paneles en gris grafito con texto claro; orbe y barras siguen azules.
 - Cola directa: "tal cual" ahora exige "tal cual:" (o "díselo a Claude:" / "directo a Claude:" / "/claude") al inicio.
+
+## Fase 2 (hecha; ver lo pendiente de verificar abajo)
+- `desktop/`: Electron (ventana que carga la web del hub, bandeja, atajo Ctrl+Alt+J, arranque con Windows, saludo, instancia única) y `desktop/runner/` (cliente del hub, cola, `claude -p --output-format stream-json --verbose` con el pedido por stdin).
+- Hub: `/api/agent/*` (hello, heartbeat, claim, events, approval, finish, bye) con token de dispositivo `pc`, que no sirve en el resto de la API (no puede aprobarse solo). Evento `pc_online`, estado del PC en el panel, uso en `claude_usage`, topes de `config/permissions.json`.
+- Permisos: el runner no usa `--dangerously-skip-permissions`; lo denegado vuelve en `permission_denials`, se pide aprobación y se continúa con `--resume` y una regla exacta en `--allowedTools`.
+- Pendiente de verificar a mano: `claude` real, ventana/voz/atajo en uso real, arranque con Windows, `npm run dist`.

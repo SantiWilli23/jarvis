@@ -179,6 +179,8 @@ onAuthLost(() => { started = false; showLogin(); });
 tickClock(); setInterval(tickClock, 15000);
 initOrb($("orb"));
 $("orb").addEventListener("click", onOrb);
+// La app de escritorio (atajo global) pide activar el micrófono.
+window.addEventListener("jarvis:mic", () => { store.greeted = true; if (!recorder && store.state !== "thinking") onOrb(); });
 setState("idle");
 
 await waitForServer(() => { $("wake").hidden = false; }, () => { $("wake").hidden = true; });
