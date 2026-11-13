@@ -14,7 +14,7 @@ function open() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   sock = new WebSocket(`${proto}://${location.host}/ws`);
   sock.onopen = () => { retry = 0; sock.send(JSON.stringify({ type: "auth", token: getToken() })); };
-  sock.onmessage = (e) => { try { handler(JSON.parse(e.data)); } catch { /* mensaje inválido */ } };
+  sock.onmessage = (e) => { try { const m = JSON.parse(e.data); handler(m); window.dispatchEvent(new CustomEvent("jarvis:ws", { detail: m })); } catch { /* mensaje inválido */ } };
   sock.onclose = (e) => {
     if (closedByUs || e.code === 4401) return handler({ type: "ws.closed", code: e.code });
     setTimeout(open, Math.min(15000, 1000 * 2 ** retry++));

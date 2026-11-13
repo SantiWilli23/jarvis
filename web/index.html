@@ -21,6 +21,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="css/hud.css">
+<link rel="stylesheet" href="css/pro.css">
 </head>
 <body data-state="idle">
 
@@ -45,6 +46,13 @@
     <button class="chip-btn" id="logout" type="button">Salir</button>
   </header>
 
+  <div class="tabs" id="tablist" role="tablist" aria-label="Vista de Jarvis">
+    <button type="button" role="tab" id="tab-clasico" aria-selected="true" aria-controls="vista-clasico">Clásico</button>
+    <button type="button" role="tab" id="tab-pro" aria-selected="false" aria-controls="vista-pro" aria-disabled="true" tabindex="-1">Pro</button>
+  </div>
+  <div class="pro-motivos" id="pro-motivos" role="status" hidden></div>
+
+  <div id="vista-clasico" role="tabpanel" aria-labelledby="tab-clasico">
   <div class="layout">
     <section class="col" aria-label="Conexiones y memoria">
       <div class="panel">
@@ -90,16 +98,41 @@
         <h2>Cola para el PC <em id="qcount">0</em></h2>
         <div id="queue"></div>
       </div>
-      <div class="panel">
-        <h2>Voz <em>consumo de hoy</em></h2>
-        <div id="voz"></div>
-      </div>
+      <div id="voz" hidden></div><!-- panels.js lo rellena; el panel visible se quitó -->
     </section>
   </div>
   <div class="foot">Jarvis · Fase 1 · iPhone: Safari, un toque para hablar · <a href="/m" id="tomovil" style="color:inherit">Vista móvil</a></div>
+  </div>
+
+  <div id="vista-pro" class="pro" role="tabpanel" aria-labelledby="tab-pro" hidden>
+    <aside class="pro-side panel" aria-label="Hilos">
+      <h2>Hilos <em>Pro</em></h2>
+      <div id="pro-hilos" class="hilos"></div>
+      <form id="pro-newform" class="newthread">
+        <label for="pro-repo">Repositorio</label>
+        <select id="pro-repo"></select>
+        <input type="text" id="pro-repo-txt" placeholder="o ruta del repo" aria-label="Ruta del repositorio" autocomplete="off">
+        <label for="pro-title">Título</label>
+        <input type="text" id="pro-title" placeholder="opcional" maxlength="120" autocomplete="off">
+        <button type="submit">Nuevo hilo</button>
+      </form>
+    </aside>
+    <section class="pro-chat panel" aria-label="Chat de tres">
+      <h2>Usted · Claude · Gemini <em class="pro-work" id="pro-work" hidden></em></h2>
+      <div class="pro-aviso" id="pro-aviso" role="alert" hidden></div>
+      <div class="pro-msgs" id="pro-main" role="log" aria-live="polite" tabindex="0"></div>
+      <div id="pro-round"></div>
+      <form class="say-form" id="pro-form">
+        <label class="sr" for="pro-in">Mensaje para Claude y Gemini</label>
+        <input type="text" id="pro-in" placeholder="Describa la tarea…" autocomplete="off" maxlength="4000" disabled>
+        <button type="submit" id="pro-send" disabled>Enviar</button>
+      </form>
+    </section>
+  </div>
 </div>
 
 <script type="module" src="js/main.js"></script>
+<script type="module" src="js/pro.js"></script>
 <script>document.getElementById("tomovil").addEventListener("click", function () { try { localStorage.removeItem("jarvis_vista"); } catch (e) {} });</script>
 </body>
 </html>
