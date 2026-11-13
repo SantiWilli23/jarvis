@@ -16,7 +16,7 @@ ctx.hub = createHub({
   server, sessions: ctx.sessions, bus: ctx.bus,
   initial: async (userId) => {
     const s = await ctx.status(userId);
-    return [{ type: "state", state: s.pendientes_aprobacion ? "permiso" : "idle" }, { type: "pc.status", ...s.pc }, { type: "providers.update", providers: s.providers }];
+    return [{ type: "state", state: s.pendientes_aprobacion ? "permiso" : "idle" }, { type: "pc.status", ...s.pc }, { type: "providers.update", providers: s.providers }, { type: "pro.status", ...s.pro }];
   },
 });
 // Cuando cambia algo de proveedores o tareas, el panel pide el estado completo.

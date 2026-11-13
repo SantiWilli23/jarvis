@@ -15,6 +15,8 @@ import { shortcutRoutes } from "./routes/shortcut.js";
 import { stubRoutes } from "./routes/stubs.js";
 import { agentRoutes } from "./routes/agent.js";
 import { extensionRoutes } from "./routes/extensions.js";
+import { proRoutes } from "./routes/pro.js";
+import { agentProRoutes } from "./routes/agent-pro.js";
 import { phoneRoutes } from "./routes/phone.js";
 import { pushRoutes } from "./routes/push.js";
 
@@ -34,6 +36,7 @@ export function createApp(ctx) {
   const api = express.Router();
   api.use(healthRoutes());                    // GET /api/health
   api.use("/auth", authRoutes(ctx));
+  api.use("/agent/pro", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentProRoutes(ctx)); // antes de /agent
   api.use("/agent", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentRoutes(ctx));
   api.use(stubRoutes());
   const auth = requireAuth(ctx.sessions);
@@ -42,6 +45,7 @@ export function createApp(ctx) {
   api.use("/phone", phoneRoutes(ctx));         // cola del iPhone: token "phone" en next/done, sesión web en actions
   api.use("/push", auth, pushRoutes(ctx));
   api.use("/devices", auth, deviceRoutes(ctx));
+  api.use("/pro", auth, proRoutes(ctx));
   api.use("/chat", auth, chatRoutes(ctx));
   api.use("/stt", auth, sttRoutes(ctx));
   api.use("/tts", auth, ttsRoutes(ctx));

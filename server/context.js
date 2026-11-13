@@ -24,6 +24,7 @@ import { createStt } from "./stt.js";
 import { createChatService } from "./chat-service.js";
 import { createTts } from "./tts.js";
 import { createWebSearch } from "./tools/websearch.js";
+import { createPro } from "./pro/index.js";
 import { buildExtensions } from "./extensions.js";
 import { createDespertador } from "./phone/despertador.js";
 import { createPush, loadWebPush } from "./push.js";
@@ -50,7 +51,13 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const state = { lastProvider: null, pc: { online: false } };
   bus.on("chat.done", ({ provider }) => { state.lastProvider = provider; });
 
-  const router = createRouter({ providers, chain, orderByKind: config.orden_por_tipo, quota, privacy });
+  // Conexión en uso: el panel la pinta en rojo (conn.using) durante USING_MS tras cada llamada.
+  const USING_MS = 6000;
+  const usingAt = new Map();
+  const markUsing = (id, userId) => { usingAt.set(id, now()); bus.emit("conn.using", { userId, id }); };
+  const isUsing = (id) => now() - (usingAt.get(id) ?? -Infinity) < USING_MS;
+  bus.on("pc.using", ({ userId, id = "claude_pc" }) => markUsing(id, userId)); // el orquestador Pro/PC avisa por aquí
+  const router = createRouter({ providers, chain, orderByKind: config.orden_por_tipo, quota, privacy, onUse: (id, { userId } = {}) => markUsing(id, userId) });
   const notes = createNotes({ db, fts, now });
   const search = createSearch({ db, fts });
   const inbox = createInbox({ notes });
@@ -61,6 +68,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const approvals = createApprovals({ db, bus, audit, now });
   const phone = createPhoneQueue({ db, bus, approvals, audit, config: loadJson("phone-actions.json"), now });
   const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, now });
+  const pro = createPro({ db, bus, agent, now });
   const sessions = createSessions({ db, now });
   const limiter = createLoginLimiter({ db, now });
   const stt = createStt({ apiKey: env.GROQ_API_KEY, fetch: f });
@@ -97,23 +105,25 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
     const queue = (await tasks.list(userId)).filter((x) => ["pendiente", "por_revisar", "reclamada", "en_curso"].includes(x.status)).reverse()
       .map((x) => ({ id: x.id, seq: x.seq, mode: x.mode, status: x.status, text: x.text.slice(0, 200), pasos: x.prepared?.pasos?.length || 0, por: x.prepared?.por || null, at: x.created_at }));
     const lastSync = await get(db, "SELECT value FROM settings WHERE user_id=? AND key='ultima_sync_pc'", [userId]);
-    const conn = (n, ok) => ({ nombre: n, ok: !!ok });
+    const conn = (id, n, ok) => ({ id, nombre: n, ok: !!ok, usa: isUsing(id) });
     return {
       state: "idle", keyless, fts,
       providers: provs, puestos,
       memory: { ...(await notes.counts(userId)), ultima_sync_pc: lastSync?.value ? Number(lastSync.value) : null, bd: env.DATABASE_URL ? "Turso" : "local" },
       queue: { items: queue, total: queue.length, porEstado: q },
       pc: (agent.sweep(), agent.view()),
-      connections: [conn("Groq", providers.groq?.enabled), conn("Gemini", providers.gemini?.enabled), conn("OpenRouter", providers.openrouter?.enabled), conn("Telegram", !!env.TELEGRAM_BOT_TOKEN),
-        conn("Turso", !!env.DATABASE_URL), conn("Render", !!env.RENDER), conn("Gmail", await ext?.google.connected(userId)), conn("Calendar", await ext?.google.connected(userId)), conn("Spotify", await ext?.spotify.connected(userId)),
-        conn("Juegos", ext?.games.enabled), conn("WhatsApp", ext?.whatsapp.enabled)],
+      connections: [conn("groq", "Groq", providers.groq?.enabled), conn("gemini", "Gemini", providers.gemini?.enabled), conn("openrouter", "OpenRouter", providers.openrouter?.enabled),
+        conn("claude_pc", "Claude (PC)", agent.view().online), conn("telegram", "Telegram", !!env.TELEGRAM_BOT_TOKEN),
+        conn("turso", "Turso", !!env.DATABASE_URL), conn("render", "Render", !!env.RENDER), conn("gmail", "Gmail", await ext?.google.connected(userId)), conn("calendar", "Calendar", await ext?.google.connected(userId)), conn("spotify", "Spotify", await ext?.spotify.connected(userId)),
+        conn("juegos", "Juegos", ext?.games.enabled), conn("whatsapp", "WhatsApp", ext?.whatsapp.enabled)],
+      pro: await pro.status(userId),
       pendientes_aprobacion: (await approvals.pending(userId)).length,
       voz: await tts.status(userId),
     };
   }
 
   const base = { db, env, config, permissions, persona, ownerId, providers, chain, keyless, privacy, quota, bus, state, router,
-    notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, agent, sessions, limiter, stt, tts, chat, websearch, status, now, fts };
+    notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, agent, pro, sessions, limiter, stt, tts, chat, websearch, status, now, fts };
   ext = buildExtensions(base, { fetch: f });
   const despertador = createDespertador({ env, bus, audit, getGoogle: () => ext?.google, now });
   const push = createPush({ db, env, bus, audit, ownerId, webpush: webpushOverride === undefined ? await loadWebPush() : webpushOverride, now });

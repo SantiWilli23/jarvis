@@ -19,7 +19,7 @@ export function createRouter({ providers, chain, orderByKind = {}, quota, privac
       if (!q.ok) { tried.push({ id, skip: q.reason, until: q.until }); continue; }
       privacy.assert(id, isPrivate); // barrera final
       try {
-        onUse(id);
+        onUse(id, { userId });
         const r = await p.chat({ messages, system, images });
         await quota.record(userId, id, r.tokens || 0);
         await quota.ingestHeaders(userId, id, r.headers);

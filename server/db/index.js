@@ -6,9 +6,21 @@ import { hashPassword, verifyPassword } from "../auth/password.js";
 
 const SCHEMA = readFileSync(fileURLToPath(new URL("./schema.sql", import.meta.url)), "utf8");
 
+// Migraciones idempotentes (SQLite y Turso): agrega la columna solo si falta.
+async function addColumn(db, table, column, ddl) {
+  const cols = await all(db, `PRAGMA table_info(${table})`);
+  if (cols.some((c) => c.name === column)) return;
+  try { await db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`); }
+  catch (e) { if (!/duplicate column/i.test(String(e?.message))) throw e; } // carrera entre instancias
+}
+export async function migrate(db) {
+  await addColumn(db, "approvals", "pro_job_id", "INTEGER");
+}
+
 // Devuelve { fts: true|false }. Si FTS5 no está disponible, las búsquedas usan LIKE por palabras.
 export async function initSchema(db) {
   await db.executeMultiple(SCHEMA);
+  await migrate(db);
   let fts = false;
   try {
     await db.execute("CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(title, body, note_id UNINDEXED, user_id UNINDEXED)");
