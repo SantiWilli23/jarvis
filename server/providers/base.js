@@ -39,14 +39,14 @@ export class Provider {
 // Proveedores con API compatible con OpenAI (Groq, Gemini en su modo compatible, Mistral, OpenRouter...).
 export class OpenAICompatProvider extends Provider {
   get baseUrl() { return ""; }
-  async chat({ messages = [], system, signal } = {}) {
+  async chat({ messages = [], system, signal, params = {} } = {}) {
     const msgs = system ? [{ role: "system", content: system }, ...messages] : messages;
     let res;
     try {
       res = await this.fetch(`${this.baseUrl}/chat/completions`, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
-        body: JSON.stringify({ model: this.model, messages: msgs }),
+        body: JSON.stringify({ model: this.model, messages: msgs, ...params }),
         signal,
       });
     } catch (e) {

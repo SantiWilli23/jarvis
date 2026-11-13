@@ -192,6 +192,9 @@ Jarvis tiene dos modos. **Clásico**: la cola de siempre (usted pide, Claude Cod
 ### Usarlo
 Abra la pestaña **Pro** en Jarvis, elija repo (nuevo hilo) y escriba el pedido. Pro solo se activa con el PC encendido, Claude y `agy` listos y algún repo. Si falta algo, la pestaña le dice qué. Verá el plan; pulse Aprobar, Corregir o Rechazar. Tras programar y verificar, "Aceptar" hace el commit local. Si `agy` se queda sin cuota, Jarvis se detiene y se lo dice (no baja de modelo solo); si está saturado (503) al programar, baja de Flash a un Flash anterior. Nada privado (contraseñas, etc.) entra en Pro y los secretos se tapan.
 
+### Jarvis coordina (Groq)
+Con `GROQ_API_KEY` puesta, **Jarvis** (Groq) lee su pedido en Pro, le habla con claridad, puede preguntar en privado a Claude o a Gemini (solo lectura, máximo 3 consultas y 6 turnos seguidos sin usted) y le **propone** quién programa y quién verifica. Usted decide con el botón **Aprobar propuesta** (o cambia el motor); sin su botón no empieza nada. Su pedido original siempre se ve tal cual, y la charla entre las IAs está plegada (despliéguela si quiere). Jarvis no ejecuta nada, no hace commit y no aprueba por usted. Casilla **Jarvis coordina**: apáguela para el flujo de siempre (también se usa solo si Groq falla o no hay clave). Sin probar con Groq real.
+
 ### Límites conocidos
 - `agy` no tiene un modo "solo lectura" garantizado: se le pide en el prompt y el diff real de git lo comprueba. Sus comandos peligrosos y `npm test` se vigilan y cortan el trabajo.
 - Si cancela una ronda, el PC puede terminar el paso en curso (su resultado se descarta).

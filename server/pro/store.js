@@ -7,7 +7,7 @@ const day = (t) => new Date(t).toISOString().slice(0, 10);
 
 export const msgView = (r) => r && { id: Number(r.id), thread_id: Number(r.thread_id), round_id: n(r.round_id), author: r.author, kind: r.kind, text: r.text, meta: j(r.meta) || {}, created_at: Number(r.created_at) };
 export const roundView = (r) => r && { id: Number(r.id), thread_id: Number(r.thread_id), status: r.status, corrections: Number(r.corrections), programmer: r.programmer, verifier: r.verifier, summary: r.summary, task_kind: r.task_kind, message_id: n(r.message_id), created_at: Number(r.created_at), updated_at: Number(r.updated_at) };
-export const threadView = (r) => r && { id: Number(r.id), title: r.title, repo: r.repo, status: r.status, created_at: Number(r.created_at), updated_at: Number(r.updated_at) };
+export const threadView = (r) => r && { id: Number(r.id), title: r.title, repo: r.repo, status: r.status, resumen: r.resumen || null, created_at: Number(r.created_at), updated_at: Number(r.updated_at) };
 export const jobView = (r) => r && { id: Number(r.id), round_id: Number(r.round_id), thread_id: Number(r.thread_id), role: r.role, engine: r.engine, model: r.model, repo: r.repo, mode: r.mode, status: r.status, tree_before: r.tree_before, tree_after: r.tree_after, error: r.error, created_at: Number(r.created_at), started_at: n(r.started_at), finished_at: n(r.finished_at) };
 
 export function createStore({ db, now = () => Date.now() }) {
@@ -21,6 +21,16 @@ export function createStore({ db, now = () => Date.now() }) {
     async getThread(userId, id) { return threadView(await get(db, "SELECT * FROM pro_threads WHERE id=? AND user_id=?", [id, userId])); },
     async listThreads(userId) { return (await all(db, "SELECT * FROM pro_threads WHERE user_id=? ORDER BY updated_at DESC, id DESC", [userId])).map(threadView); },
     async touchThread(id) { await run(db, "UPDATE pro_threads SET updated_at=? WHERE id=?", [now(), id]); },
+    async setResumen(id, resumen) { await run(db, "UPDATE pro_threads SET resumen=? WHERE id=?", [resumen, id]); },
+    // Turnos de Groq dados hoy (UTC) por el usuario: cada turno deja un mensaje "coordinador".
+    async coordTurnsToday(userId) {
+      const d = new Date(now()); d.setUTCHours(0, 0, 0, 0);
+      return Number((await get(db, "SELECT COUNT(*) AS n FROM pro_messages WHERE user_id=? AND kind='coordinador' AND created_at>=?", [userId, d.getTime()]))?.n || 0);
+    },
+    async getSetting(userId, key) { return (await get(db, "SELECT value FROM settings WHERE user_id=? AND key=?", [userId, key]))?.value ?? null; },
+    async setSetting(userId, key, value) {
+      await run(db, "INSERT INTO settings (user_id,key,value,created_at) VALUES (?,?,?,?) ON CONFLICT(user_id,key) DO UPDATE SET value=excluded.value", [userId, key, value, now()]);
+    },
     // mensajes
     async addMessage({ threadId, userId, roundId = null, author, kind = "texto", text, meta = null }) {
       const r = await run(db, "INSERT INTO pro_messages (thread_id,user_id,round_id,author,kind,text,meta,created_at) VALUES (?,?,?,?,?,?,?,?)", [threadId, userId, roundId, author, kind, text, meta ? JSON.stringify(meta) : null, now()]);
@@ -36,7 +46,7 @@ export function createStore({ db, now = () => Date.now() }) {
     },
     async getRound(userId, id) { return roundView(await get(db, "SELECT * FROM pro_rounds WHERE id=? AND user_id=?", [id, userId])); },
     async listRounds(threadId) { return (await all(db, "SELECT * FROM pro_rounds WHERE thread_id=? ORDER BY id", [threadId])).map(roundView); },
-    async activeRound(threadId) { return roundView(await get(db, "SELECT * FROM pro_rounds WHERE thread_id=? AND status NOT IN ('hecha','fallida','cancelada','necesita_usuario') ORDER BY id DESC", [threadId])); },
+    async activeRound(threadId) { return roundView(await get(db, "SELECT * FROM pro_rounds WHERE thread_id=? AND status NOT IN ('hecha','fallida','cancelada','necesita_usuario','conversando') ORDER BY id DESC", [threadId])); },
     async updateRound(userId, id, patch) {
       const keys = Object.keys(patch);
       await run(db, `UPDATE pro_rounds SET ${keys.map((k) => `${k}=?`).join(",")}, updated_at=? WHERE id=? AND user_id=?`, [...keys.map((k) => patch[k]), now(), id, userId]);

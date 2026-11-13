@@ -15,7 +15,14 @@ const msgs = [
   { id: 3, round_id: 1, author: "claude", kind: "informe", text: "", meta: { job_id: 7, body: { dijo_hizo: ["Añadí la validación", "Añadí un test"], archivos_tocados: ["server/routes/auth.js", "server/x.js"], comandos: ["npm test"], resultado: "ok" } } },
   { id: 4, round_id: 1, author: "gemini", kind: "verificacion", text: "", meta: { job_id: 8, body: { dijo_no_hizo: ["Dijo añadir test; no está en el diff"], hizo_no_dijo: ["server/x.js modificado sin mencionarlo"], cambios_ajenos: ["config/x.json"], veredicto: "corregir" } } },
 ];
-const rondas = [{ id: 1, status: "necesita_usuario", corrections: 2, programmer: "claude", verifier: "gemini", summary: "La verificación pide corregir" }];
+msgs.push(
+  { id: 5, round_id: 2, author: "usuario", kind: "texto", text: "Refactoriza el login", meta: {} },
+  { id: 6, round_id: 2, author: "jarvis", kind: "coordinador", text: "Consulto a Claude.", meta: {} },
+  { id: 7, round_id: 2, author: "jarvis", kind: "consulta", text: "¿Qué archivo toca?", meta: { a: "claude", pregunta: true } },
+  { id: 8, round_id: 2, author: "claude", kind: "consulta", text: "Toca server/routes/auth.js", meta: {} },
+  { id: 9, round_id: 2, author: "jarvis", kind: "propuesta", text: "Cambio pequeño en auth.js", meta: { programador: "claude", verificador: "gemini", nota: "mantener la API" } },
+);
+const rondas = [{ id: 1, status: "hecha", corrections: 0, programmer: "claude", verifier: "gemini", summary: null }, { id: 2, status: "conversando", corrections: 0, programmer: "claude", verifier: "gemini", summary: "Propuesta lista: apruébela para empezar" }];
 const diff = "M\tserver/routes/auth.js\nA\ttest/nuevo.test.js\nD\tviejo.js\n\n server/routes/auth.js | 12 ++++++++++--\n 3 files changed, 20 insertions(+), 4 deletions(-)";
 
 const json = (res, code, o) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(o)); };
@@ -29,6 +36,7 @@ export function crear() {
     if (p === "/api/pro/threads") return json(res, 200, req.method === "POST" ? { thread: hilos[0] } : { threads: hilos });
     if (/^\/api\/pro\/threads\/\d+$/.test(p)) return json(res, 200, { thread: hilos[0], messages: msgs, rounds: rondas });
     if (/^\/api\/pro\/jobs\/\d+$/.test(p)) return json(res, 200, { job: { id: 7 }, diff });
+    if (p === "/api/pro/coordinador") return json(res, 200, { activo: true, disponible: true });
     if (p.startsWith("/api/pro/")) return json(res, 200, { ok: true });
     if (p.startsWith("/api/")) return json(res, 404, { error: "no" });
     const f = normalize(join(WEB, p === "/" ? "index.html" : p));

@@ -146,6 +146,18 @@ Roles e informes:
 - **Solo `programar`+`editar`** calcula `tree_before/tree_after/diff`; en planear/verificar van `null` y `diff:""`. `.geminiignore` se crea en el repo (si falta) y se oculta con `.git/info/exclude`.
 - **Config del PC** (`config.json`): `hubUrl`, `carpetas_permitidas[]`, `agyPath` (compat: `geminiPath`; se busca tambien `%LOCALAPPDATA%\agy\bin\agy.exe`), `claudePath`.
 
+## Coordinador Groq (Jarvis)
+
+Groq (`openai/gpt-oss-120b`, el proveedor de `config/providers.json`) coordina al usuario, Claude y Gemini. **Nunca ejecuta**, ni hace commit, ni aprueba o rechaza por el usuario, ni elige modo, modelo o repo. Sin clave, con 429, con JSON inválido, con el tope diario agotado o con el interruptor apagado, el flujo es el de siempre (la ronda arranca planeando).
+- **Acciones cerradas** (JSON `{acciones:[...], resumen?}`; `server/pro/coordinator.js` las valida contra el estado, lo inválido se descarta): `hablar` (al usuario), `consultar` (a `claude|gemini`, solo lectura), `proponer` (programador y verificador distintos; solo pinta botones), `iniciar_ronda` (solo válida tras aprobación del usuario; Groq nunca la tiene), `parar`.
+- **Flujo**: `POST .../messages` guarda el pedido intacto y abre la ronda en `coordinando`; tras cada turno de Groq queda en `conversando` (espera al usuario; no bloquea nuevos mensajes) o sigue en `coordinando` si hay una consulta en curso. El botón de la propuesta llama a `POST /api/pro/rounds/:id/iniciar {motor?}` (solo en `conversando` con una propuesta; 409 `estado_invalido` si no): fija programador/verificador y lanza `planear`. La `nota` de Groq va aparte en el prompt ("Nota del coordinador", citada) y nunca sustituye al pedido.
+- **Rol `consultar`**: job de solo lectura (modelo = el de `verificar`; `timeouts.consultar_s`). El `report` trae el texto (string); se guarda como mensaje `consulta` y Groq retoma el turno. El worker del PC lo ejecuta SIEMPRE como `verificar`/`solo_lectura` aunque el prompt o el modo digan otra cosa. Un `fail` de consulta deja la ronda en `conversando`.
+- **Límites** (`config/pro.json` > `coordinador`): `max_consultas_sin_usuario` 3, `max_turnos_sin_usuario` 6 por ronda y `turnos_dia` 40. Al llegar a los de la ronda Groq recibe "LÍMITE ALCANZADO", no puede consultar y debe resumir y parar.
+- **Texto entre IAs = datos**: `prompts.js` (`cita`, `filtrar`) cita lo que una IA dice a otra dentro de plantillas fijas, lo redacta y sustituye `git push`, `--dangerously*`, `--force`, `rm -rf`, `sudo`, `curl | sh`... por `[bloqueado]`. A Groq solo le llegan texto de conversación, planes, nombres de archivo y resultados ya redactados (sin diffs; solo el nombre de la carpeta del repo).
+- **Datos**: `pro_threads.resumen` (migración idempotente) guarda el resumen que mantiene Groq. Mensajes nuevos: `coordinador` (un turno de Groq, autor `jarvis`), `consulta`, `propuesta` (`meta: {programador, verificador, nota}`). Estados de ronda nuevos: `coordinando`, `conversando`.
+- **Interruptor**: `GET/POST /api/pro/coordinador {activo}` -> `{activo, disponible}` (ajuste del usuario `pro_coordinador`; `disponible` = hay clave de Groq). La web lo muestra como casilla "Jarvis coordina".
+- Groq se llama con `params` opcionales del proveedor (`reasoning_effort`, `max_tokens`, `response_format`; `config/pro.json` > `coordinador.groq`), cuenta en la cuota `groq` y se pausa ante 429.
+
 ## Ajustes de integración (Etapa 3)
 
 Desajustes servidor (P2) / runner (P3) hallados con `test/pro-e2e.test.js` y su arreglo:

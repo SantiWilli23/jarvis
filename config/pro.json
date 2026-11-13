@@ -41,8 +41,18 @@
     "planear_s": 300,
     "programar_s": 1800,
     "verificar_s": 300,
+    "consultar_s": 120,
     "job_reclamado_s": 60,
     "pc_en_linea_s": 45
+  },
+  "coordinador": {
+    "nota": "Groq (openai/gpt-oss-120b) coordina: habla con el usuario y consulta a Claude/Gemini (solo lectura). Nunca ejecuta. Sin clave o con error, vale el flujo de siempre.",
+    "enabled": true,
+    "max_consultas_sin_usuario": 3,
+    "max_turnos_sin_usuario": 6,
+    "turnos_dia": 40,
+    "timeout_s": 20,
+    "groq": { "reasoning_effort": "low", "max_tokens": 1500, "response_format": { "type": "json_object" } }
   },
   "requisitos": {
     "claude_modelos": [

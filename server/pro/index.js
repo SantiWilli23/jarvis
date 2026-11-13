@@ -6,8 +6,8 @@ import { createOrchestrator } from "./orchestrator.js";
 export { proReasons };
 export { ProError } from "./orchestrator.js";
 
-export function createPro({ db, bus, agent, approvals, audit, permissions = {}, config = loadProConfig(), now = () => Date.now(), textProvider }) {
-  const orch = createOrchestrator({ db, bus, agent, approvals, audit, permissions, config, now, textProvider });
+export function createPro({ db, bus, agent, approvals, audit, permissions = {}, config = loadProConfig(), now = () => Date.now(), textProvider, quota, groq }) {
+  const orch = createOrchestrator({ db, bus, agent, approvals, audit, permissions, config, now, textProvider, quota, groq });
   let last = null;
   // Avisa a la web (pro.status) cuando cambia la habilitación (el PC se enciende/apaga o cambia capacidades).
   bus.on("pc.status", ({ userId }) => {

@@ -16,6 +16,9 @@ export function proRoutes(ctx) {
   r.get("/threads/:id", w(async (req) => { const v = await o().threadView(req.user.id, id(req)); if (!v) throw new ProError(404, "no_existe"); return v; }));
   r.post("/threads/:id/messages", w(async (req, res) => { const out = await o().send(req.user.id, id(req), req.body?.text, { privado: !!req.body?.privado }); res.status(201); return out; }));
   r.post("/rounds/:id/decision", w((req) => o().decide(req.user.id, id(req), req.body || {})));
+  r.post("/rounds/:id/iniciar", w((req) => o().iniciar(req.user.id, id(req), req.body || {})));
+  r.get("/coordinador", w((req) => o().coordinadorEstado(req.user.id)));
+  r.post("/coordinador", w((req) => o().setCoordinador(req.user.id, !!req.body?.activo)));
   r.post("/rounds/:id/cancel", w((req) => o().cancel(req.user.id, id(req))));
   r.get("/jobs/:id", w(async (req) => { const v = await o().jobDetail(req.user.id, id(req)); if (!v) throw new ProError(404, "no_existe"); return v; }));
   return r;
