@@ -103,9 +103,9 @@ async function onOrb() {
   if (busy) return;
   if (!store.greeted) {                       // primer toque: saludo (también desbloquea la voz en iOS)
     store.greeted = true;
-    say("Jarvis", "Hola, señor.");
+    say("Jarvis", "Hola señor.");
     setState("speaking");
-    speak("Hola, señor.", afterSpeech);
+    speak("Hola señor.", afterSpeech);
     $("hint").textContent = "Toque el orbe para hablar y otra vez para enviar.";
     return;
   }

@@ -47,7 +47,7 @@ WebSocket `/ws`: estados del orbe, chat, tareas, aprobaciones, proveedores, esta
 - Cola directa: emojis, CRLF, espacios finales, comillas y 10 000 caracteres salen con el mismo sha256.
 - Auth: bloqueo tras 5 fallos (15 min); token revocado se rechaza.
 - Memoria: top-k dentro del presupuesto de tokens.
-- Manual: `npm run dev` abre localhost, pide contraseña, saluda "Hola, señor." y el orbe cambia de estado.
+- Manual: `npm run dev` abre localhost, pide contraseña, saluda "Hola señor." y el orbe cambia de estado.
 
 ## No hacer
 Push o deploy sin permiso, `--dangerously-skip-permissions`, claves en git o en el cliente, tokens en la URL, depender de Web Speech API, ping para mantener Render despierto, cifras de límites inventadas (van `null` hasta verificar).

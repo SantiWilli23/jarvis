@@ -11,8 +11,8 @@
   "voz": {
     "nota": "Cadena de voz: frases pregrabadas > Gemini TTS > MiniMax > voz del navegador. Lo privado nunca sale a Gemini ni a MiniMax. Los topes de Gemini son propios (verifique su cuota real en la consola).",
     "max_caracteres": 400,
-    "cachear": ["Hola, señor."],
-    "gemini": { "enabled": true, "modelo": "gemini-2.5-flash-preview-tts", "voz": "Charon", "tope_dia": 30 },
+    "cachear": ["Hola señor."],
+    "gemini": { "enabled": true, "modelo": "gemini-2.5-flash-preview-tts", "voz": "Algenib", "tope_dia": 30 },
     "minimax": { "enabled": true, "modelo": "speech-2.8-hd", "tope_caracteres_dia": 5000, "nota": "ENCENDIDO: se usa mientras haya saldo. Sin saldo (error 1008) se pausa 10 min y cae a la siguiente voz." }
   },
   "busqueda": {

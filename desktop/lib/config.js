@@ -8,7 +8,7 @@ export const DEFAULTS = {
   hotkey: "Control+Alt+J",           // abre/enfoca Jarvis y activa el micrófono
   autoStart: true,                   // arrancar con Windows
   alwaysOnTop: false,
-  greeting: true,                    // decir "Hola, señor." al arrancar
+  greeting: true,                    // decir "Hola señor." al arrancar
   claudePath: null,                  // ruta a claude.exe si no está en el PATH
   workFolder: null,                  // carpeta de trabajo si config/permissions.json no define ninguna
   agentToken: null,                  // lo escribe la propia app al enrolarse

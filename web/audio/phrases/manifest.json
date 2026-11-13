@@ -1,10 +1,10 @@
 {
   "nota": "Ponga aquí sus propios mp3 (grabados por usted). Si falta el archivo, la frase se ignora y se usa la voz normal.",
   "frases": [
-    { "id": "hola-senor", "texto": "Hola, señor.", "archivo": "hola-senor.mp3" },
-    { "id": "a-sus-ordenes", "texto": "A sus órdenes, señor.", "archivo": "a-sus-ordenes.mp3" },
-    { "id": "sistemas-en-linea", "texto": "Todos los sistemas en línea.", "archivo": "sistemas-en-linea.mp3" },
-    { "id": "entendido", "texto": "Entendido.", "archivo": "entendido.mp3" },
-    { "id": "un-momento", "texto": "Un momento, señor.", "archivo": "un-momento-senor.mp3" }
+    { "id": "hola-senor", "texto": "Hola señor.", "archivo": "hola-senor.wav" },
+    { "id": "a-sus-ordenes", "texto": "A sus órdenes, señor.", "archivo": "a-sus-ordenes.wav" },
+    { "id": "sistemas-en-linea", "texto": "Todos los sistemas en línea.", "archivo": "sistemas-en-linea.wav" },
+    { "id": "entendido", "texto": "Entendido.", "archivo": "entendido.wav" },
+    { "id": "un-momento", "texto": "Un momento, señor.", "archivo": "un-momento-senor.wav" }
   ]
 }

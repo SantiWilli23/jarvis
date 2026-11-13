@@ -38,7 +38,7 @@ En una terminal, dentro de la carpeta `jarvis`:
 ```
 npm run dev
 ```
-Abra http://localhost:3000, escriba la contraseña, toque el orbe: Jarvis dice "Hola, señor." Después, un toque en el orbe para grabar y otro para enviar. También puede escribir en la casilla de abajo.
+Abra http://localhost:3000, escriba la contraseña, toque el orbe: Jarvis dice "Hola señor." Después, un toque en el orbe para grabar y otro para enviar. También puede escribir en la casilla de abajo.
 
 Si abre la página en el iPhone, use Safari. El micrófono pide permiso la primera vez.
 
@@ -76,7 +76,7 @@ Cuando Jarvis habla, el servidor prueba en este orden y salta en silencio a la s
 3. **MiniMax** (apagado por defecto: su cuenta no tiene saldo). Para activarlo ponga `MINIMAX_API_KEY` en `.env` y `"enabled": true` en `voz.minimax`. Tope de 5.000 caracteres al día; el consumo se ve en el panel "Voz".
 4. **Voz del navegador** (tono bajo), si todo lo anterior falla o si el texto es privado.
 
-Lo privado NUNCA se manda a Gemini ni a MiniMax. El saludo "Hola, señor." se guarda en `data/cache/tts/` para no gastar cuota cada vez.
+Lo privado NUNCA se manda a Gemini ni a MiniMax. El saludo "Hola señor." se guarda en `data/cache/tts/` para no gastar cuota cada vez.
 
 ### Cómo agregar sus propios audios (mp3)
 1. Grabe usted la frase (no use voces de actores ni audios de películas) y guárdela como mp3.
@@ -102,7 +102,7 @@ Es una ventana con el orbe, un icono en la bandeja y un "runner" que recoge la c
 2. Por defecto abre `http://localhost:3055`. Para otra dirección: variable `JARVIS_HUB_URL` o `hubUrl` en el archivo de configuración (menú de la bandeja > "Abrir archivo de configuración").
 3. Inicie sesión en la ventana. La app pide por sí sola un token de dispositivo "PC" (se guarda cifrado en Windows) y el panel mostrará "PC en línea".
 4. Atajo global: **Ctrl+Alt+J** abre Jarvis y activa el micrófono (cámbielo con `hotkey`). Cerrar la ventana la oculta; para salir use la bandeja > Salir. "Pausar cola" detiene el runner sin apagarlo.
-5. Arranque con Windows: la versión empaquetada se registra sola al abrirse; al encender el PC la cola empieza de inmediato, el hub emite `pc_online` (Telegram lo avisará en la Fase 4) y Jarvis dice "Hola, señor.".
+5. Arranque con Windows: la versión empaquetada se registra sola al abrirse; al encender el PC la cola empieza de inmediato, el hub emite `pc_online` (Telegram lo avisará en la Fase 4) y Jarvis dice "Hola señor.".
 6. Instalador: `cd desktop` y `npm run dist` (electron-builder genera un instalador en `desktop/dist`; sin probar en este equipo).
 
 ### 3. Qué puede hacer Claude solo y qué le pide permiso

@@ -28,10 +28,10 @@ const ESTILO_GEMINI = "Di lo siguiente en español, con voz masculina grave, cal
 const DESC_VOZ_MINIMAX = "Voz masculina grave y calmada, tono formal y educado, aire de mayordomo británico, hablando en español, pausada y elegante.";
 
 export function createTts({ db, env = {}, fetch: f = globalThis.fetch, config = {}, privacy, phrasesDir, cacheDir, now = () => Date.now() }) {
-  const gcfg = { enabled: true, modelo: "gemini-2.5-flash-preview-tts", voz: "Charon", tope_dia: 30, ...(config.gemini || {}) };
+  const gcfg = { enabled: true, modelo: "gemini-2.5-flash-preview-tts", voz: "Algenib", tope_dia: 30, ...(config.gemini || {}) };
   const mcfg = { enabled: false, modelo: "speech-2.8-hd", tope_caracteres_dia: 5000, ...(config.minimax || {}) };
   const maxChars = config.max_caracteres ?? 400;
-  const cacheables = new Set((config.cachear || ["Hola, señor."]).map(normalizePhrase));
+  const cacheables = new Set((config.cachear || ["Hola señor."]).map(normalizePhrase));
   const paused = {}; // voz -> ms hasta los que no se insiste
 
   const geminiOn = () => gcfg.enabled && !!env.GEMINI_API_KEY;

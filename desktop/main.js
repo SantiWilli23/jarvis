@@ -50,9 +50,9 @@ async function onPageReady() {
   if (!readToken()) enrolling ||= setInterval(tryEnroll, 4000);
   if (cfg.greeting && !greeted) { greeted = true; setTimeout(greet, 1500); }
 }
-// "Hola, señor." con la cadena de voz del servidor (/api/tts) vía la misma función que usa la web.
+// "Hola señor." con la cadena de voz del servidor (/api/tts) vía la misma función que usa la web.
 async function greet() {
-  try { await win.webContents.executeJavaScript(`import("/js/voice.js").then(m => m.speak("Hola, señor.", () => {}))`); } catch { /* aún sin sesión: la web saluda al primer toque */ }
+  try { await win.webContents.executeJavaScript(`import("/js/voice.js").then(m => m.speak("Hola señor.", () => {}))`); } catch { /* aún sin sesión: la web saluda al primer toque */ }
 }
 // Enrolamiento: cuando el señor ya inició sesión en la ventana, se pide un token de dispositivo "pc"
 // (se muestra una sola vez) y se guarda cifrado. La contraseña nunca pasa por la app.
