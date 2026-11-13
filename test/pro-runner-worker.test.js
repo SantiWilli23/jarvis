@@ -57,11 +57,11 @@ test("programar con Claude: sonnet acceptEdits y diff real", async () => {
 });
 
 test("agy: sin GEMINI_API_KEY, 503 baja de modelo y programa", async () => {
-  const r = repo(), out = setup({ FAKE_503: "gemini-3.8-flash-high", FAKE_EDIT: "x.txt:1" });
-  const hub = mkHub(); hub.jobs.push(job(r, { engine: "gemini", model: "gemini-3.8-flash-high" }));
+  const r = repo(), out = setup({ FAKE_503: "gemini-3.8-flash-medium", FAKE_EDIT: "x.txt:1" });
+  const hub = mkHub(); hub.jobs.push(job(r, { engine: "gemini", model: "gemini-3.8-flash-medium" }));
   await worker(hub, r).tick();
-  assert.equal(flag(args(out, 0), "--model"), "gemini-3.8-flash-high");
-  assert.equal(flag(args(out, 1), "--model"), "gemini-3.8-flash-medium");
+  assert.equal(flag(args(out, 0), "--model"), "gemini-3.8-flash-medium");
+  assert.equal(flag(args(out, 1), "--model"), "gemini-3.8-flash-low");
   assert.equal(JSON.parse(readFileSync(`${out}.1.env.json`, "utf8")).GEMINI_API_KEY, null);
   assert.match(hub.reports[0].diff, /x\.txt/); assert.ok(existsSync(join(r, "x.txt")));
   clean(r);
@@ -72,14 +72,14 @@ test("agy: sin cuota falla con sin_cuota y NO baja de modelo", async () => {
   const hub = mkHub(); hub.jobs.push(job(r, { role: "planear", engine: "gemini", model: "gemini-3.8-flash-high", mode: "solo_lectura" }));
   await worker(hub, r).tick();
   assert.deepEqual(hub.fails, [{ id: 1, e: "sin_cuota" }]); assert.ok(!existsSync(`${out}.1.args.json`));
-  const o2 = setup({ FAKE_QUOTA: "1" }); const h2 = mkHub(); h2.jobs.push(job(r, { engine: "gemini", model: "gemini-3.8-flash-high" }));
+  const o2 = setup({ FAKE_QUOTA: "1" }); const h2 = mkHub(); h2.jobs.push(job(r, { engine: "gemini", model: "gemini-3.8-flash-medium" }));
   await worker(h2, r).tick(); assert.equal(h2.fails[0].e, "sin_cuota"); assert.ok(!existsSync(`${o2}.1.args.json`));
   clean(r);
 });
 
 test("agy: comando peligroso se bloquea", async () => {
   const r = repo(); setup({ FAKE_CMD: "git push origin main" });
-  const hub = mkHub(); hub.jobs.push(job(r, { engine: "gemini", model: "gemini-3.8-flash-high" }));
+  const hub = mkHub(); hub.jobs.push(job(r, { engine: "gemini", model: "gemini-3.8-flash-medium" }));
   await worker(hub, r).tick(); assert.match(hub.fails[0].e, /comando_bloqueado: git_push/); clean(r);
 });
 
@@ -102,4 +102,18 @@ test("outbox reenvía el informe cuando el servidor vuelve", async () => {
   assert.equal(hub.reports.length, 1); assert.equal(outbox.list().length, 0); assert.match(hub.reports[0].diff, /z\.txt/);
   assert.equal(await outbox.flush(async () => { throw new Error("no debe llamarse"); }), 0);
   clean(r, box);
+});
+
+test("agy: prompt como valor de -p, largo por archivo temporal, plan = solo lectura y programar = diff real", async () => {
+  const r = repo(), out = setup({ FAKE_EDIT: "p.txt:1" });
+  const hub = mkHub(); const largo = "x".repeat(7000) + " FIN";
+  hub.jobs.push(job(r, { id: 1, engine: "gemini", role: "planear", model: "gemini-3.8-flash-high", mode: "solo_lectura", prompt: largo }));
+  hub.jobs.push(job(r, { id: 2, engine: "gemini", model: "gemini-3.8-flash-medium", prompt: "haz algo" }));
+  const w = worker(hub, r); await w.tick(); await w.tick();
+  const a0 = args(out, 0), a1 = args(out, 1);
+  assert.equal(flag(a0, "--mode"), "plan"); assert.match(flag(a0, "-p"), /^Lee y sigue exactamente las instrucciones de /);
+  assert.ok(readFileSync(`${out}.0.prompt`, "utf8").endsWith(largo)); assert.ok(!existsSync(join(r, "p.txt")) || hub.reports[1]);
+  assert.equal(flag(a1, "--mode"), "accept-edits"); assert.ok(flag(a1, "-p").endsWith("haz algo"));
+  assert.equal(hub.reports[0].diff, ""); assert.match(hub.reports[1].diff, /p\.txt/);
+  clean(r);
 });

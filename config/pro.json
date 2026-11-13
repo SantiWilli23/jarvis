@@ -10,14 +10,13 @@
       "planear": "gemini-3.8-flash-high",
       "verificar": "gemini-3.8-flash-high",
       "programar": [
-        "gemini-3.8-flash-high",
         "gemini-3.8-flash-medium",
         "gemini-3.8-flash-low"
       ],
       "programar_baja_solo_por": [
         503
       ],
-      "nota": "Modelos de agy (compruebe con `agy models`). gemini-4-hydrogen se permite pero NO aparece en agy: planea por la API (config/providers.json motores_pc.gemini.planificador)."
+      "nota": "ids reales de `agy models` en la cuenta AI Pro; configurable aquí. planear/verificar corren con --mode plan (solo lectura real). gemini-4-hydrogen se permite pero NO aparece en agy: planea por la API (config/providers.json motores_pc.gemini.planificador)."
     },
     "prohibidos": [
       "gemini-2.5-pro",

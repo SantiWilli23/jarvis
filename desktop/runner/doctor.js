@@ -6,7 +6,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join, delimiter } from "node:path";
 import { homedir } from "node:os";
 import { resolveClaude } from "./claude-runner.js";
-import { FLAGS_USADOS, versionOk, VERSION_MINIMA } from "./agy-args.js";
+import { FLAGS_USADOS, versionOk, VERSION_MINIMA, MODELO_PLAN_DEFECTO, CADENA_PROGRAMAR } from "./agy-args.js";
 import { resolveAgy } from "./agy-runner.js";
 import { isGitRepo } from "./git-snapshot.js";
 
@@ -27,11 +27,14 @@ export async function verifyAgyFlags(b, exec_ = exec) {
   catch (e) { return { ok: false, missing: FLAGS_USADOS, error: e.message }; }
 }
 
-// Con la sesión iniciada, `agy models` lista los modelos de la cuenta (una línea "id<TAB>nombre"); sin sesión falla.
-export async function agyModels(b, exec_ = exec) {
-  try { return (await exec_(b, ["models"], 30000)).split(/\r?\n/).map((l) => l.split("\t")[0].trim()).filter((id) => /^[a-z][\w.-]*-[\w.-]+$/i.test(id)); }
-  catch { return []; }
+// `agy models` funciona solo con sesión iniciada: lista "id<TAB>nombre" por línea (tras "Fetching available models...").
+export function parseAgyModels(text) {
+  return String(text || "").split(/\r?\n/).filter((l) => l.includes("\t")).map((l) => l.split("\t")[0].trim()).filter((id) => /^[\w.-]+$/.test(id));
 }
+export async function agyModels(b, exec_ = exec) {
+  try { return parseAgyModels(await exec_(b, ["models"], 45000)); } catch { return []; }
+}
+export const listAgyModels = agyModels;
 
 export async function discoverRepos(folders = [], isGit = isGitRepo) {
   const out = [];
@@ -43,12 +46,12 @@ export async function discoverRepos(folders = [], isGit = isGitRepo) {
   return [...new Set(out)];
 }
 
-export async function runDoctor({ folders = [], claudePath = null, agyPath = null, exec: ex = exec, env = process.env, home = homedir(), exists = existsSync, geminiActivo = false } = {}) {
+export async function runDoctor({ folders = [], claudePath = null, agyPath = null, modelosEsperados = [MODELO_PLAN_DEFECTO, ...CADENA_PROGRAMAR], exec: ex = exec, env = process.env, home = homedir(), exists = existsSync, geminiActivo = false } = {}) {
   const cb = claudePath ? { command: claudePath, prefix: [] } : resolveClaude({ env });
   let claude = { ok: false, modelos: [] };
   if (cb) { try { await ex(cb, ["--version"]); claude = { ok: true, modelos: ["opus", "sonnet"] }; } catch { /* no responde */ } } // los modelos no se pueden listar sin gastar cuota
   const ab = resolveAgy({ env, configured: agyPath, exists });
-  let agy = { ok: false, cli: "agy", login: null, version: null, modelos: [], flags: null };
+  let agy = { ok: false, cli: "agy", login: null, version: null, modelos: [], faltan: [], flags: null };
   // Gemini apagado (por defecto): no se ejecuta agy ni para diagnosticar; las capacidades lo dicen.
   if (!geminiActivo) agy = { ...agy, activo: false, error: "gemini_apagado" };
   else if (ab) {
@@ -56,7 +59,7 @@ export async function runDoctor({ folders = [], claudePath = null, agyPath = nul
     if (version && versionOk(version)) {
       const modelos = await agyModels(ab, ex);
       const flags = await verifyAgyFlags(ab, ex);
-      agy = { activo: true, ok: modelos.length > 0 && flags.ok, cli: "agy", login: modelos.length ? "google" : null, version, modelos, flags };
+      agy = { activo: true, ok: modelos.length > 0 && flags.ok, cli: "agy", login: modelos.length ? "google" : null, version, modelos, faltan: modelos.length ? modelosEsperados.filter((m) => !modelos.includes(m)) : [], flags };
     } else agy = { ...agy, version, error: version ? `agy ${version} es anterior a ${VERSION_MINIMA}` : "agy no responde" };
   }
   const repos = await discoverRepos(folders);

@@ -4,7 +4,7 @@ import { appendFileSync, existsSync, writeFileSync, readFileSync } from "node:fs
 import { join, isAbsolute } from "node:path";
 import { buildProArgs } from "./claude-args.js";
 import { policyFor } from "./agy-policy.js";
-import { buildAgyArgs, buildAgyPrompt, MAX_PEDIDO, modelChain, isProhibited, normalizeModel, IGNORE_PRIVADOS } from "./agy-args.js";
+import { buildAgyArgs, prepareAgyPrompt, modelChain, isProhibited, normalizeModel, IGNORE_PRIVADOS } from "./agy-args.js";
 import { classifyDenial, allowRule } from "./danger.js";
 import { runClaude as realRunClaude, resolveClaude as realResolveClaude } from "./claude-runner.js";
 import { runAgy as realRunAgy } from "./agy-runner.js";
@@ -116,10 +116,11 @@ export function createProWorker({
     if (!b) return { error: "gemini_no_instalado" };
     await ensureGeminiIgnore(job.repo);
     let lastErr = "gemini_error";
-    const prompt = buildAgyPrompt(job.prompt, job.mode);
-    if (prompt.length > MAX_PEDIDO) return { error: "pedido_largo_para_agy" }; // agy recibe el pedido en la línea de comandos
+    const p = prepareAgyPrompt(job.prompt, job); // prompt largo -> archivo temporal (carpeta única fuera del repo)
+    const dirs = [...geminiFolders(), ...(p.dir ? [p.dir] : [])]; // agy solo puede leer ese archivo temporal además de carpetas_gemini
+    try {
     for (const model of modelChain(job.role, job.model)) {
-      const r = await runAgy({ ...b, args: buildAgyArgs({ prompt, model }), allowedDirs: geminiFolders(), policy: policyFor({ role: job.role, mode: job.mode }), cwd: job.repo, timeoutMs: (job.timeout_s || 1800) * 1000, onEvents: ev.push });
+      const r = await runAgy({ ...b, args: buildAgyArgs({ prompt: p.text, model, role: job.role, mode: job.mode }), allowedDirs: dirs, policy: policyFor({ role: job.role, mode: job.mode }), cwd: job.repo, timeoutMs: (job.timeout_s || 1800) * 1000, onEvents: ev.push });
       if (r.aborted === "tiempo") return { error: "timeout" };
       if (r.blocked) return { error: `comando_bloqueado: ${r.blocked.kind}: ${r.blocked.detail}`.slice(0, 400), usage: r.usage };
       if (!r.isError) return { text: r.text, usage: r.usage, commands: r.commands, model };
@@ -128,6 +129,7 @@ export function createProWorker({
       return { error: `gemini_error: ${(r.stderr || r.text).slice(0, 300)}`, usage: r.usage };
     }
     return { error: lastErr };
+    } finally { p.cleanup(); }
   }
 
   // Rol "commit" (docs/PRO.md "Ampliaciones P2"): el prompt es el mensaje; commit local, nunca push.

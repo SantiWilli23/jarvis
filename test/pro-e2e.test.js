@@ -149,9 +149,9 @@ test("(d) agy: 503 al programar baja de modelo; sin cuota al planear no baja", a
   await tick({ FAKE_RESULT: "plan css" });
   assert.equal((await roundOf(t, r.id)).status, "esperando_aprobacion");
   await decide(r.id, { accion: "aprobar" });
-  const o = env({ FAKE_503: "gemini-3.8-flash-high", FAKE_EDIT: "estilo.css:a{}", FAKE_RESULT: INF(["estilo.css"]) });
+  const o = env({ FAKE_503: "gemini-3.8-flash-medium", FAKE_EDIT: "estilo.css:a{}", FAKE_RESULT: INF(["estilo.css"]) });
   assert.equal(await worker.tick(), "job");
-  assert.deepEqual(modelsUsed(o), ["gemini-3.8-flash-high", "gemini-3.8-flash-medium"]);
+  assert.deepEqual(modelsUsed(o), ["gemini-3.8-flash-medium", "gemini-3.8-flash-low"]);
   assert.equal((await roundOf(t, r.id)).status, "verificando");
   const o2 = env({ FAKE_RESULT: VER() });
   await worker.tick();

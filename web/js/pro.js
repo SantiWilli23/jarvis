@@ -27,7 +27,7 @@ export function trabajador(ronda, ultimo) {
   if (!rondaViva(ronda)) return null;
   const prog = ronda.programmer || "claude";
   const ver = ronda.verifier || (prog === "claude" ? "gemini" : "claude");
-  const m = (e, rol) => (e === "claude" ? (rol === "programar" ? "sonnet" : "opus") : (rol === "programar" ? "gemini-3.8-flash-high" : "gemini-3.8-flash-high"));
+  const m = (e, rol) => (e === "claude" ? (rol === "programar" ? "sonnet" : "opus") : (rol === "programar" ? "gemini-3.8-flash-medium" : "gemini-3.8-flash-high"));
   if (ronda.status === "planeando") { const e = ultimo === "gemini" || ultimo === "claude" ? ultimo : prog; return { engine: e, modelo: m(e, "planear"), rol: "planea" }; }
   if (ronda.status === "verificando") return { engine: ver, modelo: m(ver, "verificar"), rol: "verifica" };
   return { engine: prog, modelo: m(prog, "programar"), rol: ronda.status === "corrigiendo" ? "corrige" : "programa" };

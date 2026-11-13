@@ -64,7 +64,7 @@ export function createWorker({
     if (prompt.length > MAX_PEDIDO) return hub.finish(task.id, { status: "fallida", result: "El pedido es demasiado largo para la línea de comandos de agy." });
     const queue = []; let flush = null;
     const send = () => { flush = null; const ev = queue.splice(0); if (ev.length) hub.events(task.id, ev).catch(() => {}); };
-    const r = await runAgy({ ...bin, args: buildAgyArgs({ prompt, model }), cwd, allowedDirs: dirs, policy: "programar", onEvents: (ev) => { queue.push(...ev); flush ||= setTimeout(send, 800); } });
+    const r = await runAgy({ ...bin, args: buildAgyArgs({ prompt, model, role: "programar", mode: "editar" }), cwd, allowedDirs: dirs, policy: "programar", onEvents: (ev) => { queue.push(...ev); flush ||= setTimeout(send, 800); } });
     if (flush) { clearTimeout(flush); send(); }
     const usage = { tokens_in: r.usage.tokens_in, tokens_out: r.usage.tokens_out };
     const nota = r.denials.length ? `\n[Sin permiso: ${r.denials.join("; ")}]` : "";

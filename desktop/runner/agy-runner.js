@@ -39,7 +39,7 @@ export function runAgy({ command, prefix = [], args, cwd, env = process.env, onE
     }
     const child = spawnFn(command, [...prefix, ...args], { cwd, env: { ...agyEnv(env), ...(prefix.length && process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}) }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, shell: false });
     const out = { text: "", isError: false, errorKind: null, usage: { tokens_in: 0, tokens_out: 0 }, commands: [], denials: [], blocked: null, aborted: null, conversationId: null, status: null, exitCode: null, stderr: "" };
-    let buf = "", raw = "", finished = false, errMsg = "";
+    let buf = "", finished = false, errMsg = "", gotResult = false;
     const checked = new Set();
     const deltas = new Map(); // step_index -> texto acumulado
     const plain = [];
@@ -85,6 +85,7 @@ export function runAgy({ command, prefix = [], args, cwd, env = process.env, onE
       if (m.event === "result" && m.result) {
         const r = m.result;
         out.status = r.status ?? null;
+        gotResult = true;
         if (typeof r.response === "string") out.text = r.response;
         const us = usageOf(r.usage); if (us) out.usage = us;
         if (r.status && r.status !== "SUCCESS") { out.isError = true; errMsg = JSON.stringify(r.error ?? r).slice(0, 500); }
@@ -92,7 +93,7 @@ export function runAgy({ command, prefix = [], args, cwd, env = process.env, onE
       }
       if (m.error || m.type === "error") { out.isError = true; errMsg = JSON.stringify(m.error ?? m).slice(0, 500); }
     };
-    child.stdout.on("data", (d) => { const s = d.toString("utf8"); raw += s; buf += s; let i; while ((i = buf.indexOf("\n")) >= 0) { handle(buf.slice(0, i)); buf = buf.slice(i + 1); } });
+    child.stdout.on("data", (d) => { buf += d.toString("utf8"); let i; while ((i = buf.indexOf("\n")) >= 0) { handle(buf.slice(0, i)); buf = buf.slice(i + 1); } });
     child.stderr.on("data", (d) => { out.stderr = (out.stderr + d.toString("utf8")).slice(-3000); });
     const done = (code, err) => {
       if (finished) return; finished = true; clearTimeout(timer);
@@ -101,6 +102,7 @@ export function runAgy({ command, prefix = [], args, cwd, env = process.env, onE
       if (!out.text) out.text = [...deltas.values()].join("").trim() || plain.join("\n").trim();
       if (err) { out.isError = true; out.text = out.text || `No pude ejecutar Antigravity CLI (agy): ${err.message}`; }
       if (code) out.isError = true;
+      if (!code && !err && !gotResult && !out.text) { out.isError = true; errMsg ||= "sin resultado de agy"; }
       if (RECHAZO.test(out.stderr)) deny("agy", out.stderr.split(/\r?\n/).find((l) => RECHAZO.test(l)) || out.stderr);
       if (out.denials.length) out.isError = true; // un rechazo de permiso cuenta como error (v1: sin ronda de aprobación)
       if (out.isError) out.errorKind = classifyAgyError(`${errMsg}\n${out.stderr}\n${out.text}`) || (out.denials.length ? "permiso" : null);
