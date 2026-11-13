@@ -106,3 +106,23 @@ export function showApproval(a) {
   $("permp").textContent = a?.detail || "Esta acción necesita su aprobación.";
   $("perm").classList.toggle("show", !!a);
 }
+
+// Panel "Voz": consumo de Gemini TTS (pedidos) y MiniMax (caracteres) del día.
+export function renderVoice(status) {
+  const box = $("voz");
+  if (!box) return;
+  box.replaceChildren();
+  const v = status?.voz;
+  if (!v) return;
+  const fila = (nombre, activo, usado, tope, unidad) => {
+    const row = el("div", "model" + (activo ? "" : " off"));
+    const r1 = el("div", "row");
+    r1.append(el("span", "", nombre), el("span", "", activo ? `${usado} / ${tope} ${unidad}` : "apagado"));
+    const bar = el("div", "bar"), fill = el("i", tope && usado / tope > 0.85 ? "warn" : "");
+    fill.style.width = (tope ? Math.min(100, Math.round((usado / tope) * 100)) : 0) + "%";
+    bar.append(fill); row.append(r1, bar);
+    return row;
+  };
+  box.append(fila("Gemini TTS", v.gemini.activo, v.gemini.usado, v.gemini.tope, "hoy"),
+             fila("MiniMax", v.minimax.activo, v.minimax.usado_caracteres, v.minimax.tope_caracteres, "caract."));
+}

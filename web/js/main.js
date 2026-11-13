@@ -4,7 +4,7 @@ import { connectWs, closeWs } from "./ws.js";
 import { store, setState, subscribe, LABELS, VISUAL } from "./state.js";
 import { initOrb, setVisual } from "./orb.js";
 import { canRecord, startRecording, speak, stopSpeaking } from "./voice.js";
-import { tickClock, renderModels, renderMemory, renderQueue, renderConn, renderPc, showApproval } from "./panels.js";
+import { tickClock, renderModels, renderMemory, renderQueue, renderConn, renderPc, renderVoice, showApproval } from "./panels.js";
 
 const $ = (id) => document.getElementById(id);
 const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -32,7 +32,7 @@ subscribe((what) => {
 
 async function refreshStatus() {
   try { store.status = await getStatus(); } catch { return; }
-  renderModels(store.status, null); renderMemory(store.status); renderQueue(store.status, onQueueAction); renderConn(store.status); renderPc(store.status.pc);
+  renderModels(store.status, null); renderMemory(store.status); renderQueue(store.status, onQueueAction); renderConn(store.status); renderVoice(store.status); renderPc(store.status.pc);
 }
 
 async function onQueueAction(kind, id) {
@@ -86,10 +86,10 @@ async function converse(text, priv) {
     $("memread").textContent = r.notes_read ?? 0;
     if (r.status === "sin_cuota") {
       setState("sin_cuota"); say("Jarvis", r.reply);
-      speak(r.reply, () => setTimeout(() => { if (store.state === "sin_cuota") setState("idle"); }, 4000));
+      speak(r.reply, () => setTimeout(() => { if (store.state === "sin_cuota") setState("idle"); }, 4000), r.private);
     } else {
       setState("speaking"); say("Jarvis", r.reply);
-      speak(r.reply, afterSpeech);
+      speak(r.reply, afterSpeech, r.private);
     }
   } catch (e) {
     setState("sin_cuota");

@@ -5,7 +5,7 @@ export const LABELS = {
   idle: { label: "En espera", model: "toque el orbe", who: "Jarvis" },
   listening: { label: "Escuchando", model: "toque de nuevo para enviar", who: "Usted" },
   thinking: { label: "Pensando", model: "un momento, señor", who: "Jarvis" },
-  speaking: { label: "Hablando", model: "voz del navegador", who: "Jarvis" },
+  speaking: { label: "Hablando", model: "voz de Jarvis", who: "Jarvis" },
   permiso: { label: "Esperando su permiso", model: "Claude Code · PC", who: "Jarvis" },
   sin_cuota: { label: "Sin cuota", model: "sin proveedores disponibles", who: "Jarvis" },
 };

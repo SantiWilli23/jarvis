@@ -1,5 +1,7 @@
-// Voz: grabación con MediaRecorder (Safari/iPhone) y síntesis del sistema (voz masculina grave en español).
+// Voz: grabación con MediaRecorder (Safari/iPhone) y salida de voz por la cadena del servidor (/api/tts) con respaldo en la voz del navegador.
 // No usa Web Speech API de reconocimiento: la transcripción la hace el servidor (Groq Whisper).
+
+import { getToken } from "./api.js";
 
 const MAX_MS = 30000;
 
@@ -34,20 +36,19 @@ export async function startRecording(onAutoStop) {
 let voice = null;
 function pickVoice() {
   const vs = (window.speechSynthesis?.getVoices() || []).filter((v) => /^es/i.test(v.lang));
-  return vs.find((v) => /jorge|diego|pablo|alvaro|enrique|raul|carlos|male/i.test(v.name)) || vs[0] || null;
+  const male = /jorge|diego|pablo|alvaro|enrique|raul|carlos|juan|miguel|andres|male|masculin/i;
+  return vs.find((v) => male.test(v.name)) || vs[0] || null;
 }
 if (window.speechSynthesis) window.speechSynthesis.onvoiceschanged = () => { voice = pickVoice(); };
 
-// Dice el texto en voz alta; llama a onEnd al terminar (o enseguida si no hay síntesis).
-export function speak(msg, onEnd) {
-  let ended = false;
-  const end = () => { if (!ended) { ended = true; onEnd?.(); } };
+// Voz del navegador (último recurso): tono bajo y calmado.
+function speakBrowser(msg, end) {
   try {
     if (!window.speechSynthesis) return end();
     const u = new SpeechSynthesisUtterance(msg);
     voice = voice || pickVoice();
     if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = "es-ES";
-    u.rate = 0.9; u.pitch = 0.7;
+    u.rate = 0.88; u.pitch = 0.7;
     u.onend = end; u.onerror = end;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
@@ -55,4 +56,45 @@ export function speak(msg, onEnd) {
     setTimeout(end, Math.max(4000, msg.length * 120));
   } catch { end(); }
 }
-export function stopSpeaking() { try { window.speechSynthesis?.cancel(); } catch { /* nada */ } }
+
+// Un solo <audio> reutilizado: se "desbloquea" en el primer toque (iOS) y luego sirve para todo el audio del servidor.
+const SILENCE = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+let player = null, token = 0;
+function getPlayer() {
+  if (!player) { player = new Audio(); player.src = SILENCE; player.play().catch(() => {}); }
+  return player;
+}
+
+// Dice el texto: pide /api/tts (pregrabada > Gemini > MiniMax); si responde 204 o falla, usa la voz del navegador.
+// llama a onEnd al terminar (o enseguida si no hay nada con qué hablar).
+export function speak(msg, onEnd, priv = false) {
+  let ended = false;
+  const end = () => { if (!ended) { ended = true; onEnd?.(); } };
+  const me = ++token;
+  const a = getPlayer();           // se crea dentro del gesto del usuario
+  (async () => {
+    try {
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ text: msg, private: !!priv }),
+      });
+      if (me !== token) return;    // otro habla o lo cortaron
+      if (res.status === 200) {
+        const url = URL.createObjectURL(await res.blob());
+        if (me !== token) { URL.revokeObjectURL(url); return; }
+        a.onended = () => { URL.revokeObjectURL(url); end(); };
+        a.onerror = () => { URL.revokeObjectURL(url); speakBrowser(msg, end); };
+        a.src = url;
+        await a.play();
+        return;
+      }
+    } catch { /* cae a la voz del navegador */ }
+    if (me === token) speakBrowser(msg, end);
+  })();
+}
+export function stopSpeaking() {
+  token++;
+  try { player?.pause(); } catch { /* nada */ }
+  try { window.speechSynthesis?.cancel(); } catch { /* nada */ }
+}
