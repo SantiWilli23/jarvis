@@ -3,10 +3,10 @@
   "permite_privado": ["claude", "groq"],
   "puestos": [
     { "id": "claude", "nombre": "Claude Pro", "rol": "Solo PC · tope diario", "pc": true },
-    { "id": "chatgpt", "nombre": "ChatGPT", "rol": "Puesto apagado hasta pegar clave", "sustituto": "gemini", "apagado": true },
+    { "id": "chatgpt", "nombre": "ChatGPT", "rol": "Revisor de fallas · fotos (apagado hasta pegar clave)", "proveedor": "openai", "sustituto": "gemini", "apagado": true },
     { "id": "gemini", "nombre": "Gemini", "rol": "Fotos · preguntas medias" },
-    { "id": "grok", "nombre": "Grok", "rol": "Puesto apagado hasta pegar clave", "sustituto": "groq", "apagado": true },
-    { "id": "perplexity", "nombre": "Perplexity", "rol": "Puesto apagado hasta pegar clave", "sustituto": "gemini", "apagado": true }
+    { "id": "grok", "nombre": "Grok", "rol": "Datos y videos (apagado hasta pegar clave)", "proveedor": "xai", "sustituto": "groq", "apagado": true },
+    { "id": "perplexity", "nombre": "Perplexity", "rol": "Investigar (apagado hasta pegar clave)", "proveedor": "perplexity", "sustituto": "gemini", "apagado": true }
   ],
   "voz": {
     "nota": "Cadena de voz: frases pregrabadas > Gemini TTS > MiniMax > voz del navegador. Lo privado nunca sale a Gemini ni a MiniMax. Los topes de Gemini son propios (verifique su cuota real en la consola).",
@@ -15,21 +15,30 @@
     "gemini": { "enabled": true, "modelo": "gemini-2.5-flash-preview-tts", "voz": "Charon", "tope_dia": 30 },
     "minimax": { "enabled": true, "modelo": "speech-2.8-hd", "tope_caracteres_dia": 5000, "nota": "ENCENDIDO: se usa mientras haya saldo. Sin saldo (error 1008) se pausa 10 min y cae a la siguiente voz." }
   },
+  "busqueda": {
+    "nota": "Búsqueda web: Perplexity si hay PERPLEXITY_API_KEY; si no, Gemini con Google Search (GEMINI_API_KEY); si no, respuestas instantáneas de DuckDuckGo (sin clave). Nunca se busca con texto privado.",
+    "gemini_modelo": "gemini-2.5-flash"
+  },
   "cadena_gratis": ["gemini", "groq", "mistral", "openrouter", "cloudflare", "ollama"],
   "proveedores": {
     "gemini":     { "nombre": "Gemini Flash-Lite", "rol": "Fotos · preguntas medias", "env": "GEMINI_API_KEY", "modelo": "gemini-2.0-flash-lite", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
     "groq":       { "nombre": "Groq gpt-oss-120b", "rol": "Rápido · lo privado", "env": "GROQ_API_KEY", "modelo": "openai/gpt-oss-120b", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
-    "mistral":    { "nombre": "Mistral / Ministral", "rol": "Español · cortas", "env": "MISTRAL_API_KEY", "apagado": true, "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
+    "mistral":    { "nombre": "Mistral Small", "rol": "Español · cortas (no privado)", "env": "MISTRAL_API_KEY", "modelo": "mistral-small-latest", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
     "openrouter": { "nombre": "OpenRouter :free", "rol": "Relevo · modelo :free (no privado)", "env": "OPENROUTER_API_KEY", "modelo": "google/gemma-4-31b-it:free", "limites": { "rpm": null, "rpd": 50, "nota": "tope propio de 50 pedidos al día; solo modelos :free (ids vigentes en https://openrouter.ai/api/v1/models)" } },
-    "cloudflare": { "nombre": "Cloudflare Workers AI", "rol": "Relevo", "env": "CLOUDFLARE_API_TOKEN", "apagado": true, "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
-    "ollama":     { "nombre": "Ollama (local)", "rol": "Relevo en el PC", "env": "OLLAMA_URL", "apagado": true, "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
+    "cloudflare": { "nombre": "Cloudflare Workers AI", "rol": "Relevo (no privado)", "env": "CLOUDFLARE_API_TOKEN", "modelo": "@cf/meta/llama-3.1-8b-instruct", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola (necesita también CLOUDFLARE_ACCOUNT_ID)" } },
+    "ollama":     { "nombre": "Ollama (local)", "rol": "Relevo en el PC · solo si responde", "env": "OLLAMA_URL", "modelo": "llama3.1", "limites": { "rpm": null, "rpd": null, "nota": "local, sin tope" } },
+    "openai":     { "nombre": "ChatGPT", "rol": "Revisor de fallas · fotos (de pago)", "env": "OPENAI_API_KEY", "modelo": "gpt-4o-mini", "apagado": true, "limites": { "rpm": null, "rpd": null, "nota": "de pago; fije un tope diario en rpd si quiere. Verifique el modelo vigente en su cuenta" } },
+    "xai":        { "nombre": "Grok", "rol": "Datos y videos (de pago)", "env": "XAI_API_KEY", "modelo": "grok-4.7", "apagado": true, "limites": { "rpm": null, "rpd": null, "nota": "de pago; verifique el modelo vigente en la consola de xAI" } },
+    "perplexity": { "nombre": "Perplexity", "rol": "Investigar con fuentes (de pago)", "env": "PERPLEXITY_API_KEY", "esfuerzo": "low", "apagado": true, "limites": { "rpm": null, "rpd": null, "nota": "de pago; usa la API Agent con web_search" } },
     "fake":       { "nombre": "Proveedor de pruebas", "rol": "Sin claves · respuestas simuladas", "limites": { "rpm": null, "rpd": null } }
   },
   "orden_por_tipo": {
     "charla": ["groq", "gemini"],
     "razonamiento": ["gemini", "groq"],
-    "foto_video": ["gemini"],
-    "investigacion": ["gemini", "groq"],
+    "foto_video": ["openai", "gemini"],
+    "investigacion": ["perplexity", "gemini", "groq"],
+    "revision": ["openai", "gemini", "groq"],
+    "datos": ["xai", "groq", "gemini"],
     "accion_pc": ["groq", "gemini"],
     "privado": ["groq"]
   }

@@ -1,6 +1,7 @@
 {
   "nota": "Qué puede hacer Claude en el PC sin pedir permiso y qué siempre se aprueba en el teléfono. Se aplica en la Fase 2.",
-  "automatico": ["leer_carpetas_permitidas", "escribir_carpetas_permitidas"],
+  "nota_conectores": "Enviar correo, crear evento y enviar WhatsApp SIEMPRE piden aprobación (no se configura aquí). Control de Spotify: déjelo en 'automatico' o muévalo a 'requiere_aprobacion' como 'spotify_control'.",
+  "automatico": ["leer_carpetas_permitidas", "escribir_carpetas_permitidas", "spotify_control"],
   "requiere_aprobacion": ["borrar", "terminal_libre", "enviar_mensaje", "git_push", "desplegar"],
   "carpetas_permitidas": [],
   "tope_claude": { "por_tarea_tokens": null, "diario_tareas": null, "nota": "verificar según el plan Pro" },

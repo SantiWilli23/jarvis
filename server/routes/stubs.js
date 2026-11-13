@@ -4,6 +4,5 @@ import { Router } from "express";
 export function stubRoutes() {
   const r = Router();
   r.all("/agent/*", (_req, res) => res.status(501).json({ error: "no_implementado", fase: 2 }));
-  r.all("/telegram/webhook", (_req, res) => res.status(501).json({ error: "no_implementado", fase: 4 }));
   return r;
 }

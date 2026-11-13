@@ -5,7 +5,7 @@ import { classify } from "./router/classify.js";
 
 const MSG_SIN_CUOTA = "Mis proveedores gratuitos llegaron a su límite por ahora, señor. Lo reintento en cuanto se reinicien.";
 
-export function createChatService({ db, router, privacy, search, tasks, prepare, bus, persona = "", now = () => Date.now() }) {
+export function createChatService({ db, router, privacy, search, tasks, prepare, bus, persona = "", webSearch = null, now = () => Date.now() }) {
   async function ensureConversation(userId, id, firstText) {
     if (id) {
       const c = await get(db, "SELECT id FROM conversations WHERE id=? AND user_id=?", [id, userId]);
@@ -55,6 +55,19 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
         bus?.emit("chat.done", { userId, text: reply, provider: task.prepared?.por || "cola" });
         state(userId, "speaking");
         return { status: "tarea", conversationId: conv, reply, task: { id: task.id, seq: task.seq } };
+      }
+
+      // 3b) Consulta actual y NO privada: búsqueda web con citas (si falla, sigue la cadena normal)
+      if (cls.kind === "investigacion" && !isPrivate && webSearch) {
+        const w = await webSearch.search({ userId, query: original, isPrivate });
+        if (w.ok) {
+          const reply = webSearch.format(w);
+          await saveMsg(userId, conv, "user", original, null, false);
+          await saveMsg(userId, conv, "assistant", reply, w.provider, false);
+          bus?.emit("chat.done", { userId, text: reply, provider: w.provider });
+          state(userId, "speaking", { provider: w.provider });
+          return { status: "ok", conversationId: conv, reply, provider: w.provider, private: false, sources: w.sources, notes_read: found.notes.length };
+        }
       }
 
       // 4) Charla normal por la cadena de modelos

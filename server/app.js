@@ -13,6 +13,7 @@ import { approvalRoutes } from "./routes/approvals.js";
 import { statusRoutes } from "./routes/status.js";
 import { shortcutRoutes } from "./routes/shortcut.js";
 import { stubRoutes } from "./routes/stubs.js";
+import { extensionRoutes } from "./routes/extensions.js";
 
 const WEB = fileURLToPath(new URL("../web", import.meta.url));
 
@@ -24,7 +25,7 @@ export function createApp(ctx) {
     res.set({ "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY" });
     next();
   });
-  app.use(express.json({ limit: "1mb" }));
+  app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { req.rawBody = buf; } })); // rawBody: firma de WhatsApp
 
   app.use(healthRoutes());                    // GET /health
   const api = express.Router();
@@ -32,6 +33,7 @@ export function createApp(ctx) {
   api.use("/auth", authRoutes(ctx));
   api.use(stubRoutes());
   const auth = requireAuth(ctx.sessions);
+  api.use(extensionRoutes(ctx, auth));        // telegram, cron, whatsapp, connect, tools, search (fases 4-6)
   api.use("/shortcut", requireAuth(ctx.sessions, { kinds: ["shortcut"] }), shortcutRoutes(ctx));
   api.use("/devices", auth, deviceRoutes(ctx));
   api.use("/chat", auth, chatRoutes(ctx));
