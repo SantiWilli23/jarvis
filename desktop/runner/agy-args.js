@@ -39,7 +39,7 @@ export const agyMode = (role, mode) => (role === "programar" && mode === "editar
 // Los ids gemini-*-low/medium/high ya llevan el esfuerzo dentro; --effort solo para el resto.
 export const agyEffort = (role, model) => (/-(low|medium|high)$/.test(String(model)) ? null : role === "programar" ? "medium" : "high");
 
-export const PREFIJO_LECTURA = "MODO SOLO LECTURA: no crees, modifiques ni borres archivos ni ejecutes comandos que cambien el repo.\n\n";
+export const PREFIJO_LECTURA = "MODO SOLO LECTURA: no crees, modifiques ni borres archivos ni ejecutes comandos que cambien el repo. Responde con el contenido COMPLETO (plan, informe o verificación) directamente en el mensaje; no lo guardes en archivos ni artefactos ni lo resumas con un enlace.\n\n";
 
 // Prepara el texto del prompt: refuerzo de solo lectura y, si es largo, archivo temporal. { text, cleanup() }.
 export function prepareAgyPrompt(prompt, { role, mode } = {}, { tmp = tmpdir(), max = PROMPT_MAX_ARG } = {}) {
