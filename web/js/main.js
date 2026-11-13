@@ -4,7 +4,7 @@ import { connectWs, closeWs } from "./ws.js";
 import { store, setState, subscribe, LABELS, VISUAL } from "./state.js";
 import { initOrb, setVisual } from "./orb.js";
 import { canRecord, startRecording, speak, stopSpeaking } from "./voice.js";
-import { tickClock, renderMemory, renderQueue, renderConn, renderPc, renderVoice, showApproval } from "./panels.js";
+import { tickClock, renderMemory, renderQueue, renderConn, renderPc, showApproval } from "./panels.js";
 
 const $ = (id) => document.getElementById(id);
 const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -27,12 +27,12 @@ subscribe((what) => {
   setVisual(VISUAL[store.state]);
   $("slabel").textContent = l.label;
   $("smodel").textContent = store.state === "thinking" && activeProvider ? activeProvider : l.model;
-  renderConn(store.status, lastUsed);
+  renderConn(store.status, lastUsed, store.state === "thinking");
 });
 
 async function refreshStatus() {
   try { store.status = await getStatus(); } catch { return; }
-  renderMemory(store.status); renderQueue(store.status, onQueueAction); renderConn(store.status, lastUsed); renderVoice(store.status); renderPc(store.status.pc);
+  renderMemory(store.status); renderQueue(store.status, onQueueAction); renderConn(store.status, lastUsed, store.state === "thinking"); renderPc(store.status.pc);
 }
 
 async function onQueueAction(kind, id) {
@@ -65,7 +65,8 @@ function onWs(m) {
       break;
     case "approval.request": setApproval(m.approval); break;
     case "approval.resolved": if (store.approval?.id === m.approval.id) { setApproval(null); if (store.state === "permiso") setState("idle"); } break;
-    case "chat.done": if (m.provider) { lastUsed = m.provider; renderConn(store.status, lastUsed); } break;
+    case "conn.using": if (m.id) { lastUsed = m.id; renderConn(store.status, lastUsed, true); } break;
+    case "chat.done": if (m.provider) lastUsed = m.provider; renderConn(store.status, lastUsed, false); break;
     case "task.update": case "providers.update": refreshStatus(); break;
     case "pc.status": renderPc(m); break;
     case "ws.closed": if (m.code === 4401 && getToken()) { setToken(""); showLogin(); } break;
