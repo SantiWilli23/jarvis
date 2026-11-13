@@ -4,11 +4,11 @@ import { connectWs, closeWs } from "./ws.js";
 import { store, setState, subscribe, LABELS, VISUAL } from "./state.js";
 import { initOrb, setVisual } from "./orb.js";
 import { canRecord, startRecording, speak, stopSpeaking } from "./voice.js";
-import { tickClock, renderModels, renderMemory, renderQueue, renderConn, renderPc, renderVoice, showApproval } from "./panels.js";
+import { tickClock, renderMemory, renderQueue, renderConn, renderPc, renderVoice, showApproval } from "./panels.js";
 
 const $ = (id) => document.getElementById(id);
 const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-let typeTimer = null, recorder = null, busy = false, activeProvider = null, started = false;
+let typeTimer = null, recorder = null, busy = false, activeProvider = null, lastUsed = null, started = false;
 
 /* ---------- texto del recuadro "say" ---------- */
 function say(who, text) {
@@ -27,12 +27,12 @@ subscribe((what) => {
   setVisual(VISUAL[store.state]);
   $("slabel").textContent = l.label;
   $("smodel").textContent = store.state === "thinking" && activeProvider ? activeProvider : l.model;
-  renderModels(store.status, activeProvider);
+  renderConn(store.status, lastUsed);
 });
 
 async function refreshStatus() {
   try { store.status = await getStatus(); } catch { return; }
-  renderModels(store.status, null); renderMemory(store.status); renderQueue(store.status, onQueueAction); renderConn(store.status); renderVoice(store.status); renderPc(store.status.pc);
+  renderMemory(store.status); renderQueue(store.status, onQueueAction); renderConn(store.status, lastUsed); renderVoice(store.status); renderPc(store.status.pc);
 }
 
 async function onQueueAction(kind, id) {
@@ -64,6 +64,7 @@ function onWs(m) {
       break;
     case "approval.request": setApproval(m.approval); break;
     case "approval.resolved": if (store.approval?.id === m.approval.id) { setApproval(null); if (store.state === "permiso") setState("idle"); } break;
+    case "chat.done": if (m.provider) { lastUsed = m.provider; renderConn(store.status, lastUsed); } break;
     case "task.update": case "providers.update": refreshStatus(); break;
     case "pc.status": renderPc(m); break;
     case "ws.closed": if (m.code === 4401 && getToken()) { setToken(""); showLogin(); } break;
@@ -83,6 +84,7 @@ async function converse(text, priv) {
     const r = await sendChat(text, priv, store.convId);
     store.convId = r.conversationId || store.convId;
     activeProvider = r.provider || null;
+    if (r.status === "ok" && r.provider) lastUsed = r.provider;
     $("memread").textContent = r.notes_read ?? 0;
     if (r.status === "sin_cuota") {
       setState("sin_cuota"); say("Jarvis", r.reply);

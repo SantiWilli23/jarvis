@@ -1,13 +1,14 @@
 /* Concepto: sala de mando casi negra; paneles en gris grafito con texto claro; el orbe, los anillos y las barras de cuota siguen en azul cian. Ámbar = permiso, rojo = error. Todo con variables. */
 :root {
-  --bg: #07080a;
-  --panel: #1b1e23;
-  --panel-2: #22262c;
-  --input-bg: #14161a;
-  --line-strong: #4a4f58;
+  --bg: #080b10;
+  --panel: #2a2e35;
+  --panel-2: #343941;
+  --input-bg: #1c1f24;
+  --line-strong: #5f656f;
+  --used: #ff8a94;
   --grid: rgba(255, 255, 255, 0.035);
-  --orb-glow: rgba(10, 111, 176, 0.16);
-  --line: #33373e;
+  --orb-glow: rgba(10, 111, 176, 0.22);
+  --line: #454a53;
   --cyan: #3fd8ff;
   --cyan-deep: #0a6fb0;
   --amber: #ffb23f;
@@ -31,11 +32,19 @@ body {
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   background:
+    radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.55) 100%),
+    radial-gradient(900px 500px at 50% -10%, rgba(63, 216, 255, 0.06), transparent 70%),
     radial-gradient(1200px 700px at 50% 38%, var(--orb-glow), transparent 70%),
-    linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 44px 44px,
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 44px 44px,
     var(--bg);
   min-height: 100vh;
+}
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 44px 44px,
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 85%);
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 85%);
 }
 body[data-state="permission"] { --accent: var(--amber); }
 body[data-state="error"] { --accent: var(--red); }
@@ -85,7 +94,7 @@ canvas#orb { position: absolute; inset: 0; width: 100%; height: 100%; display: b
 .model .row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
 .model .row span:last-child { font-family: var(--mono); font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
 .model .role { font-size: 11px; color: var(--dim); }
-.bar { height: 4px; background: #2d3138; position: relative; }
+.bar { height: 4px; background: #3e434b; position: relative; }
 .bar i { position: absolute; inset: 0 auto 0 0; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
 .bar i.warn { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
 .model.active { background: linear-gradient(90deg, color-mix(in srgb, var(--cyan) 14%, transparent), transparent); }
@@ -102,6 +111,7 @@ canvas#orb { position: absolute; inset: 0; width: 100%; height: 100%; display: b
 
 .conn { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .conn div { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 5px 8px; border: 1px solid var(--line); background: var(--panel-2); }
+.conn div.used { color: var(--used); border-color: color-mix(in srgb, var(--used) 45%, var(--line)); }
 .conn .dot { flex: none; }
 .mem { font-family: var(--mono); font-size: 11px; color: var(--dim); line-height: 1.7; }
 .mem b { color: var(--fg); font-weight: 500; }

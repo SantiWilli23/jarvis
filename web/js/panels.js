@@ -14,39 +14,6 @@ export function tickClock() {
   $("clock").textContent = new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
 }
 
-export function renderModels(status, activeId) {
-  const box = $("models");
-  box.replaceChildren();
-  if (!status) return;
-  $("keyless").textContent = status.keyless ? "sin claves · pruebas" : "";
-  const filas = status.providers.filter((p) => p.en_cadena || p.estado !== "apagado");
-  for (const p of filas) box.append(modelRow(p, activeId === p.id || p.activo && !activeId));
-  for (const p of status.puestos) {
-    box.append(modelRow({ nombre: p.nombre, rol: p.rol, estado: p.pc ? (p.estado === "activo" ? "activo" : "pc_apagado") : "apagado" }, false));
-  }
-}
-
-function modelRow(p, active) {
-  const tope = p.limite_dia;
-  const pct = tope ? Math.min(100, Math.round((p.usado_dia / tope) * 100)) : 0;
-  const dead = p.estado === "pausado";
-  const off = p.estado === "apagado" || p.estado === "sin_clave" || p.estado === "pc_apagado";
-  const row = el("div", "model" + (active ? " active" : "") + (dead ? " dead" : "") + (off ? " off" : ""));
-  const r1 = el("div", "row");
-  let derecha;
-  if (p.estado === "pausado") derecha = p.pausado_hasta ? `pausado hasta ${hora(p.pausado_hasta)}` : "límite";
-  else if (p.estado === "sin_clave") derecha = "sin clave";
-  else if (p.estado === "apagado") derecha = "apagado";
-  else if (p.estado === "pc_apagado") derecha = "PC apagado";
-  else derecha = tope ? `${p.usado_dia} / ${tope}` : `${p.usado_dia} hoy`;
-  r1.append(el("span", "", p.nombre), el("span", dead ? "pause" : "", derecha));
-  row.append(r1, el("div", "role", p.rol || ""));
-  const bar = el("div", "bar"), fill = el("i", pct > 85 || dead ? "warn" : "");
-  fill.style.width = (dead ? 100 : pct) + "%";
-  bar.append(fill); row.append(bar);
-  return row;
-}
-
 export function renderMemory(status) {
   if (!status) return;
   const m = status.memory;
@@ -83,7 +50,7 @@ export function renderQueue(status, onAction) {
   }
 }
 
-export function renderConn(status) {
+export function renderConn(status, usedId) {
   const box = $("conn");
   box.replaceChildren();
   for (const c of status?.connections || []) {
