@@ -129,3 +129,22 @@ test("rutas: exigen sesión, status sin token, ramas validadas", async () => {
     assert.ok(JSON.parse(gs).connections.find((c) => c.id === "github").ok);
   } finally { server.close(); }
 });
+
+test("prs y ramas paginan (per_page=100), última parcial y tope", async () => {
+  const pedidas = [];
+  const f = async (url) => {
+    const u = new URL(url);
+    if (u.pathname === "/user/repos") return jres([repo("a/b")]);
+    const p = Number(u.searchParams.get("page"));
+    pedidas.push(u.pathname + "#" + p + "#" + u.searchParams.get("per_page"));
+    if (u.pathname === "/repos/a/b/pulls") return jres(Array.from({ length: p < 3 ? 100 : 40 }, (_, i) => ({ number: p * 1000 + i })));
+    return jres(Array.from({ length: 100 }, (_, i) => ({ name: `r${p}-${i}` }))); // nunca termina: tope
+  };
+  const gh = createGitHub({ env: { GITHUB_TOKEN: T1 }, fetch: f });
+  const prs = await gh.prs("a/b");
+  assert.equal(prs.length, 240);
+  assert.deepEqual(pedidas.filter((x) => x.includes("pulls")), ["/repos/a/b/pulls#1#100", "/repos/a/b/pulls#2#100", "/repos/a/b/pulls#3#100"]);
+  const ramas = await gh.ramas("a/b");
+  assert.equal(ramas.length, 1000);
+  assert.equal(pedidas.filter((x) => x.includes("branches")).length, 10);
+});

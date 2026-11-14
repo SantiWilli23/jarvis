@@ -6,3 +6,4 @@
 **Pruebas:** `test/juegos.test.js`. Alquimia y Draft Europeo no están en la lista a propósito.
 **Queda:** probar en navegador real/iPhone (bloqueo de pestañas, estilo de botones). Sin push ni deploy.
 **Verificar:** `npm test`.
+**F1 (rama github-paginas):** `github.prs()`/`ramas()` paginan con per_page=100 y `page=N` hasta página parcial, tope 10 páginas; solo lectura. Prueba en `test/github.test.js`.
