@@ -37,14 +37,9 @@ export function buildArgs({ task, folders = [], approved = [], resume = null, ma
 // --- Modo Pro (docs/PRO.md §2): planear = opus solo lectura; programar = sonnet con acceptEdits;
 // verificar = opus solo lectura. Nunca se pueden leer .env, claves ni certificados. `npm test`/Bash no
 // van en la lista permitida: salen como "denegados" y piden aprobación (worker de Pro).
-<<<<<<< HEAD
-export const PRO_MODELOS = { planear: "opus", programar: "sonnet", verificar: "opus" };
-export const PRIVADOS_CLAUDE = [...SECRETOS.map((p) => `Read(${p})`), "Edit(**/.env*)", "Write(**/.env*)"];
-=======
 // Ids EXACTOS (config/pro.json modelos.claude manda: el servidor los pone en cada job). Aquí solo el valor por defecto.
 export const PRO_MODELOS = { planear: "claude-opus-5-5", programar: "claude-sonnet-5-5", verificar: "claude-opus-5-5", consultar: "claude-sonnet-5-5" };
-export const PRIVADOS_CLAUDE = ["Read(**/.env)", "Read(**/.env.*)", "Read(**/*.pem)", "Read(**/*.key)", "Edit(**/.env*)", "Write(**/.env*)"];
->>>>>>> pro-estabilidad
+export const PRIVADOS_CLAUDE = [...SECRETOS.map((p) => `Read(${p})`), "Edit(**/.env*)", "Write(**/.env*)"];
 
 export function buildProArgs({ role, model = null, repo, approved = [], resume = null, maxTurns = 40, fallbackModel = null }) {
   const escribe = role === "programar";

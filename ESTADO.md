@@ -9,7 +9,7 @@
 **Coordinador Groq (rama pro-groq-coordinador, sin push):** Groq coordina en Pro (habla, consulta a Claude/Gemini solo lectura, propone; el usuario aprueba con botón); fallback al flujo clásico. Probado con Groq simulado; sin probar con Groq real. Ver docs/PRO.md.
 
 **Rama pro-estabilidad (sin push):** Pro con solo Claude (ids 5.5, sonda real en el doctor, reserva de Opus avisada en el hilo, cancelar real, Reintentar paso, commit solo de la ronda, envío atómico, web con motivos/avisos). Ver docs/PRO.md al final. Sin probar: ronda real completa.
-
 **Siguiente paso:** con permiso, push y deploy; luego una ronda Pro real en un repo de prueba.
 
-**Verificar:** `npm test` (202); `node --test test/pro-e2e.test.js`; guía docs/GUIA-USUARIO.md sección 15. Sin probar: ronda real, iPhone.
+**Verificar:** `npm test` (237); `node --test test/pro-e2e.test.js`; guía docs/GUIA-USUARIO.md sección 15. Sin probar: ronda real, iPhone.
+**Estudio + Navegador:** /estudio (Gemini gratis, privado bloqueado, "Abrir AI Studio") y Navegador de Jarvis asistido (Electron `desktop/browser/`, `server/browser.js`, `config/browser-sites.json` con activo:false). Probado con Gemini simulado y sitio falso (DOM real en el panel del navegador); SIN probar Electron, sitios reales ni selectores reales. Ver docs/GUIA-USUARIO.md sección 16.
