@@ -16,6 +16,7 @@
       "main.js",
       "lib/**",
       "runner/**",
+      "browser/**",
       "package.json"
     ],
     "win": {

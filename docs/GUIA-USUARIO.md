@@ -229,3 +229,9 @@ El agente Gemini del PC viene **apagado**. Mientras esté apagado: el servidor n
 6. Los archivos `.geminiignore` pueden ser ignorados por agy.
 
 **Recomendación:** si necesita aislamiento fuerte, ejecute el PC de Gemini en una cuenta de Windows o máquina virtual sin acceso a nada privado.
+
+## 16. Estudio y Navegador de Jarvis (asistido)
+
+**Estudio** (`/estudio`, también en la vista móvil): chat de código con la API gratis de Gemini. Elija modelo (los de "sin nivel gratis" salen desactivados), copie el código con un toque y use "Abrir AI Studio" para la web de Google (no se puede incrustar). Aviso: en el plan gratis Google puede usar lo que envía para entrenar; lo privado nunca se envía. Modelos y tope diario: `estudio` en `config/providers.json`.
+
+**Navegador de Jarvis** (app de escritorio, bandeja > "Navegador de Jarvis"): una ventana con Claude Code web, ChatGPT, Perplexity y Grok, cada uno con su sesión guardada. **Usted inicia sesión** (Jarvis nunca escribe contraseñas ni resuelve captcha/2FA). APAGADO por defecto: ponga `activo: true` en `config/browser-sites.json`. Modo asistido: `POST /api/browser/tasks {site, prompt}` deja el texto en la caja del sitio **sin enviarlo**; usted pulsa Enviar y Jarvis lee la respuesta (se devuelve como dato en `datos`, nunca como orden). Si algo falla (login, captcha, aviso de cuenta, selector roto) se detiene o copia el prompt al portapapeles. Botón **Detener** siempre visible; registro en `navegador.log` (carpeta de datos de la app). Selectores por sitio sin calibrar contra los sitios reales: `desktop/browser/selectors.json`. Límites: 12 pasos, 180 s, 10 tareas/h, 6 por sitio/h, 30/día, 20 s de pausa.

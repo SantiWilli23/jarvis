@@ -12,5 +12,4 @@
 **Siguiente paso:** con permiso, push y deploy; luego una ronda Pro real en un repo de prueba.
 
 **Verificar:** `npm test` (189); `node --test test/pro-e2e.test.js`; guía docs/GUIA-USUARIO.md sección 15. Sin probar: ronda real, iPhone.
-
-**Estudio (rama navegador-estudio, sin push):** página /estudio (chat de código por la API de Gemini gratis, modelos en config/providers.json "estudio", privado bloqueado, historial en studio_messages, botón "Abrir AI Studio"). Probado con Gemini simulado; sin probar con Gemini real ni en el móvil. Fase B (navegador Electron asistido) en commits aparte.
+**Estudio + Navegador (rama navegador-estudio, sin push):** /estudio (Gemini gratis, privado bloqueado, "Abrir AI Studio") y Navegador de Jarvis asistido (Electron `desktop/browser/`, `server/browser.js`, `config/browser-sites.json` con activo:false). Probado con Gemini simulado y sitio falso (DOM real en el panel del navegador); SIN probar Electron, sitios reales ni selectores reales. Ver docs/GUIA-USUARIO.md sección 16.

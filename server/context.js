@@ -18,6 +18,7 @@ import { createDirect } from "./queue/direct.js";
 import { createPrepare } from "./queue/prepare.js";
 import { GeminiProvider } from "./providers/gemini.js";
 import { createStudio } from "./studio.js";
+import { createBrowser } from "./browser.js";
 import { createApprovals } from "./approvals.js";
 import { createAgent } from "./agent.js";
 import { createAudit } from "./audit.js";
@@ -81,6 +82,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, phone, persona, webSearch: websearch, agent, now });
   let ext = null; // conectores de las fases 4-6 (se arman al final)
   const studio = createStudio({ db, config: config.estudio, providers, chat, privacy, now });
+  const browser = createBrowser({ db, config: loadJson("browser-sites.json"), agent, chat, privacy, bus, audit, now });
   const tts = createTts({ db, env, fetch: f, config: config.voz, privacy, now,
     phrasesDir: fileURLToPath(new URL("../web/audio/phrases", import.meta.url)),
     cacheDir: fileURLToPath(new URL("../data/cache/tts", import.meta.url)) });
@@ -129,7 +131,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   }
 
   const base = { db, env, config, permissions, persona, ownerId, providers, chain, keyless, privacy, quota, bus, state, router,
-    notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, agent, pro, sessions, limiter, stt, tts, studio, chat, websearch, status, now, fts };
+    notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, agent, pro, sessions, limiter, stt, tts, studio, browser, chat, websearch, status, now, fts };
   ext = buildExtensions(base, { fetch: f });
   const despertador = createDespertador({ env, bus, audit, getGoogle: () => ext?.google, now });
   const push = createPush({ db, env, bus, audit, ownerId, webpush: webpushOverride === undefined ? await loadWebPush() : webpushOverride, now });

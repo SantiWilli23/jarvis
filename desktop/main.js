@@ -11,6 +11,10 @@ import { createWorker } from "./runner/worker.js";
 import { createProWorker } from "./runner/pro-worker.js";
 import { createOutbox } from "./runner/outbox.js";
 import { runDoctor, resolveAgy } from "./runner/doctor.js";
+import { createBrowserWindow } from "./browser/window.js";
+import { createBrowserWorker } from "./browser/worker.js";
+import selectors from "./browser/selectors.json" with { type: "json" };
+import { appendFileSync } from "node:fs";
 
 const smoke = process.argv.includes("--smoke-test") || process.env.JARVIS_SMOKE === "1";
 if (smoke) app.setPath("userData", mkdtempSync(join(tmpdir(), "jarvis-smoke-")));
@@ -18,6 +22,7 @@ const dataDir = app.getPath("userData");
 
 const gotLock = smoke || app.requestSingleInstanceLock(); // instancia única
 if (!gotLock) app.quit();
+let browserWin = null, browserWorker = null;
 let win = null, tray = null, worker = null, cfg = null, quitting = false, lastStatus = {};
 
 const origin = () => new URL(cfg.hubUrl).origin;
@@ -98,7 +103,16 @@ function startWorker() {
     log: (m) => console.log("[jarvis]", m),
     onStatus: (s) => { lastStatus = { ...lastStatus, ...s }; updateTray(); },
   });
+  // Navegador de Jarvis (asistido): sondea cada 3 s; el servidor lo mantiene apagado (activo:false) hasta que se encienda.
+  const blog = (m) => { console.log("[jarvis:navegador]", m); try { appendFileSync(join(dataDir, "navegador.log"), `${new Date().toISOString()} ${m}\n`); } catch { /* sin registro */ } };
+  browserWorker = createBrowserWorker({ hub, win: ensureBrowserWin(), selectors, log: blog });
+  browserWorker.start();
   worker.start(); // al encender Windows la cola empieza de inmediato y el hub recibe pc_online
+}
+
+// Ventana del Navegador de Jarvis: se crea la primera vez que hace falta (no antes).
+function ensureBrowserWin() {
+  return (browserWin ||= createBrowserWindow({ log: (m) => console.log("[jarvis:navegador]", m), onDetener: () => browserWorker?.detener(), onLeer: () => browserWorker?.leerAhora() }));
 }
 
 function show(withMic) {
@@ -117,6 +131,7 @@ function updateTray() {
     { label: "Abrir Jarvis", click: () => show(false) },
     { label: worker?.isPaused() ? "Reanudar cola" : "Pausar cola", enabled: !!worker, click: () => { worker.pause(!worker.isPaused()); updateTray(); } },
     { label: "Siempre visible", type: "checkbox", checked: !!cfg.alwaysOnTop, click: (i) => { cfg.alwaysOnTop = i.checked; win?.setAlwaysOnTop(i.checked); saveConfig(dataDir, cfg); } },
+    { label: "Navegador de Jarvis", click: () => ensureBrowserWin().abrir() },
     { label: "Abrir archivo de configuración", click: () => shell.openPath(configPath(dataDir)) },
     { type: "separator" },
     { label: `Estado: ${estado}`, enabled: false },

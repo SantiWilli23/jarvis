@@ -21,6 +21,7 @@ import { agentProRoutes } from "./routes/agent-pro.js";
 import { phoneRoutes } from "./routes/phone.js";
 import { pushRoutes } from "./routes/push.js";
 import { studioRoutes } from "./routes/studio.js";
+import { browserRoutes, agentBrowserRoutes } from "./routes/browser.js";
 
 const WEB = fileURLToPath(new URL("../web", import.meta.url));
 
@@ -38,6 +39,7 @@ export function createApp(ctx) {
   const api = express.Router();
   api.use(healthRoutes());                    // GET /api/health
   api.use("/auth", authRoutes(ctx));
+  api.use("/agent/browser", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentBrowserRoutes(ctx)); // antes de /agent
   api.use("/agent/pro", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentProRoutes(ctx)); // antes de /agent
   api.use("/agent", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentRoutes(ctx));
   api.use(stubRoutes());
@@ -48,6 +50,7 @@ export function createApp(ctx) {
   api.use("/push", auth, pushRoutes(ctx));
   api.use("/devices", auth, deviceRoutes(ctx));
   api.use("/studio", auth, studioRoutes(ctx));
+  api.use("/browser", auth, browserRoutes(ctx));
   api.use("/pro", auth, proRoutes(ctx));
   api.use("/chat", auth, chatRoutes(ctx));
   api.use("/settings", auth, settingsRoutes(ctx));
