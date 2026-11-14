@@ -1,6 +1,7 @@
 // Modo Pro: chat de tres (usuario, Claude, Gemini). Contrato en docs/PRO.md (§4 endpoints, §8 eventos ws).
 // Las funciones de render son puras (devuelven HTML escapado) y se prueban sin navegador.
 import { api, getToken, decideApproval, pendingApprovals } from "./api.js";
+import { renderRondaWeb, renderRamaSelect, opcionesRepos, opcionesRamas, ramaPorDefecto, motivosWebTexto, proActivo, localVisible, webHabilitado, createWebCtl, errWeb } from "./pro-web.js";
 
 export const MOTIVOS = {
   pc_apagado: "El PC está apagado o sin conexión.",
@@ -17,7 +18,7 @@ export const AVISOS = {
   gemini_fuera_de_carpetas: "Alguno de los repositorios queda fuera de las carpetas permitidas a Gemini: ahí se usa solo Claude.",
 };
 export const avisosTexto = (pro) => lista(pro?.avisos).map((m) => AVISOS[m] || m);
-export const AUTORES = { usuario: "Usted", jarvis: "Jarvis", claude: "Claude", gemini: "Gemini" };
+export const AUTORES = { usuario: "Usted", jarvis: "Jarvis", claude: "Claude", gemini: "Gemini", claude_web: "Claude Code", jules: "Jules", chatgpt: "ChatGPT", grok: "Grok", perplexity: "Perplexity" };
 export const ESTADOS = {
   planeando: "Planeando", esperando_aprobacion: "Esperando su aprobación", programando: "Programando", verificando: "Verificando",
   corrigiendo: "Corrigiendo", coordinando: "Jarvis coordina", conversando: "Esperando su respuesta", hecha: "Hecha", necesita_usuario: "Necesita su decisión", fallida: "Fallida", cancelada: "Cancelada",
@@ -151,8 +152,13 @@ export function renderHilos(hilos, actual) {
 }
 
 /* ---------------- UI (solo navegador) ---------------- */
-const S = { coord: null, pro: null, repos: [], hilos: [], actual: null, msgs: [], rondas: [], vivos: new Map(), ultimo: null, aprobs: [], error: "", cargado: false };
+const S = { coord: null, pro: null, repos: [], ghRepos: [], ramas: [], ramasHilo: [], envios: [], hilos: [], actual: null, msgs: [], rondas: [], vivos: new Map(), ultimo: null, aprobs: [], error: "", cargado: false };
 const $ = (id) => document.getElementById(id);
+const ctl = createWebCtl({
+  api, nav: typeof navigator !== "undefined" ? navigator : undefined, win: typeof window !== "undefined" ? window : undefined, doc: typeof document !== "undefined" ? document : undefined,
+  root: () => $("pro-round"), hilo: () => ({ id: S.actual?.id, envios: S.envios }),
+  recargar: () => (S.actual ? abrirHilo(S.actual.id) : pintar()), error: (t) => { S.error = t; pintar(); },
+});
 const ronda = () => [...S.rondas].sort((a, b) => b.id - a.id)[0] || null;
 export const ERRORES = {
   ronda_activa: "Ya hay una ronda en marcha en este hilo. Espere a que termine o cancélela.",
@@ -172,13 +178,26 @@ export const errTexto = (e) => (e && ERRORES[e.message]) || (e?.status === 409 ?
 async function cargarEstado() {
   try {
     const st = await api("/status");
-    S.pro = st.pro || { habilitado: false, motivos: [] };
+    const ps = await api("/pro/status").catch(() => null); // trae local_visible y web
+    S.pro = { ...(st.pro || { habilitado: false, motivos: [] }), ...(ps ? { local_visible: ps.local_visible === true, web: ps.web } : {}) };
     const caps = st.pc?.capabilities || st.pro?.capabilities || {};
     S.repos = lista(caps.repos).length ? caps.repos : lista(st.pro?.repos);
     S.error = "";
     S.coord = await api("/pro/coordinador").catch(() => S.coord);
   } catch (e) { S.pro = S.pro || { habilitado: false, motivos: [] }; S.error = e.status === 401 ? "" : "No hay conexión con el servidor (puede estar despertando)."; }
   pestanas();
+}
+async function cargarGithub() {
+  S.ghCargado = true;
+  try { S.ghRepos = (await api("/github/repos")).repos || []; } catch (e) { S.ghCargado = false; S.error = errWeb(e); }
+  await ramasDe($("pro-gh-repo")?.value || S.ghRepos[0]?.full_name);
+  pintar();
+}
+async function ramasDe(full) {
+  S.ramas = [];
+  if (!full || !full.includes("/")) return;
+  const [o, r] = full.split("/");
+  try { S.ramas = (await api(`/github/repos/${encodeURIComponent(o)}/${encodeURIComponent(r)}/branches`)).branches || []; } catch (e) { S.error = errWeb(e); }
 }
 async function cargarHilos() {
   try { S.hilos = (await api("/pro/threads")).threads || []; } catch (e) { S.hilos = []; if (e.status !== 404) S.error = errTexto(e); }
@@ -187,7 +206,9 @@ async function cargarHilos() {
 async function abrirHilo(id) {
   try {
     const r = await api(`/pro/threads/${id}`);
-    S.actual = r.thread || { id }; S.msgs = r.messages || []; S.rondas = r.rounds || []; S.vivos.clear(); S.error = "";
+    S.actual = r.thread || { id }; S.msgs = r.messages || []; S.rondas = r.rounds || []; S.envios = r.envios || []; S.vivos.clear(); S.error = "";
+    S.ramasHilo = [];
+    if (S.actual.modo === "web" && S.actual.gh_repo) { const [o, rp] = S.actual.gh_repo.split("/"); S.ramasHilo = (await api(`/github/repos/${encodeURIComponent(o)}/${encodeURIComponent(rp)}/branches`).catch(() => ({}))).branches || []; }
     try { S.aprobs = ((await pendingApprovals()).approvals || []).filter((a) => a.pro_job_id); } catch { S.aprobs = []; }
   } catch (e) { S.error = errTexto(e); }
   pintar();
@@ -195,21 +216,29 @@ async function abrirHilo(id) {
 
 function pestanas() {
   const tp = $("tab-pro"); if (!tp) return;
-  const ok = !!S.pro?.habilitado;
+  const ok = proActivo(S.pro);
   tp.setAttribute("aria-disabled", String(!ok));
   tp.classList.toggle("off", !ok);
-  tp.title = ok ? "" : motivosTexto(S.pro).join(" ");
+  const mot = [...(localVisible(S.pro) ? motivosTexto(S.pro) : []), ...(webHabilitado(S.pro) ? [] : motivosWebTexto(S.pro))];
+  tp.title = ok ? "" : mot.join(" ");
   const box = $("pro-motivos");
-  box.innerHTML = ok ? "" : renderBloqueo(S.pro);
+  box.innerHTML = ok ? "" : `<p class="blk-t">Modo Pro no disponible</p>${mot.length ? `<ul>${mot.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "<p>Sin conexión con el servidor.</p>"}`;
   if (ok) box.hidden = true;
+  if (ok && webHabilitado(S.pro) && !S.ghCargado) cargarGithub();
   pintar();
 }
 
 function pintar() {
   const el = $("pro-main"); if (!el) return;
-  const ok = !!S.pro?.habilitado, r = ronda(), sin = !S.actual;
-  const aviso = S.error || (ok ? avisosTexto(S.pro).join(" ") : ""); $("pro-aviso").textContent = aviso; $("pro-aviso").hidden = !aviso;
+  const web = S.actual?.modo === "web", ok = web ? webHabilitado(S.pro) : !!S.pro?.habilitado, r = ronda(), sin = !S.actual;
+  const aviso = S.error || (ok && !web ? avisosTexto(S.pro).join(" ") : ""); $("pro-aviso").textContent = aviso; $("pro-aviso").hidden = !aviso;
   $("pro-hilos").innerHTML = renderHilos(S.hilos, S.actual?.id);
+  const lv = localVisible(S.pro), wh = webHabilitado(S.pro);
+  $("pro-modo-box").hidden = !(lv && wh);
+  const modoWeb = wh && (!lv || $("pro-modo").value === "web");
+  for (const id of ["pro-gh-box"]) $(id).hidden = !modoWeb;
+  for (const id of ["pro-local-box"]) $(id).hidden = modoWeb || !lv;
+  if (modoWeb) { const cur = $("pro-gh-repo").value; $("pro-gh-repo").innerHTML = opcionesRepos(S.ghRepos, cur); $("pro-gh-rama").innerHTML = opcionesRamas(S.ramas, S.ramas.find((b) => b.name === $("pro-gh-rama").value)?.name || ramaPorDefecto(S.ghRepos, $("pro-gh-repo").value)); }
   $("pro-repo").innerHTML = S.repos.map((p) => `<option value="${esc(p)}">${esc(String(p).split(/[\\/]/).pop())}</option>`).join("") || '<option value="">(sin repos)</option>';
   let h = sin ? '<p class="vacio">Elija o cree un hilo para hablar con Claude y Gemini.</p>' : (S.msgs.length || S.vivos.size ? "" : '<p class="vacio">Hilo vacío. Describa la tarea: se planea, usted aprueba, se programa y el otro motor verifica.</p>');
   const viva = r?.status === "conversando" ? [...S.msgs].reverse().find((m) => m.kind === "propuesta" && m.round_id === r.id)?.id : null;
@@ -221,14 +250,21 @@ function pintar() {
   $("pro-work").innerHTML = t ? `<span class="who working">${esc(AUTORES[t.engine])}</span> ${esc(t.rol)} · ${esc(t.modelo)}` : "";
   document.body.classList.toggle("pro-working", !!t);
   const keep = [$("plan-edit")?.value, $("corr-text")?.value];
-  $("pro-round").innerHTML = renderRonda(r, S.msgs, S.aprobs);
-  if (keep[0] && $("plan-edit")) $("plan-edit").value = keep[0];
-  if (keep[1] && $("corr-text")) $("corr-text").value = keep[1];
-  const puede = ok && !sin;
+  if (web) {
+    const keepW = [...document.querySelectorAll("#pro-round textarea")].map((t) => [t.id, t.value]);
+    $("pro-round").innerHTML = renderRamaSelect(S.actual, S.ramasHilo) + renderRondaWeb(r, { thread: S.actual, msgs: S.msgs, envios: S.envios, web: S.pro?.web, estado: ctl.estado });
+    for (const [id, v] of keepW) { const t = id && document.getElementById(id); if (t && !t.readOnly && v && v !== t.defaultValue) t.value = v; } // no pisa lo que está escribiendo
+  } else {
+    $("pro-round").innerHTML = renderRonda(r, S.msgs, S.aprobs);
+    if (keep[0] && $("plan-edit")) $("plan-edit").value = keep[0];
+    if (keep[1] && $("corr-text")) $("corr-text").value = keep[1];
+  }
+  const puede = ok && !sin && !["traduciendo"].includes(r?.status);
   const co = S.coord, sw = $("pro-coord");
   if (sw) { sw.checked = !!co?.activo; sw.disabled = !ok; $("pro-coord-txt").textContent = co && co.activo && !co.disponible ? "Jarvis coordina (sin clave de Groq: modo clásico)" : "Jarvis coordina"; }
   $("pro-send").disabled = !puede; $("pro-in").disabled = !puede;
   $("pro-in").placeholder = !ok ? "Pro no disponible" : sin ? "Cree un hilo primero" : "Describa la tarea…";
+  $("pro-coord-box").hidden = web;
 }
 
 async function decidir(id, accion, text) {
@@ -237,6 +273,8 @@ async function decidir(id, accion, text) {
 }
 
 function onClick(e) {
+  const w = e.target.closest("[data-w]");
+  if (w) { ctl.clic(w); return; } // sin await: copiar y abrir debe correr dentro del gesto del clic
   const b = e.target.closest("[data-act]"); if (!b) return;
   const act = b.dataset.act;
   if (act === "hilo") abrirHilo(Number(b.dataset.id));
@@ -259,6 +297,17 @@ function onClick(e) {
 
 async function nuevoHilo(ev) {
   ev.preventDefault();
+  if (!$("pro-gh-box").hidden) {
+    const gh_repo = $("pro-gh-repo").value, gh_rama = $("pro-gh-rama").value;
+    if (!gh_repo || !gh_rama) { S.error = "Elija un repositorio y una rama."; return pintar(); }
+    try {
+      const r = await api("/pro/threads", { method: "POST", body: { modo: "web", gh_repo, gh_rama, title: $("pro-title").value.trim() || undefined } });
+      $("pro-title").value = "";
+      S.hilos = (await api("/pro/threads")).threads || S.hilos;
+      await abrirHilo((r.thread || r).id);
+    } catch (e) { S.error = errWeb(e); pintar(); }
+    return;
+  }
   const repo = $("pro-repo-txt").value.trim() || $("pro-repo").value;
   if (!repo) { S.error = "Elija un repositorio."; return pintar(); }
   try {
@@ -278,7 +327,7 @@ async function enviar(ev) {
 
 export function onWsPro(m) {
   if (!m || !m.type) return;
-  if (m.type === "pro.status") { S.pro = { habilitado: !!m.habilitado, motivos: m.motivos || [] }; pestanas(); return; }
+  if (m.type === "pro.status") { S.pro = { ...S.pro, habilitado: !!m.habilitado, motivos: m.motivos || [] }; pestanas(); return; } // conserva web y local_visible
   if (m.type === "pc.status" || m.type === "providers.update") { cargarEstado(); return; }
   if (m.type === "approval.request" && m.approval?.pro_job_id) { S.aprobs = [...S.aprobs.filter((a) => a.id !== m.approval.id), m.approval]; pintar(); return; }
   if (m.type === "approval.resolved" && m.approval) { S.aprobs = S.aprobs.filter((a) => a.id !== m.approval.id); pintar(); return; }
@@ -321,6 +370,9 @@ function init() {
   });
   $("vista-pro").addEventListener("click", onClick);
   $("pro-newform").addEventListener("submit", nuevoHilo);
+  $("pro-modo").addEventListener("change", pintar);
+  $("pro-gh-repo").addEventListener("change", async () => { await ramasDe($("pro-gh-repo").value); $("pro-gh-rama").innerHTML = opcionesRamas(S.ramas, ramaPorDefecto(S.ghRepos, $("pro-gh-repo").value)); });
+  $("pro-round").addEventListener("change", (e) => { if (e.target.dataset?.wChange === "rama") ctl.cambiarRama(e.target.value); });
   $("pro-form").addEventListener("submit", enviar);
   $("pro-coord")?.addEventListener("change", (e) => api("/pro/coordinador", { method: "POST", body: { activo: e.target.checked } }).then((c) => { S.coord = c; pintar(); }).catch((x) => { S.error = errTexto(x); cargarEstado(); }));
   const vistos = new WeakSet(); // main.js y ws.js despachan el mismo objeto: se procesa una sola vez

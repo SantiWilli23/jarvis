@@ -3,6 +3,7 @@
 import { api, getToken } from "./api.js";
 import { store, setState } from "./state.js";
 import { showApproval } from "./panels.js";
+import { proAbrir, proCerrar } from "./movil-pro.js";
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -11,11 +12,12 @@ const safe = (fn) => { try { return fn(); } catch { /* API no disponible */ } };
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 
 /* ---------- hojas inferiores (una sola abierta) ---------- */
-const sheets = { cola: $("sh-cola"), tel: $("sh-tel"), estado: $("sh-estado"), mas: $("sh-mas") };
+const sheets = { cola: $("sh-cola"), tel: $("sh-tel"), estado: $("sh-estado"), mas: $("sh-mas"), pro: $("sh-pro") };
 let current = null;
 
 function closeSheet() {
   if (!current) return;
+  if (current === "pro") proCerrar();
   const s = sheets[current]; current = null;
   s.classList.remove("on"); s.style.transform = "";
   $("scrim").classList.remove("on");
@@ -25,7 +27,7 @@ function closeSheet() {
 function openSheet(name) {
   closeKeyboard();
   if (current === name) return closeSheet();
-  if (current) { const prev = sheets[current]; prev.classList.remove("on"); prev.hidden = true; }
+  if (current) { if (current === "pro") proCerrar(); const prev = sheets[current]; prev.classList.remove("on"); prev.hidden = true; }
   current = name;
   const s = sheets[name];
   s.hidden = false; s.style.transform = "";
@@ -36,6 +38,7 @@ function openSheet(name) {
   if (name === "tel") loadPhone();
   if (name === "cola") { loadPhone(); }
   if (name === "mas") renderMas();
+  if (name === "pro") proAbrir();
 }
 
 // Cerrar deslizando el asa hacia abajo
@@ -169,6 +172,7 @@ async function renderDespertador() {
 // Abrir desde una notificación: /m#aprobacion-<id> muestra la tarjeta pendiente.
 window.addEventListener("hashchange", () => { if (/^#aprobacion-/.test(location.hash)) refreshApprovals(); });
 if (/^#aprobacion-/.test(location.hash)) setTimeout(refreshApprovals, 800);
+$("mpro").addEventListener("click", () => openSheet("pro"));
 $("mdesk").addEventListener("click", () => {
   safe(() => localStorage.setItem("jarvis_vista", "escritorio"));
   location.href = "/";

@@ -20,7 +20,7 @@ test("m.html trae todos los ids que usan main.js, panels.js y movil.js (sin repe
   const html = web("m.html");
   const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
   assert.equal(new Set(ids).size, ids.length, "ids repetidos en m.html: " + ids.filter((x, i) => ids.indexOf(x) !== i));
-  for (const f of ["js/main.js", "js/panels.js", "js/movil.js"]) {
+  for (const f of ["js/main.js", "js/panels.js", "js/movil.js", "js/movil-pro.js"]) {
     const used = new Set([...web(f).matchAll(/\$\("([^"]+)"\)/g)].map((m) => m[1]));
     assert.ok(used.size > 5, f);
     for (const id of used) assert.ok(ids.includes(id), `${f} usa $("${id}") pero m.html no lo tiene`);
@@ -46,7 +46,7 @@ test("GET /m responde 200 con la vista móvil; / sigue siendo el HUD de escritor
 
 test("service worker y manifiesto al día", () => {
   const sw = web("sw.js");
-  assert.match(sw, /jarvis-shell-v9/);
+  assert.match(sw, /jarvis-shell-v10/);
   for (const p of ['"/m"', '"/css/movil.css"', '"/js/movil.js"']) assert.ok(sw.includes(p), p);
   const mf = JSON.parse(web("manifest.webmanifest"));
   assert.equal(mf.id, "/"); assert.equal(mf.scope, "/"); assert.equal(mf.theme_color, "#080b10"); assert.equal(mf.background_color, "#080b10");

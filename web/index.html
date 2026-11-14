@@ -116,17 +116,26 @@
       <h2>Hilos <em>Pro</em></h2>
       <div id="pro-hilos" class="hilos"></div>
       <form id="pro-newform" class="newthread">
-        <label for="pro-repo">Repositorio</label>
-        <select id="pro-repo"></select>
-        <input type="text" id="pro-repo-txt" placeholder="o ruta del repo" aria-label="Ruta del repositorio" autocomplete="off">
+        <div id="pro-modo-box" hidden><label for="pro-modo">Modo</label><select id="pro-modo"><option value="web">Web (GitHub)</option><option value="local">Local (PC)</option></select></div>
+        <div id="pro-gh-box" hidden>
+          <label for="pro-gh-repo">Repositorio de GitHub</label>
+          <select id="pro-gh-repo"></select>
+          <label for="pro-gh-rama">Rama</label>
+          <select id="pro-gh-rama"></select>
+        </div>
+        <div id="pro-local-box">
+          <label for="pro-repo">Repositorio</label>
+          <select id="pro-repo"></select>
+          <input type="text" id="pro-repo-txt" placeholder="o ruta del repo" aria-label="Ruta del repositorio" autocomplete="off">
+        </div>
         <label for="pro-title">Título</label>
         <input type="text" id="pro-title" placeholder="opcional" maxlength="120" autocomplete="off">
         <button type="submit">Nuevo hilo</button>
       </form>
     </aside>
     <section class="pro-chat panel" aria-label="Chat de tres">
-      <h2>Usted · Claude · Gemini <em class="pro-work" id="pro-work" hidden></em></h2>
-      <label class="pro-coord"><input type="checkbox" id="pro-coord" checked> <span id="pro-coord-txt">Jarvis coordina</span></label>
+      <h2>Usted · Jarvis · Claude · Gemini <em class="pro-work" id="pro-work" hidden></em></h2>
+      <label class="pro-coord" id="pro-coord-box"><input type="checkbox" id="pro-coord" checked> <span id="pro-coord-txt">Jarvis coordina</span></label>
       <div class="pro-aviso" id="pro-aviso" role="alert" hidden></div>
       <div class="pro-msgs" id="pro-main" role="log" aria-live="polite" tabindex="0"></div>
       <div id="pro-round"></div>
