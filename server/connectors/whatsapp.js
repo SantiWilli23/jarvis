@@ -1,5 +1,5 @@
-// WhatsApp Cloud API oficial de Meta. Apagado sin WHATSAPP_TOKEN, WHATSAPP_PHONE_ID y WHATSAPP_VERIFY_TOKEN.
-// Recibir: webhook (verificación GET + mensajes POST, firma X-Hub-Signature-256 si hay WHATSAPP_APP_SECRET).
+// WhatsApp Cloud API oficial de Meta. Apagado sin WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_VERIFY_TOKEN y WHATSAPP_APP_SECRET.
+// Recibir: webhook (verificación GET + mensajes POST, firma X-Hub-Signature-256 OBLIGATORIA: exige WHATSAPP_APP_SECRET).
 // Enviar: SIEMPRE tras aprobación en el teléfono (lo garantiza el registro de herramientas).
 // Lo recibido se guarda como PRIVADO: nunca sale a modelos que no sean Groq o Claude.
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -11,7 +11,7 @@ export function createWhatsApp({ env = process.env, fetch: f = globalThis.fetch,
   const token = env.WHATSAPP_TOKEN || "", phoneId = env.WHATSAPP_PHONE_ID || "", verify = env.WHATSAPP_VERIFY_TOKEN || "";
   const appSecret = env.WHATSAPP_APP_SECRET || "";
   const version = env.WHATSAPP_API_VERSION || "v21.0";
-  const enabled = !!(token && phoneId && verify);
+  const enabled = !!(token && phoneId && verify && appSecret); // sin WHATSAPP_APP_SECRET no se puede comprobar la firma: queda apagado
 
   return {
     enabled,
@@ -20,7 +20,7 @@ export function createWhatsApp({ env = process.env, fetch: f = globalThis.fetch,
       return enabled && q["hub.mode"] === "subscribe" && q["hub.verify_token"] && same(q["hub.verify_token"], verify) ? String(q["hub.challenge"] ?? "") : null;
     },
     validSignature(rawBody, header) {
-      if (!appSecret) return true; // sin app secret no se puede comprobar; se documenta como recomendado
+      if (!appSecret) return false; // sin app secret nunca se acepta (el conector tampoco se enciende)
       if (!header || !rawBody) return false;
       return same(header, "sha256=" + createHmac("sha256", appSecret).update(rawBody).digest("hex"));
     },

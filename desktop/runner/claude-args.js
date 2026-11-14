@@ -10,6 +10,8 @@
 //   --max-turns                     tope de vueltas del agente
 //   --resume <session_id>           continuar la misma sesión tras una aprobación
 
+import { SECRETOS, DENEGADAS_CLAUDE } from "./secret-paths.js";
+
 export const SOLO_LEER = ["Read", "Glob", "Grep"];
 export const LEER_ESCRIBIR = [...SOLO_LEER, "Edit", "Write", "MultiEdit"];
 
@@ -23,6 +25,7 @@ export function buildArgs({ task, folders = [], approved = [], resume = null, ma
   const allowed = [...(canWrite ? LEER_ESCRIBIR : SOLO_LEER), ...approved];
   args.push("--allowedTools", allowed.join(","));
   for (const f of folders.slice(1)) args.push("--add-dir", f);
+  args.push("--disallowedTools", DENEGADAS_CLAUDE.join(",")); // secretos y guardianes: nunca (ver secret-paths.js)
   args.push("--max-turns", String(maxTurns));
   if (model) args.push("--model", model);
   if (task?.header?.dictated_at && !resume) {
@@ -35,7 +38,7 @@ export function buildArgs({ task, folders = [], approved = [], resume = null, ma
 // verificar = opus solo lectura. Nunca se pueden leer .env, claves ni certificados. `npm test`/Bash no
 // van en la lista permitida: salen como "denegados" y piden aprobación (worker de Pro).
 export const PRO_MODELOS = { planear: "opus", programar: "sonnet", verificar: "opus" };
-export const PRIVADOS_CLAUDE = ["Read(**/.env)", "Read(**/.env.*)", "Read(**/*.pem)", "Read(**/*.key)", "Edit(**/.env*)", "Write(**/.env*)"];
+export const PRIVADOS_CLAUDE = [...SECRETOS.map((p) => `Read(${p})`), "Edit(**/.env*)", "Write(**/.env*)"];
 
 export function buildProArgs({ role, model = null, repo, approved = [], resume = null, maxTurns = 40 }) {
   const escribe = role === "programar";
