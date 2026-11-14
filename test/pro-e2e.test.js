@@ -58,7 +58,7 @@ before(async () => {
   root = realpathSync.native(mkdtempSync(join(tmpdir(), "e2e-pro-")));
   repo = mkRepo("app"); repoB = mkRepo("otro");
   ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.config.motores_pc.gemini.activo = true;
-  ctx.permissions.carpetas_permitidas = [root];
+  ctx.permissions.carpetas_permitidas = [root]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
   server = createServer(createApp(ctx));
   await new Promise((r) => server.listen(0, r));
   base = `http://127.0.0.1:${server.address().port}`;
@@ -75,7 +75,7 @@ before(async () => {
   outbox = createOutbox(mkdtempSync(join(tmpdir(), "e2e-box-")));
   // El worker solo permite `repo` (no `repoB`): sirve para el rechazo del lado del PC.
   worker = createProWorker({ hub, outbox, allowedFolders: () => [repo], claude: CLAUDE, agy: AGY, geminiActivo: () => true, geminiFolders: () => [dirname(repo)] });
-  await hub.hello({ host: "pc-test", version: "t", capabilities: { claude: { ok: true, modelos: ["opus", "sonnet"] }, agy: { ok: true, login: "google" }, repos: [repo, repoB] } });
+  await hub.hello({ host: "pc-test", version: "t", capabilities: { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, agy: { ok: true, login: "google" }, repos: [repo, repoB] } });
 });
 after(() => { server.close(); rmSync(root, { recursive: true, force: true }); });
 
@@ -91,7 +91,7 @@ test("(a) ronda feliz: plan, programar, verificar, aceptar y commit local", asyn
   await decide(r.id, { accion: "aprobar" });
   const out = env({ FAKE_EDIT: "nuevo.txt:hola", FAKE_RESULT: INF(["nuevo.txt"]) });
   assert.equal(await worker.tick(), "job");
-  assert.deepEqual(modelsUsed(out), ["sonnet"]);
+  assert.deepEqual(modelsUsed(out), ["claude-sonnet-5-5"]);
   assert.equal((await roundOf(t, r.id)).status, "verificando");
   const o2 = env({ FAKE_RESULT: VER() });
   assert.equal(await worker.tick(), "job"); // verifica el OTRO motor (agy)
@@ -155,7 +155,7 @@ test("(d) agy: 503 al programar baja de modelo; sin cuota al planear no baja", a
   assert.equal((await roundOf(t, r.id)).status, "verificando");
   const o2 = env({ FAKE_RESULT: VER() });
   await worker.tick();
-  assert.deepEqual(modelsUsed(o2), ["opus"]); // verifica Claude
+  assert.deepEqual(modelsUsed(o2), ["claude-opus-5-5"]); // verifica Claude
   await cancel(r.id);
 });
 
@@ -169,10 +169,10 @@ test("(e) repo no permitido: lo rechazan el servidor y el PC", async () => {
   // el servidor revalida al reclamar si cambian las carpetas permitidas
   const t2 = await newThread(repo);
   const r2 = (await say(t2, "arregla el bug 2")).round;
-  ctx.permissions.carpetas_permitidas = [repoB];
+  ctx.permissions.carpetas_permitidas = [repoB]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
   assert.equal(await tick(), "vacio");
   assert.equal((await roundOf(t2, r2.id)).status, "fallida");
-  ctx.permissions.carpetas_permitidas = [root];
+  ctx.permissions.carpetas_permitidas = [root]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
 });
 
 test("(f) buzón: servidor dormido y reenvío idempotente", async () => {

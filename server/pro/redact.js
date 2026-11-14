@@ -8,6 +8,17 @@ const LONG = /\b[A-Za-z0-9_-]{32,}\b/g;
 
 export const MASK = "[SECRETO]";
 const isSha = (s) => /^[0-9a-f]{40}$|^[0-9a-f]{64}$/i.test(s);
+const entropy = (s) => { const f = {}; for (const c of s) f[c] = (f[c] || 0) + 1; return -Object.values(f).reduce((a, n) => a + (n / s.length) * Math.log2(n / s.length), 0); };
+// Un secreto "largo" es una cadena aleatoria: mezcla letras y dígitos y con entropía alta. Los identificadores de
+// código (snake_case, kebab-case, camelCase de palabras) NO se tocan: destrozarlos arruina el prompt.
+export function looksSecret(s) {
+  if (isSha(s) || !/[A-Za-z]/.test(s) || !/\d/.test(s) || s.includes("/")) return false;
+  const partes = s.split(/[_-]/).filter(Boolean);
+  if (partes.length >= 3 && partes.every((p) => /^[A-Za-z]+\d{0,3}$/.test(p))) return false; // snake/kebab de palabras
+  if (/^[a-z]+(?:[A-Z][a-z]+){3,}\d{0,3}$/.test(s)) return false; // camelCase de palabras
+  if (/^[0-9a-f]+$/i.test(s)) return true; // hex largo (token, md5...)
+  return entropy(s) >= 4.0;
+}
 
 export function redact(text) {
   if (text == null) return text;
@@ -16,7 +27,7 @@ export function redact(text) {
   t = t.replace(KNOWN, MASK).replace(BEARER, (_m, k) => `${k} ${MASK}`);
   t = t.replace(ENVLINE, (_m, pre, q) => `${pre}${q}${MASK}${q}`);
   t = t.replace(PASSWORDY, (_m, k, sep, q) => `${k}${sep}${q}${MASK}${q}`);
-  t = t.replace(LONG, (s) => (isSha(s) || !/[A-Za-z]/.test(s) || !/\d/.test(s) || s.includes("/") ? s : MASK));
+  t = t.replace(LONG, (s) => (looksSecret(s) ? MASK : s));
   return t;
 }
 

@@ -5,9 +5,18 @@ import { api, getToken, decideApproval, pendingApprovals } from "./api.js";
 export const MOTIVOS = {
   pc_apagado: "El PC está apagado o sin conexión.",
   claude_no_listo: "Claude no está listo en el PC.",
-  gemini_sin_login: "Gemini no tiene la sesión iniciada en el PC.",
+  claude_sin_login: "Claude no tiene la sesión iniciada en el PC (ejecute `claude` y entre).",
+  claude_modelo_no_disponible: "Tu cuenta de Claude no tiene alguno de los modelos 5.5 que usa el Modo Pro.",
   sin_repos_git: "No hay ningún repositorio git en las carpetas permitidas.",
 };
+// Avisos: NO bloquean el Modo Pro (Pro funciona con solo Claude); explican por qué no se ofrece Gemini.
+export const AVISOS = {
+  gemini_apagado: "Gemini está apagado: Claude programa y Opus revisa a Sonnet.",
+  gemini_sin_login: "Gemini no tiene la sesión iniciada: se usa solo Claude.",
+  gemini_modelos_faltan: "A Gemini le faltan modelos en este PC: se usa solo Claude.",
+  gemini_fuera_de_carpetas: "Alguno de los repositorios queda fuera de las carpetas permitidas a Gemini: ahí se usa solo Claude.",
+};
+export const avisosTexto = (pro) => lista(pro?.avisos).map((m) => AVISOS[m] || m);
 export const AUTORES = { usuario: "Usted", jarvis: "Jarvis", claude: "Claude", gemini: "Gemini" };
 export const ESTADOS = {
   planeando: "Planeando", esperando_aprobacion: "Esperando su aprobación", programando: "Programando", verificando: "Verificando",
@@ -27,7 +36,8 @@ export function trabajador(ronda, ultimo) {
   if (!rondaViva(ronda)) return null;
   const prog = ronda.programmer || "claude";
   const ver = ronda.verifier || (prog === "claude" ? "gemini" : "claude");
-  const m = (e, rol) => (e === "claude" ? (rol === "programar" ? "sonnet" : "opus") : (rol === "programar" ? "gemini-3.8-flash-medium" : "gemini-3.8-flash-high"));
+  // El modelo sale del job que está corriendo (lo manda el servidor); la tabla solo es respaldo.
+  const m = (e, rol) => (ronda.trabajo?.model && ronda.trabajo.engine === e ? ronda.trabajo.model : e === "claude" ? (rol === "programar" ? "claude-sonnet-5-5" : "claude-opus-5-5") : (rol === "programar" ? "gemini-3.8-flash-medium" : "gemini-3.8-flash-high"));
   if (ronda.status === "coordinando") return { engine: "jarvis", modelo: "gpt-oss-120b", rol: "coordina" };
   if (ronda.status === "planeando") { const e = ultimo === "gemini" || ultimo === "claude" ? ultimo : prog; return { engine: e, modelo: m(e, "planear"), rol: "planea" }; }
   if (ronda.status === "verificando") return { engine: ver, modelo: m(ver, "verificar"), rol: "verifica" };
@@ -108,15 +118,22 @@ export function renderRonda(r, msgs, aprobaciones) {
   const btn = (accion, txt, cls) => `<button type="button" class="${cls || ""}" data-act="decidir" data-accion="${accion}" data-round="${esc(r.id)}">${txt}</button>`;
   let h = `<div class="round st-${esc(r.status)}"><div class="rh"><b>${esc(ESTADOS[r.status] || r.status)}</b><span class="cnt" aria-label="Correcciones automáticas usadas">Correcciones ${Number(r.corrections) || 0}/${MAX_CORR}</span></div>`;
   if (r.summary) h += `<p class="sum">${esc(r.summary)}</p>`;
-  if (r.status === "esperando_aprobacion") {
+  const programado = r.fase === "programado", reint = `<button type="button" data-act="reintentar" data-round="${esc(r.id)}">Reintentar paso</button>`;
+  if (r.ultimo_fallo && (r.status === "fallida" || r.status === "necesita_usuario")) h += `<p class="lbl">Se detuvo en: ${esc(r.ultimo_fallo.role)} (${esc(r.ultimo_fallo.error)})</p>`;
+  if (r.status === "esperando_aprobacion" && r.fase === "commit") {
+    h += `<p class="lbl">Haciendo el commit local…</p>`;
+  } else if (r.status === "esperando_aprobacion" && !programado) {
     h += `<label for="plan-edit">Plan (puede editarlo antes de aprobar)</label><textarea id="plan-edit" rows="6" maxlength="8000">${esc(plan?.text || "")}</textarea>
       <div class="btns">${btn("aprobar", "Aprobar y programar", "yes")}${btn("rechazar", "Rechazar")}</div>`;
-  } else if (r.status === "necesita_usuario" || r.status === "hecha") {
-    h += `<div class="btns">${btn("aprobar", "Aceptar ronda (commit local)", "yes")}</div>
+  } else if (r.status === "esperando_aprobacion" || r.status === "necesita_usuario") {
+    if (programado) h += `<div class="btns">${btn("aprobar", "Hacer commit (commit local)", "yes")}${r.ultimo_fallo ? reint : ""}</div>
       <label for="corr-text">Pedir corrección (reinicia el contador de ${MAX_CORR})</label><textarea id="corr-text" rows="3" maxlength="4000" placeholder="¿Qué hay que corregir?"></textarea>
-      <div class="btns">${btn("corregir", "Pedir corrección")}</div>`;
+      <div class="btns">${btn("corregir", "Pedir corrección")}${btn("rechazar", "Rechazar")}</div>`;
+    else h += `<div class="btns">${r.ultimo_fallo ? reint : ""}${btn("rechazar", "Rechazar")}</div>`;
+  } else if (r.status === "fallida") {
+    h += `<div class="btns">${reint}</div>`;
   }
-  if (rondaViva(r)) h += `<div class="btns"><button type="button" data-act="cancelar" data-round="${esc(r.id)}">Cancelar ronda</button></div>`;
+  if (!["hecha", "fallida", "cancelada"].includes(r.status)) h += `<div class="btns"><button type="button" data-act="cancelar" data-round="${esc(r.id)}">Cancelar ronda</button></div>`;
   for (const a of aprobaciones || []) h += renderAprobacion(a);
   return h + "</div>";
 }
@@ -137,7 +154,20 @@ export function renderHilos(hilos, actual) {
 const S = { coord: null, pro: null, repos: [], hilos: [], actual: null, msgs: [], rondas: [], vivos: new Map(), ultimo: null, aprobs: [], error: "", cargado: false };
 const $ = (id) => document.getElementById(id);
 const ronda = () => [...S.rondas].sort((a, b) => b.id - a.id)[0] || null;
-const errTexto = (e) => (e.status === 409 ? "Modo Pro no está habilitado ahora mismo." : e.status === 422 ? "Ese mensaje es privado y no puede ir a Pro." : e.status === 503 || e.status === 502 ? "El PC está apagado o el servidor dormido; reintente en unos segundos." : e.message || "Error");
+export const ERRORES = {
+  ronda_activa: "Ya hay una ronda en marcha en este hilo. Espere a que termine o cancélela.",
+  estado_invalido: "Esa acción ya no corresponde al estado de la ronda (recargue el hilo).",
+  commit_en_curso: "El commit ya se está haciendo.",
+  repo_invalido: "Ese repositorio no está permitido o no existe en el PC.",
+  pro_deshabilitado: "Modo Pro no está disponible ahora mismo (mire los motivos arriba).",
+  gemini_no_disponible: "Gemini no está disponible: use Claude.",
+  job_en_curso: "Todavía hay un paso en marcha; espere a que termine.",
+  nada_que_reintentar: "No hay ningún paso fallido que reintentar.",
+  privado: "Ese mensaje es privado y no puede ir a Pro.",
+  texto_invalido: "El mensaje está vacío o es demasiado largo.",
+  no_existe: "Eso ya no existe (recargue el hilo).",
+};
+export const errTexto = (e) => (e && ERRORES[e.message]) || (e?.status === 409 ? "Esa acción no se puede hacer ahora." : e?.status === 422 ? "Ese mensaje es privado y no puede ir a Pro." : e?.status === 503 || e?.status === 502 ? "El PC está apagado o el servidor dormido; reintente en unos segundos." : e?.message || "Error");
 
 async function cargarEstado() {
   try {
@@ -178,7 +208,7 @@ function pestanas() {
 function pintar() {
   const el = $("pro-main"); if (!el) return;
   const ok = !!S.pro?.habilitado, r = ronda(), sin = !S.actual;
-  $("pro-aviso").textContent = S.error; $("pro-aviso").hidden = !S.error;
+  const aviso = S.error || (ok ? avisosTexto(S.pro).join(" ") : ""); $("pro-aviso").textContent = aviso; $("pro-aviso").hidden = !aviso;
   $("pro-hilos").innerHTML = renderHilos(S.hilos, S.actual?.id);
   $("pro-repo").innerHTML = S.repos.map((p) => `<option value="${esc(p)}">${esc(String(p).split(/[\\/]/).pop())}</option>`).join("") || '<option value="">(sin repos)</option>';
   let h = sin ? '<p class="vacio">Elija o cree un hilo para hablar con Claude y Gemini.</p>' : (S.msgs.length || S.vivos.size ? "" : '<p class="vacio">Hilo vacío. Describa la tarea: se planea, usted aprueba, se programa y el otro motor verifica.</p>');
@@ -216,6 +246,7 @@ function onClick(e) {
     if (accion === "corregir" && !txt) { $("corr-text")?.focus(); return; }
     decidir(b.dataset.round, accion, txt);
   } else if (act === "iniciar") api(`/pro/rounds/${b.dataset.round}/iniciar`, { method: "POST", body: { motor: b.dataset.motor } }).catch((x) => { S.error = errTexto(x); }).then(() => S.actual && abrirHilo(S.actual.id));
+  else if (act === "reintentar") api(`/pro/rounds/${b.dataset.round}/reintentar`, { method: "POST", body: {} }).catch((x) => { S.error = errTexto(x); }).then(() => S.actual && abrirHilo(S.actual.id));
   else if (act === "cancelar") api(`/pro/rounds/${b.dataset.round}/cancel`, { method: "POST", body: {} }).catch((x) => { S.error = errTexto(x); pintar(); });
   else if (act === "aprobacion") decideApproval(Number(b.dataset.id), b.dataset.ok === "1").catch(() => {}).then(() => { S.aprobs = S.aprobs.filter((a) => String(a.id) !== b.dataset.id); pintar(); });
   else if (act === "diff") {

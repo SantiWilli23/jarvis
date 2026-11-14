@@ -78,8 +78,18 @@ function startWorker() {
   // Modo Pro: carpetas permitidas = las de config.json carpetas_permitidas.
   let caps = null;
   const folders = () => (cfg.carpetas_permitidas || []).filter(Boolean);
-  const refreshCaps = () => runDoctor({ folders: folders(), claudePath: cfg.claudePath, agyPath: cfg.agyPath || cfg.geminiPath, geminiActivo: !!worker?.geminiActive?.() }).then((c) => { caps = c; }).catch(() => {});
-  refreshCaps(); setInterval(refreshCaps, 5 * 60_000).unref();
+  // El doctor usa lo que el servidor dijo en el hello (Gemini activo, ids de Claude a verificar), así que corre DESPUÉS
+  // de crear el worker y otra vez cuando eso cambie (chequeo corto cada 20 s; la sonda de Claude va en caché).
+  let doctorKey = null, doctorBusy = false;
+  const refreshCaps = async (force = false) => {
+    const key = JSON.stringify([!!worker?.geminiActive?.(), worker?.claudeIds?.() || []]);
+    if (doctorBusy || (!force && key === doctorKey)) return;
+    doctorBusy = true; doctorKey = key;
+    try { caps = await runDoctor({ folders: folders(), claudePath: cfg.claudePath, agyPath: cfg.agyPath || cfg.geminiPath, geminiActivo: !!worker?.geminiActive?.(), claudeModelos: worker?.claudeIds?.() || null }); }
+    catch { /* se reintenta */ } finally { doctorBusy = false; }
+  };
+  setInterval(() => refreshCaps(false), 20_000).unref();
+  setInterval(() => refreshCaps(true), 5 * 60_000).unref();
   const pro = createProWorker({
     hub, outbox: createOutbox(join(dataDir, "pro-outbox"), { log: (m) => console.log("[jarvis]", m) }),
     allowedFolders: folders, log: (m) => console.log("[jarvis]", m),
@@ -98,6 +108,7 @@ function startWorker() {
     log: (m) => console.log("[jarvis]", m),
     onStatus: (s) => { lastStatus = { ...lastStatus, ...s }; updateTray(); },
   });
+  refreshCaps(true);
   worker.start(); // al encender Windows la cola empieza de inmediato y el hub recibe pc_online
 }
 

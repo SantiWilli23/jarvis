@@ -20,7 +20,7 @@ function repo() {
 }
 function setup(env = {}) {
   const out = join(mkdtempSync(join(tmpdir(), "pro-out-")), "f");
-  for (const k of ["FAKE_503", "FAKE_QUOTA", "FAKE_EDIT", "FAKE_CMD", "FAKE_RESULT"]) delete process.env[k];
+  for (const k of ["FAKE_503", "FAKE_QUOTA", "FAKE_EDIT", "FAKE_CMD", "FAKE_RESULT", "FAKE_ERR_MODEL", "FAKE_ERR_TEXT", "FAKE_EMPTY", "FAKE_SLEEP_MS"]) delete process.env[k];
   Object.assign(process.env, { FAKE_OUT: out, GEMINI_API_KEY: "secreta", ...env });
   return out;
 }

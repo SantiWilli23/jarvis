@@ -8,7 +8,7 @@ const day = (t) => new Date(t).toISOString().slice(0, 10);
 export const msgView = (r) => r && { id: Number(r.id), thread_id: Number(r.thread_id), round_id: n(r.round_id), author: r.author, kind: r.kind, text: r.text, meta: j(r.meta) || {}, created_at: Number(r.created_at) };
 export const roundView = (r) => r && { id: Number(r.id), thread_id: Number(r.thread_id), status: r.status, corrections: Number(r.corrections), programmer: r.programmer, verifier: r.verifier, summary: r.summary, task_kind: r.task_kind, message_id: n(r.message_id), created_at: Number(r.created_at), updated_at: Number(r.updated_at) };
 export const threadView = (r) => r && { id: Number(r.id), title: r.title, repo: r.repo, status: r.status, resumen: r.resumen || null, created_at: Number(r.created_at), updated_at: Number(r.updated_at) };
-export const jobView = (r) => r && { id: Number(r.id), round_id: Number(r.round_id), thread_id: Number(r.thread_id), role: r.role, engine: r.engine, model: r.model, repo: r.repo, mode: r.mode, status: r.status, tree_before: r.tree_before, tree_after: r.tree_after, error: r.error, created_at: Number(r.created_at), started_at: n(r.started_at), finished_at: n(r.finished_at) };
+export const jobView = (r) => r && { id: Number(r.id), round_id: Number(r.round_id), thread_id: Number(r.thread_id), role: r.role, engine: r.engine, model: r.model, repo: r.repo, mode: r.mode, status: r.status, model_real: r.model_real || null, tree_before: r.tree_before, tree_after: r.tree_after, error: r.error, created_at: Number(r.created_at), started_at: n(r.started_at), finished_at: n(r.finished_at) };
 
 export function createStore({ db, now = () => Date.now() }) {
   const self = {
@@ -39,14 +39,17 @@ export function createStore({ db, now = () => Date.now() }) {
     },
     async listMessages(threadId) { return (await all(db, "SELECT * FROM pro_messages WHERE thread_id=? ORDER BY id", [threadId])).map(msgView); },
     // rondas
-    async createRound({ threadId, userId, messageId, taskKind, programmer, verifier }) {
+    // Atómico: solo crea la ronda si el hilo no tiene otra sin cerrar (dos envíos a la vez: gana uno). null = ya hay una.
+    async createRound({ threadId, userId, messageId = null, taskKind, programmer, verifier }) {
       const t = now();
-      const r = await run(db, "INSERT INTO pro_rounds (thread_id,user_id,message_id,task_kind,programmer,verifier,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", [threadId, userId, messageId, taskKind, programmer, verifier, t, t]);
+      const r = await run(db, "INSERT INTO pro_rounds (thread_id,user_id,message_id,task_kind,programmer,verifier,created_at,updated_at) SELECT ?,?,?,?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM pro_rounds WHERE thread_id=? AND status NOT IN ('hecha','fallida','cancelada'))", [threadId, userId, messageId, taskKind, programmer, verifier, t, t, threadId]);
+      if (!r.changes) return null;
       return self.getRound(userId, r.id);
     },
     async getRound(userId, id) { return roundView(await get(db, "SELECT * FROM pro_rounds WHERE id=? AND user_id=?", [id, userId])); },
     async listRounds(threadId) { return (await all(db, "SELECT * FROM pro_rounds WHERE thread_id=? ORDER BY id", [threadId])).map(roundView); },
-    async activeRound(threadId) { return roundView(await get(db, "SELECT * FROM pro_rounds WHERE thread_id=? AND status NOT IN ('hecha','fallida','cancelada','necesita_usuario','conversando') ORDER BY id DESC", [threadId])); },
+    // Ronda sin cerrar: cuenta también "necesita_usuario" y "conversando" (dos rondas del mismo hilo no se mezclan).
+    async activeRound(threadId) { return roundView(await get(db, "SELECT * FROM pro_rounds WHERE thread_id=? AND status NOT IN ('hecha','fallida','cancelada') ORDER BY id DESC", [threadId])); },
     async updateRound(userId, id, patch) {
       const keys = Object.keys(patch);
       await run(db, `UPDATE pro_rounds SET ${keys.map((k) => `${k}=?`).join(",")}, updated_at=? WHERE id=? AND user_id=?`, [...keys.map((k) => patch[k]), now(), id, userId]);
@@ -67,6 +70,9 @@ export function createStore({ db, now = () => Date.now() }) {
     async requeueStale(userId, staleMs) {
       return run(db, "UPDATE pro_jobs SET status='pendiente', started_at=NULL WHERE user_id=? AND status='reclamado' AND started_at < ?", [userId, now() - staleMs]);
     },
+    // Jobs que el PC tenía en marcha (reclamados o en curso) y ya no puede estar atendiendo (reinicio) o se pasaron de tiempo.
+    async runningJobs(userId) { return all(db, "SELECT * FROM pro_jobs WHERE user_id=? AND status IN ('reclamado','en_curso')", [userId]); },
+    async lastJob(roundId) { return get(db, "SELECT * FROM pro_jobs WHERE round_id=? ORDER BY id DESC", [roundId]); },
     // Reclamo atómico: solo uno gana aunque lleguen dos claims a la vez.
     async claimNext(userId) {
       for (let i = 0; i < 3; i++) {

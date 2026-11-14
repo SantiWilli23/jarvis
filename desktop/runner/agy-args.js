@@ -34,9 +34,12 @@ export const normalizeModel = (m) => (/^\d/.test(String(m)) ? `gemini-${m}` : St
 export const isProhibited = (m) => PROHIBIDOS.some((re) => re.test(m)) || !PERMITIDOS.some((re) => re.test(m));
 
 // Programar baja de modelo solo ante 503 (lo decide pro-worker); el resto, un solo modelo.
-export function modelChain(role, model) {
+// `fallbacks` = los modelos de reserva que manda el SERVIDOR (config/pro.json): es la única fuente de la cadena.
+// CADENA_PROGRAMAR solo se usa si el job no trae ninguna (servidor antiguo / tarea clásica).
+export function modelChain(role, model, fallbacks = null) {
   const m = normalizeModel(model || MODELO_PLAN_DEFECTO);
   if (role !== "programar") return [m];
+  if (Array.isArray(fallbacks)) return [m, ...fallbacks.map(normalizeModel).filter((x) => x !== m)];
   const i = CADENA_PROGRAMAR.indexOf(m);
   return i >= 0 ? CADENA_PROGRAMAR.slice(i) : [m];
 }

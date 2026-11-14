@@ -5,9 +5,9 @@ import { createStore, jobView, msgView } from "./store.js";
 import { classifyTask } from "./classify.js";
 import { planPrompt, codePrompt, fixPrompt, verifyPrompt, commitPrompt, consultPrompt, coordinatorSystem } from "./prompts.js";
 import { parseAcciones, validar, contextoGroq, contarTurnos, MOTORES } from "./coordinator.js";
-import { check, merge } from "./check.js";
+import { check, merge, commitPathsOf } from "./check.js";
 import { redact, cleanDiff } from "./redact.js";
-import { availability, repoValid, canonicalRepo } from "./availability.js";
+import { availability, repoValid, canonicalRepo, geminiUsable } from "./availability.js";
 import { classify as classifyText } from "../router/classify.js";
 import { run } from "../db/client.js";
 
@@ -17,6 +17,22 @@ export class ProError extends Error {
 
 const FINAL = ["hecha", "fallida", "cancelada"];
 const other = (e) => (e === "claude" ? "gemini" : "claude");
+// Con Gemini disponible el verificador es el otro motor; sin Gemini, Claude Opus revisa a Claude Sonnet.
+const verifierOf = (programmer, geminiOk) => (geminiOk ? other(programmer) : "claude");
+const ESTADOS_FINALES = ["hecha", "fallida", "cancelada"];
+// Textos claros para los fallos de un paso (código que manda el PC -> frase).
+const CAUSA = {
+  timeout: "se pasó del tiempo máximo del paso",
+  tiempo_excedido: "se pasó del tiempo máximo y el PC no respondió",
+  pc_reinicio: "el PC se reinició o perdió la conexión mientras lo hacía",
+  sin_cuota: "no tiene cuota disponible",
+  sin_login: "no tiene la sesión iniciada (abra una terminal en el PC, ejecute `claude` y use /login)",
+  modelo_no_disponible: "la cuenta no tiene acceso a ese modelo",
+  error_max_turns: "agotó el máximo de vueltas sin terminar",
+  respuesta_vacia: "devolvió una respuesta vacía",
+  cambios_ajenos: "el repositorio tiene cambios ajenos a la ronda (no se hizo commit para no mezclarlos)",
+  saturado: "el servicio está saturado ahora mismo",
+};
 const arr = (x) => (Array.isArray(x) ? x.map((v) => redact(String(v)).slice(0, 500)).slice(0, 100) : []);
 
 function parseJson(x) {
@@ -47,7 +63,10 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
   const emitRound = (userId, r) => bus.emit("pro.round", { userId, thread_id: r.thread_id, round: { id: r.id, status: r.status, corrections: r.corrections, programmer: r.programmer, verifier: r.verifier, summary: r.summary } });
   async function setRound(userId, id, patch) { const r = await store.updateRound(userId, id, patch); emitRound(userId, r); return r; }
   async function say(userId, thread_id, round_id, author, kind, text, meta) {
-    const m = await store.addMessage({ threadId: thread_id, userId, roundId: round_id, author, kind, text: redact(String(text)).slice(0, lim.informe_max_caracteres ?? 20000), meta });
+    const max = lim.informe_max_caracteres ?? 20000, full = redact(String(text));
+    const recortado = full.length > max;
+    const m = await store.addMessage({ threadId: thread_id, userId, roundId: round_id, author, kind, text: recortado ? `${full.slice(0, max)}
+[... recortado: el texto original tenía ${full.length} caracteres]` : full, meta: recortado ? { ...(meta || {}), recortado: full.length } : meta });
     bus.emit("pro.message", { userId, thread_id, message: { id: m.id, author: m.author, kind: m.kind, text: m.text, meta: m.meta, created_at: m.created_at } });
     return m;
   }
@@ -55,9 +74,13 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
 
   function modelFor(engine, role) {
     if (role === "commit") return null;
-    const m = config.modelos?.[engine]?.[role === "consultar" ? "verificar" : role];
+    const cfgE = config.modelos?.[engine] || {};
+    const m = role === "consultar" ? cfgE.consultar || cfgE.verificar : cfgE[role];
     return Array.isArray(m) ? m[0] : m || null;
   }
+  const geminiOkFor = (thread) => geminiUsable(thread.repo, { agent, permissions });
+  const verifierFor = (programmer, thread) => verifierOf(programmer, geminiOkFor(thread));
+  const roleTimeoutS = (role) => ({ planear: tmo.planear_s, programar: tmo.programar_s, verificar: tmo.verificar_s, consultar: tmo.consultar_s ?? 300, commit: 120 }[role] ?? 300);
   async function enqueue(userId, round, thread, role, engine, prompt) {
     const row = await store.createJob({ roundId: round.id, threadId: thread.id, userId, role, engine, model: modelFor(engine, role), repo: thread.repo,
       prompt: redact(prompt), mode: role === "programar" || role === "commit" ? "editar" : "solo_lectura" });
@@ -100,8 +123,9 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
     const { thread, jobs } = await ctxOf(userId, round);
     const msgs = await store.listMessages(thread.id);
     const limite = jobs.filter((j) => j.role === "consultar").length >= (cc.max_consultas_sin_usuario ?? 3) || contarTurnos(msgs, round.id) >= (cc.max_turnos_sin_usuario ?? 6);
-    const raw = await llamarGroq(userId, { system: coordinatorSystem({ limite }), messages: [{ role: "user", content: contextoGroq({ thread, msgs, roundId: round.id }) }] });
-    const parsed = raw == null ? null : parseAcciones(raw);
+    const soloClaude = !geminiOkFor(thread);
+    const raw = await llamarGroq(userId, { system: coordinatorSystem({ limite, soloClaude }), messages: [{ role: "user", content: contextoGroq({ thread, msgs, roundId: round.id }) }] });
+    const parsed = raw == null ? null : parseAcciones(raw, { soloClaude });
     const acciones = parsed ? validar(parsed.acciones, { limite, aprobado: false }) : [];
     if (parsed && !acciones.length && limite) { // quiso seguir consultando pasado el límite: se avisa al usuario y se para
       await say(userId, thread.id, round.id, "jarvis", "coordinador", "Llegué al límite de consultas sin su intervención. Dígame cómo seguimos.");
@@ -141,7 +165,10 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
 
   const orch = {
     store,
-    status: (userId) => availability({ agent, config }),
+    // enqueue sin redactar de nuevo (el prompt ya está redactado) para el reintento
+    reenqueue: (userId, round, thread, role, engine, prompt) => enqueue(userId, round, thread, role, engine, prompt),
+    status: (userId) => availability({ agent, config, permissions }),
+    geminiOkFor,
     // ---------- web ----------
     async createThread(userId, { title, repo }) {
       if (!repoValid(repo, { agent, permissions })) throw new ProError(422, "repo_invalido");
@@ -152,15 +179,18 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
       if (!thread) throw new ProError(404, "no_existe");
       const t = String(text || "").trim();
       if (!t || t.length > (lim.mensaje_max_caracteres ?? 8000)) throw new ProError(400, "texto_invalido");
-      const av = availability({ agent, config });
+      const av = availability({ agent, config, permissions });
       if (!av.habilitado) throw new ProError(409, "pro_deshabilitado", { motivos: av.motivos });
       if (privado || classifyText(t, { flagPrivate: privado }).private) throw new ProError(422, "privado");
       if (!repoValid(thread.repo, { agent, permissions })) throw new ProError(422, "repo_invalido");
       if (await store.activeRound(threadId)) throw new ProError(409, "ronda_activa");
       const safe = redact(t);
+      const c = await classifyTask(safe, { textProvider, geminiOk: geminiOkFor(thread) });
+      // La ronda se crea primero y de forma atómica: si dos envíos llegan a la vez, solo uno gana (el otro recibe ronda_activa).
+      let round = await store.createRound({ threadId, userId, messageId: null, taskKind: c.task_kind, programmer: c.programmer, verifier: c.verifier });
+      if (!round) throw new ProError(409, "ronda_activa");
       const msg = await say(userId, threadId, null, "usuario", "texto", safe, safe !== t ? { redactado: true } : null);
-      const c = await classifyTask(safe, { textProvider });
-      let round = await store.createRound({ threadId, userId, messageId: msg.id, taskKind: c.task_kind, programmer: c.programmer, verifier: c.verifier });
+      round = await store.updateRound(userId, round.id, { message_id: msg.id });
       emitRound(userId, round);
       if ((await coordinadorEstado(userId)).activo && groq()?.enabled) { // Groq coordina; si falla, sigue el flujo de siempre
         round = await setRound(userId, round.id, { status: "coordinando" });
@@ -178,8 +208,13 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
       const msgs = await store.listMessages(round.thread_id);
       const prop = [...msgs].reverse().find((m) => m.round_id === round.id && m.kind === "propuesta");
       if (!prop || !MOTORES.includes(prop.meta?.programador)) throw new ProError(409, "estado_invalido");
-      const programmer = MOTORES.includes(motor) ? motor : prop.meta.programador;
-      const r = await store.updateRound(userId, round.id, { programmer, verifier: other(programmer) });
+      const thread = await store.getThread(userId, round.thread_id);
+      let programmer = MOTORES.includes(motor) ? motor : prop.meta.programador;
+      if (programmer === "gemini" && !geminiOkFor(thread)) {
+        if (motor === "gemini") throw new ProError(409, "gemini_no_disponible");
+        programmer = "claude"; // la propuesta pedía Gemini pero no está disponible: se hace con Claude
+      }
+      const r = await store.updateRound(userId, round.id, { programmer, verifier: verifierFor(programmer, thread) });
       return { round: await arrancarPlan(userId, r, prop.meta.nota) };
     },
     coordinadorEstado,
@@ -189,14 +224,22 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
       if (!round) throw new ProError(404, "no_existe");
       if (!["aprobar", "rechazar", "corregir"].includes(accion)) throw new ProError(400, "accion_invalida");
       if (!["esperando_aprobacion", "necesita_usuario"].includes(round.status)) throw new ProError(409, "estado_invalido");
-      const { thread, request, plan, jobs } = await ctxOf(userId, round);
+      const ctx0 = await ctxOf(userId, round);
+      const { thread, request, jobs } = ctx0;
+      let plan = ctx0.plan;
       const userText = redact(String(text || "")).slice(0, lim.mensaje_max_caracteres ?? 8000);
-      if (userText) await say(userId, thread.id, round.id, "usuario", "texto", userText);
+      const aprobandoPlan = accion === "aprobar" && !programmed(jobs) && round.status === "esperando_aprobacion";
+      if (motor === "gemini" && !programmed(jobs) && !geminiOkFor(thread)) throw new ProError(409, "gemini_no_disponible");
+      if (aprobandoPlan && userText && userText.trim() !== plan.trim()) {
+        // El usuario editó el plan: el plan editado ES el plan aprobado que recibe el programador.
+        await say(userId, thread.id, round.id, "usuario", "plan", userText, { editado: true });
+        plan = userText;
+      } else if (userText && !aprobandoPlan) await say(userId, thread.id, round.id, "usuario", "texto", userText);
       if (accion === "rechazar") {
         round = await setRound(userId, round.id, { status: "cancelada", summary: programmed(jobs) ? "Rechazada; los cambios quedan sin commit en el repo" : "Rechazada" });
         return { round };
       }
-      if (motor && ["claude", "gemini"].includes(motor) && !programmed(jobs)) round = await store.updateRound(userId, round.id, { programmer: motor, verifier: other(motor) });
+      if (motor && ["claude", "gemini"].includes(motor) && !programmed(jobs)) round = await store.updateRound(userId, round.id, { programmer: motor, verifier: verifierFor(motor, thread) });
       if (accion === "aprobar") {
         if (programmed(jobs)) { // aceptar la ronda -> commit local
           if (jobs.some((j) => j.role === "commit" && j.status !== "fallido" && j.status !== "cancelado")) throw new ProError(409, "commit_en_curso");
@@ -230,7 +273,19 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
     async threadView(userId, id) {
       const thread = await store.getThread(userId, id);
       if (!thread) return null;
-      return { thread, messages: await store.listMessages(id), rounds: await store.listRounds(id) };
+      await orch.sweep(userId);
+      const rounds = [];
+      for (const r of await store.listRounds(id)) {
+        // Datos para que la web muestre el modelo REAL y los botones correctos (no los adivina).
+        const js = await store.jobsOfRound(r.id), vivo = js.filter((j) => ["pendiente", "reclamado", "en_curso"].includes(j.status)).at(-1), ult = js.at(-1);
+        rounds.push({
+          ...r,
+          fase: vivo?.role === "commit" ? "commit" : programmed(js) ? "programado" : "plan",
+          trabajo: vivo ? { engine: vivo.engine, role: vivo.role, model: vivo.model_real || vivo.model } : null,
+          ultimo_fallo: ult && ult.status === "fallido" && ult.role !== "consultar" ? { role: ult.role, error: String(ult.error || "").slice(0, 200) } : null,
+        });
+      }
+      return { thread, messages: await store.listMessages(id), rounds };
     },
     async jobDetail(userId, id) {
       const row = await store.getJobRow(userId, id);
@@ -238,18 +293,43 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
       return { job: jobView(row), report: (await store.reportsOfJob(id)).at(-1) || null, diff: row.diff || "" };
     },
     // ---------- PC ----------
-    async claim(userId, { again } = {}) {
+    // Barrido: jobs "en curso/reclamado" que pasaron su tiempo máximo (+margen) se dan por fallidos. requeueStale solo cubría "reclamado".
+    async sweep(userId) {
+      const margen = (tmo.margen_s ?? 120) * 1000;
+      for (const j of await store.runningJobs(userId)) {
+        if (j.started_at != null && now() - Number(j.started_at) > roleTimeoutS(j.role) * 1000 + margen) await orch.fail(userId, j.id, { error: "tiempo_excedido" });
+      }
+    },
+    // El PC volvió a avisar "en línea" (reinicio): lo que tenía en marcha ya no existe -> fallido, para que se pueda reintentar.
+    async pcReinicio(userId) {
+      for (const j of await store.runningJobs(userId)) await orch.fail(userId, j.id, { error: "pc_reinicio" });
+    },
+    // fallback_models: Gemini programar baja de modelo solo ante 503; Claude planear/verificar usa la reserva si Opus no está.
+    async claim(userId) {
       await store.requeueStale(userId, (tmo.job_reclamado_s ?? 60) * 1000);
+      await orch.sweep(userId);
       for (let i = 0; i < 5; i++) {
-        let row = null;
-        if (again && i === 0) { const r = await store.getJobRow(userId, Number(again)); if (r && ["reclamado", "en_curso"].includes(r.status)) row = r; }
-        row = row || (await store.claimNext(userId));
+        const row = await store.claimNext(userId);
         if (!row) return { job: null };
         if (!repoValid(row.repo, { agent, permissions })) { await orch.fail(userId, row.id, { error: "repo_invalido" }); continue; }
         using(userId, row.engine);
         const fb = row.engine === "gemini" && row.role === "programar" && Array.isArray(config.modelos?.gemini?.programar) ? config.modelos.gemini.programar.slice(1) : [];
-        const to = { planear: tmo.planear_s, programar: tmo.programar_s, verificar: tmo.verificar_s, consultar: tmo.consultar_s ?? 120, commit: 120 }[row.role] ?? 300;
-        return { job: { id: Number(row.id), round_id: Number(row.round_id), role: row.role, engine: row.engine, model: row.model, repo: row.repo, mode: row.mode, prompt: row.prompt, timeout_s: to, ...(fb.length ? { fallback_models: fb, fallback_solo_por: config.modelos.gemini.programar_baja_solo_por || [503] } : {}) } };
+        const rb = config.modelos?.claude?.fallback_planear_verificar;
+        const claudeFb = row.engine === "claude" && ["planear", "verificar"].includes(row.role) && rb && rb !== row.model ? [rb] : [];
+        const job = { id: Number(row.id), round_id: Number(row.round_id), role: row.role, engine: row.engine, model: row.model, repo: row.repo, mode: row.mode, prompt: row.prompt, timeout_s: roleTimeoutS(row.role) };
+        if (fb.length) Object.assign(job, { fallback_models: fb, fallback_solo_por: config.modelos.gemini.programar_baja_solo_por || [503] });
+        if (claudeFb.length) Object.assign(job, { fallback_models: claudeFb });
+        if (row.role === "commit") { // el commit solo puede llevar lo que hizo la ronda: el PC compara este árbol con el repo actual
+          const prog = [...(await store.jobsOfRound(row.round_id))].reverse().find((x) => x.role === "programar" && x.status === "hecho" && x.tree_after);
+          if (prog) job.expected_tree = prog.tree_after;
+          const progs = (await store.jobsOfRound(row.round_id)).filter((x) => x.role === "programar" && x.status === "hecho");
+          if (progs.length) { // solo los archivos de la ronda; si ya estaban modificados antes de empezar, el PC se niega
+            job.commit_paths = [...new Set(progs.flatMap((x) => commitPathsOf(x.diff || "")))];
+            const primero = progs.find((x) => x.tree_before);
+            if (primero) job.base_tree = primero.tree_before;
+          }
+        }
+        return { job };
       }
       return { job: null };
     },
@@ -281,26 +361,46 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
       const diff = cleanDiff(body.diff, lim.diff_max_caracteres ?? 200000);
       const changed = await store.closeJob(row.id, { status: "hecho", tree_before: body.tree_before ? String(body.tree_before).slice(0, 80) : null, tree_after: body.tree_after ? String(body.tree_after).slice(0, 80) : null, diff, finished_at: now() });
       if (!changed) return { ok: true, duplicado: true };
-      await store.addUsage({ userId, engine: row.engine, model: row.model, role: row.role, jobId: row.id, ...(body.usage || {}) });
+      const modeloReal = body.modelo_real ? redact(String(body.modelo_real)).slice(0, 120) : null;
+      if (modeloReal) await store.updateJob(row.id, { model_real: modeloReal });
+      await store.addUsage({ userId, engine: row.engine, model: modeloReal || row.model, role: row.role, jobId: row.id, ...(body.usage || {}) });
       let round = await store.getRound(userId, row.round_id);
       if (!round || FINAL.includes(round.status)) return { ok: true, ignorado: true };
       const { thread, request, plan, jobs } = await ctxOf(userId, round);
       const T = thread.id;
+      // Nunca un cambio de modelo en silencio: si lo hizo otro modelo (p. ej. Sonnet por Opus saturado) se avisa en el hilo.
+      if (modeloReal && row.model && !modeloReal.split(",").every((m) => m === row.model)) {
+        const motivo = body.fallback?.motivo ? ` (${redact(String(body.fallback.motivo)).slice(0, 80)})` : "";
+        await say(userId, T, round.id, "jarvis", "sistema", `Aviso: el paso "${row.role}" debía hacerlo ${row.model}${motivo}, pero lo hizo ${modeloReal}.`, { aviso: "modelo_cambiado", pedido: row.model, real: modeloReal });
+      }
+      const vacio = (x) => !String(typeof x === "string" ? x : x?.plan || x?.texto || (x && typeof x === "object" && Object.keys(x).length ? JSON.stringify(x) : "") || "").trim();
       try {
+        if (["planear", "verificar", "consultar"].includes(row.role) && vacio(body.informe) && row.role !== "verificar") {
+          // Una respuesta vacía no es un plan ni una opinión: se trata como fallo claro (se puede reintentar el paso).
+          const nombre = row.engine === "claude" ? "Claude" : "Gemini";
+          if (row.role === "consultar") {
+            await setRound(userId, round.id, { status: "conversando", summary: null });
+            await say(userId, T, round.id, "jarvis", "sistema", `${nombre} devolvió una respuesta vacía a la consulta. Dígame cómo seguimos.`);
+          } else {
+            await setRound(userId, round.id, { status: "fallida", summary: "El plan llegó vacío" });
+            await say(userId, T, round.id, "jarvis", "sistema", `${nombre} devolvió un plan vacío. Puede reintentar el paso.`);
+          }
+          return { ok: true };
+        }
         if (row.role === "planear") {
           const raw = body.informe;
           const txt = typeof raw === "string" ? raw : raw?.plan || raw?.texto || JSON.stringify(raw || "");
           await store.addReport({ jobId: row.id, roundId: round.id, kind: "informe", body: { plan: redact(txt) } });
-          await say(userId, T, round.id, row.engine, "plan", txt, { job_id: Number(row.id), model: row.model });
+          await say(userId, T, round.id, row.engine, "plan", txt, { job_id: Number(row.id), model: modeloReal || row.model });
           await setRound(userId, round.id, { status: "esperando_aprobacion", summary: "Plan listo para tu revisión" });
         } else if (row.role === "consultar") { // opinión de solo lectura: se muestra y Groq retoma el turno
           const txt = typeof body.informe === "string" ? body.informe : body.informe?.plan || body.informe?.texto || JSON.stringify(body.informe || "");
-          await say(userId, T, round.id, row.engine, "consulta", txt, { job_id: Number(row.id), model: row.model });
+          await say(userId, T, round.id, row.engine, "consulta", txt, { job_id: Number(row.id), model: modeloReal || row.model });
           await coordinarOFallback(userId, round.id);
         } else if (row.role === "programar") {
           const inf = normInforme(body.informe);
           await store.addReport({ jobId: row.id, roundId: round.id, kind: "informe", body: inf });
-          await say(userId, T, round.id, row.engine, "informe", humanInforme(inf), { job_id: Number(row.id), model: row.model });
+          await say(userId, T, round.id, row.engine, "informe", humanInforme(inf), { job_id: Number(row.id), model: modeloReal || row.model });
           const v = await enqueue(userId, round, thread, "verificar", round.verifier, verifyPrompt({ request, plan, informe: inf, diff, det: check({ informe: inf, diff }), engine: round.verifier }));
           await setRound(userId, round.id, { status: "verificando", summary: null });
           void v;
@@ -312,7 +412,7 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
           const ai = raw && raw.veredicto ? raw : null;
           const v = merge(det, ai);
           await store.addReport({ jobId: row.id, roundId: round.id, kind: "verificacion", body: v });
-          await say(userId, T, round.id, row.engine, "verificacion", humanVerif(v), { job_id: Number(row.id), model: row.model, veredicto: v.veredicto });
+          await say(userId, T, round.id, row.engine, "verificacion", humanVerif(v), { job_id: Number(row.id), model: modeloReal || row.model, veredicto: v.veredicto });
           if (v.veredicto === "aprobado") {
             await setRound(userId, round.id, { status: "esperando_aprobacion", summary: "Verificado: aprobado. Acepta para hacer commit local." });
           } else if (v.veredicto === "corregir" && round.corrections < maxCorr) {
@@ -345,20 +445,43 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
       const code = err.split(/[\s:]/)[0];
       const T = round.thread_id;
       const nombre = row.engine === "claude" ? "Claude" : "Gemini (agy)";
+      const causa = CAUSA[code] ? `${CAUSA[code]}` : err;
       if (row.role === "consultar") { // la consulta es opcional: el usuario decide cómo seguir
         await setRound(userId, round.id, { status: "conversando", summary: null });
-        await say(userId, T, round.id, "jarvis", "sistema", `No pude consultar a ${nombre} (${err}). Dígame cómo seguimos.`);
+        await say(userId, T, round.id, "jarvis", "sistema", `No pude consultar a ${nombre}: ${causa}. Dígame cómo seguimos.`);
       } else if (row.role === "commit") {
         await setRound(userId, round.id, { status: "esperando_aprobacion", summary: "El commit falló; puedes reintentar" });
-        await say(userId, T, round.id, "jarvis", "sistema", `No se pudo hacer el commit local (${err}). Puedes volver a aceptar.`);
-      } else if (code === "sin_cuota") {
-        await setRound(userId, round.id, { status: "necesita_usuario", summary: `${nombre} sin cuota (${row.role})` });
-        await say(userId, T, round.id, "jarvis", "sistema", `${nombre} no tiene cuota para ${row.role}. No cambio de modelo en silencio: reintenta más tarde (corregir), usa el otro motor (corregir con motor) o cancela.`);
+        await say(userId, T, round.id, "jarvis", "sistema", `No se pudo hacer el commit local: ${causa}. Puedes volver a aceptar.`);
+      } else if (code === "sin_cuota" || code === "sin_login") {
+        await setRound(userId, round.id, { status: "necesita_usuario", summary: `${nombre} ${code === "sin_cuota" ? "sin cuota" : "sin sesión"} (${row.role})` });
+        await say(userId, T, round.id, "jarvis", "sistema", `${nombre} ${causa} (paso "${row.role}"). No cambio de modelo en silencio: arregle el motivo y use "Reintentar paso", pida una corrección con el otro motor o cancele.`);
       } else {
         await setRound(userId, round.id, { status: "fallida", summary: `${row.role} falló: ${code}` });
-        await say(userId, T, round.id, "jarvis", "sistema", `El paso "${row.role}" con ${nombre} falló: ${err}.`);
+        await say(userId, T, round.id, "jarvis", "sistema", `El paso "${row.role}" con ${nombre} falló: ${causa}. Puede usar "Reintentar paso".`);
       }
       return { ok: true };
+    },
+    // "Reintentar paso": vuelve a encolar el último paso fallido de la ronda (mismo motor y mismas instrucciones).
+    async reintentar(userId, roundId) {
+      let round = await store.getRound(userId, roundId);
+      if (!round) throw new ProError(404, "no_existe");
+      if (!["fallida", "necesita_usuario"].includes(round.status)) throw new ProError(409, "estado_invalido");
+      const other_ = await store.activeRound(round.thread_id);
+      if (other_ && other_.id !== round.id) throw new ProError(409, "ronda_activa");
+      if ((await store.liveJobs(round.id)).length) throw new ProError(409, "job_en_curso");
+      const last = await store.lastJob(round.id);
+      if (!last || last.status !== "fallido" || last.role === "consultar") throw new ProError(409, "nada_que_reintentar");
+      const thread = await store.getThread(userId, round.thread_id);
+      if (!repoValid(thread.repo, { agent, permissions })) throw new ProError(422, "repo_invalido");
+      const av = availability({ agent, config, permissions });
+      if (!av.habilitado) throw new ProError(409, "pro_deshabilitado", { motivos: av.motivos });
+      if (last.engine === "gemini" && !geminiOkFor(thread)) throw new ProError(409, "gemini_no_disponible");
+      await orch.reenqueue(userId, round, thread, last.role, last.engine, last.prompt);
+      const jobs = await store.jobsOfRound(round.id);
+      const estado = { planear: "planeando", verificar: "verificando", commit: "esperando_aprobacion", programar: programmed(jobs) ? "corrigiendo" : "programando" }[last.role];
+      round = await setRound(userId, round.id, { status: estado, summary: last.role === "commit" ? "Haciendo commit local..." : null });
+      await say(userId, thread.id, round.id, "jarvis", "sistema", `Reintento el paso "${last.role}".`);
+      return { round };
     },
   };
   return orch;

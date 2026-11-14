@@ -6,11 +6,13 @@ export const PC_TIMEOUT_MS = 45_000;
 // Capacidades que reporta el PC: { claude:{ok,modelos[]}, gemini_cli:{ok,cli:'agy',login,version,modelos[]}, repos:[ruta] }.
 function cleanCaps(c) {
   const strs = (a) => (Array.isArray(a) ? a.map((x) => String(x).slice(0, 200)).slice(0, 30) : []);
+  const err = (x) => (x ? String(x).slice(0, 200) : null);
   return {
-    claude: { ok: !!c.claude?.ok, modelos: strs(c.claude?.modelos) },
+    // modelos = ids de Claude que el PC VERIFICÓ con una llamada mínima; error = sin_login | modelo_no_disponible | texto
+    claude: { ok: !!c.claude?.ok, modelos: strs(c.claude?.modelos), faltan: strs(c.claude?.faltan), error: err(c.claude?.error), ...(c.claude?.version ? { version: String(c.claude.version).slice(0, 20) } : {}) },
     ...(() => {
       const g = c.gemini_cli || c.agy || {};
-      const v = { ok: !!g.ok, cli: "agy", login: g.login ? String(g.login).slice(0, 20) : null, version: g.version ? String(g.version).slice(0, 20) : null, modelos: strs(g.modelos) };
+      const v = { ok: !!g.ok, cli: "agy", login: g.login ? String(g.login).slice(0, 20) : null, version: g.version ? String(g.version).slice(0, 20) : null, modelos: strs(g.modelos), faltan: strs(g.faltan), activo: g.activo === true, error: err(g.error), flags: g.flags && typeof g.flags === "object" ? { ok: !!g.flags.ok, missing: strs(g.flags.missing) } : null };
       return { agy: v, gemini_cli: v }; // "agy" por compatibilidad con el Modo Pro
     })(),
     repos: strs((c.repos || []).map((r) => (typeof r === "string" ? r : r?.ruta || ""))).filter(Boolean),
@@ -18,7 +20,7 @@ function cleanCaps(c) {
 }
 const dayOf = (t) => new Date(t).toISOString().slice(0, 10);
 
-export function createAgent({ db, bus, tasks, approvals, audit, permissions, state, motores = null, now = () => Date.now() }) {
+export function createAgent({ db, bus, tasks, approvals, audit, permissions, state, motores = null, proModelos = null, now = () => Date.now() }) {
   const pc = state.pc;
   Object.assign(pc, { capabilities: null, online: false, last_seen: null, current_task: null, paused: false, version: null, host: null });
   // Topes por motor: los de Gemini (tope_gemini) son independientes de los de Claude (tope_claude).
@@ -62,11 +64,13 @@ export function createAgent({ db, bus, tasks, approvals, audit, permissions, sta
       const hung = await run(db, "UPDATE tasks SET status='interrumpida', result='El PC se apagó o perdió conexión durante la tarea.', updated_at=? WHERE user_id=? AND status IN ('reclamada','en_curso')", [now(), userId]);
       await audit?.log({ userId, action: "pc.en_linea", detail: `${host || "PC"} ${version || ""}`.trim() });
       if (!wasOnline) bus.emit("pc_online", { userId, host: pc.host }); // la Fase 4 lo convertirá en aviso de Telegram
+      bus.emit("pc.hello", { userId }); // Modo Pro: lo que el PC tenía en marcha ya no existe
       publish(userId);
       return {
         ok: true, interrumpidas: hung.changes || 0, caps: caps(), uso: await api.usageToday(userId),
         permissions: { automatico: permissions.automatico, requiere_aprobacion: permissions.requiere_aprobacion, carpetas_permitidas: permissions.carpetas_permitidas, carpetas_gemini: permissions.carpetas_gemini || [], aprobacion_caduca_minutos: permissions.aprobacion_caduca_minutos },
         motores: { gemini: { modelo: geminiModel(), activo: motores?.gemini?.activo === true } },
+        pro: { modelos_claude: proModelos ? proModelos() : [] }, // ids de Claude que el doctor debe verificar
       };
     },
     async heartbeat(userId, { paused = false, current_task = null, capabilities } = {}) {

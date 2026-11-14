@@ -150,7 +150,7 @@ export function createWorker({
         if (!said) { await sync(); said = true; log("PC en línea"); status({ online: true }); }
         const out = await tick();
         if (out === "tarea") continue; // sigue de inmediato con la siguiente
-        if (pro && out === "vacia" && !paused) { const j = await pro.tick().catch((e) => { log(`Pro: ${e.message}`); if (e.status === 401 || e.status === 403) throw e; return "vacio"; }); if (j === "job") continue; }
+        if (pro && (out === "vacia" || out === "tope_diario") && !paused) { const j = await pro.tick().catch((e) => { log(`Pro: ${e.message}`); if (e.status === 401 || e.status === 403) throw e; return "vacio"; }); if (j === "job") continue; }
         await sleep(out === "tope_diario" ? tapeWaitMs : pollMs);
       } catch (e) {
         said = false; status({ online: false, error: e.message });
@@ -166,6 +166,6 @@ export function createWorker({
     async stop() { running = false; halted = true; try { await hub.bye(); } catch { /* sin red */ } status(); },
     pause(v = true) { paused = !!v; status(); hub.heartbeat({ paused, current_task: current }).catch(() => {}); },
     isPaused: () => paused,
-    geminiActive, geminiDirs, sync, tick, processTask,
+    geminiActive, geminiDirs, claudeIds: () => (Array.isArray(serverCfg.pro?.modelos_claude) ? serverCfg.pro.modelos_claude : []), sync, tick, processTask,
   };
 }

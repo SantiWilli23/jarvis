@@ -1,5 +1,6 @@
 // Enruta por tipo de tarea: heurística y, si hay proveedor de texto barato, desempata con él.
-// Empate o duda -> empieza Claude.
+// Empate o duda -> empieza Claude. Sin Gemini (apagado, sin sesión o repo fuera de carpetas_gemini) todo es Claude:
+// programa Sonnet y revisa Opus (el verificador sigue siendo otra pasada, con otro modelo).
 const RULES = [
   ["ui", "gemini", /\b(css|html|ui|interfaz|pantalla|bot[oó]n|dise[ñn]o|estilos?|responsive|animaci[oó]n|frontend|front-end|landing|colores?|layout|web\/)\b/i],
   ["docs", "gemini", /\b(readme|documentaci[oó]n|docs?|comentarios?|traduc\w+|texto|copy)\b/i],
@@ -19,9 +20,10 @@ export function heuristic(text) {
   return { task_kind, engine, tie: score.gemini === score.claude && kinds.length > 0 && score.gemini > 0, kinds };
 }
 
-// textProvider(prompt) -> string opcional (modelo barato). Solo se consulta en empate real.
-export async function classifyTask(text, { textProvider } = {}) {
+// textProvider(prompt) -> string opcional (modelo barato). Solo se consulta en empate real y si Gemini está disponible.
+export async function classifyTask(text, { textProvider, geminiOk = true } = {}) {
   const h = heuristic(String(text || ""));
+  if (!geminiOk) return { task_kind: h.task_kind, programmer: "claude", verifier: "claude", by: "reglas" };
   let engine = h.engine, by = "reglas";
   if (h.tie && textProvider) {
     try {

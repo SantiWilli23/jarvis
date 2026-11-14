@@ -37,10 +37,13 @@ test("config/pro.json: correcciones máx 2 y sin modelos prohibidos", () => {
 
 test("proReasons: motivos de no habilitado", () => {
   const cfg = loadProConfig();
-  assert.deepEqual(proReasons({ pcOnline: false, caps: null, cfg }), ["pc_apagado", "claude_no_listo", "gemini_sin_login", "sin_repos_git"]);
-  const caps = { claude: { ok: true, modelos: ["opus", "sonnet"] }, gemini_cli: { ok: true, login: "google" }, repos: ["C:/r"] };
+  assert.deepEqual(proReasons({ pcOnline: false, caps: null, cfg }), ["pc_apagado", "claude_no_listo", "sin_repos_git"]);
+  const caps = { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, gemini_cli: { ok: true, login: "google" }, repos: ["C:/r"] };
   assert.deepEqual(proReasons({ pcOnline: true, caps, cfg }), []);
-  assert.deepEqual(proReasons({ pcOnline: true, caps: { ...caps, claude: { ok: true, modelos: ["opus"] } }, cfg }), ["claude_no_listo"]);
+  assert.deepEqual(proReasons({ pcOnline: true, caps: { ...caps, claude: { ok: true, modelos: ["claude-opus-5-5"] } }, cfg }), ["claude_modelo_no_disponible"]);
+  assert.deepEqual(proReasons({ pcOnline: true, caps: { ...caps, claude: { ok: false, error: "sin_login", modelos: [] } }, cfg }), ["claude_sin_login"]);
+  // Solo Claude: sin Gemini no hay ningún motivo de bloqueo
+  assert.deepEqual(proReasons({ pcOnline: true, caps: { ...caps, gemini_cli: { ok: false }, agy: { ok: false } }, cfg }), []);
 });
 
 test("status: conexiones {id,nombre,ok,usa}, Claude (PC), conn.using y status.pro", async () => {
@@ -52,7 +55,7 @@ test("status: conexiones {id,nombre,ok,usa}, Claude (PC), conn.using y status.pr
   const pc = s.connections.find((c) => c.id === "claude_pc");
   assert.deepEqual([pc.nombre, pc.ok, pc.usa], ["Claude (PC)", false, false]);
   for (const c of s.connections) assert.ok(c.id && c.nombre && typeof c.ok === "boolean" && typeof c.usa === "boolean");
-  assert.deepEqual(s.pro, { habilitado: false, motivos: ["pc_apagado", "claude_no_listo", "gemini_apagado", "gemini_sin_login", "sin_repos_git"] });
+  assert.deepEqual(s.pro, { habilitado: false, motivos: ["pc_apagado", "claude_no_listo", "sin_repos_git"], avisos: ["gemini_apagado"], gemini: { activo: false, listo: false } });
   await ctx.router.route({ userId: ctx.ownerId, messages: [{ role: "user", content: "hola" }] });
   assert.equal(evs.length, 1);
   assert.equal(evs[0].userId, ctx.ownerId);
@@ -61,7 +64,7 @@ test("status: conexiones {id,nombre,ok,usa}, Claude (PC), conn.using y status.pr
   ctx.bus.emit("pc.using", { userId: ctx.ownerId });
   assert.equal((await ctx.status(ctx.ownerId)).connections.find((c) => c.id === "claude_pc").usa, true);
   ctx.config.motores_pc.gemini.activo = true; // encendido a mano
-  await ctx.agent.hello(ctx.ownerId, { capabilities: { claude: { ok: true, modelos: ["opus", "sonnet"] }, gemini_cli: { ok: true, login: "google" }, repos: ["C:/r"] } });
+  await ctx.agent.hello(ctx.ownerId, { capabilities: { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, gemini_cli: { ok: true, login: "google" }, repos: ["C:/r"] } });
   s = await ctx.status(ctx.ownerId);
   assert.equal(s.pro.habilitado, true);
   assert.equal(s.connections.find((c) => c.id === "claude_pc").ok, true);
