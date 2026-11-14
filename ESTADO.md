@@ -6,5 +6,6 @@
 **GitHub (rama github-lectura):** conector solo lectura `server/connectors/github.js` + `/api/github/*` (status, repos, branches); llaves fine-grained `GITHUB_TOKEN(S)` en .env y Render; guía en docs. Sin token real no probado; el Pro web aún no.
 **Pro web, servidor (rama pro-web):** hilos modo web (gh_repo/gh_rama validados contra GitHub), traductor Groq (`server/pro/traductor.js`), `server/pro/web.js` (enviar copiar/asistido, revisión cruzada, sondeo, vincular PR/rama, marcar hecha), tabla `pro_web_envios`; Pro local escondido (`local_visible:false`). Pruebas `test/pro-modo-web.test.js`. Sin GitHub real no probado.
 **Queda:** el Modo Pro conserva el interruptor `motores_pc.gemini.activo` (apagado) y los archivos del CLI de Gemini del runner; quitarlos es decisión aparte. Push/deploy con permiso; una ronda Pro real; claves vistas en el chat, Telegram, Google, Spotify, WhatsApp.
-**Siguiente paso:** fases del Pro web restantes (interfaz web); unir con pro-web-desktop; push y deploy con permiso.
+**Navegador:** contrato `solo_preparar` en el PC (prompt_listo sin enviar ni leer; aviso "copiado" si falla el selector).
+**Siguiente paso:** interfaz web y /m del Pro web; docs; push y deploy con permiso.
 **Verificar:** `npm test`; `node --test test/gemini-prefijo.test.js`; abrir `/`, `/m` y `/estudio` sin errores de consola.
