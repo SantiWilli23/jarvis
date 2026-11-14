@@ -64,7 +64,7 @@ body.movil .hint { font-size: 11px; max-width: 34ch; }
 
 /* ---------- barra inferior (al pulgar) ---------- */
 body.movil .dock {
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px;
   padding: 6px 0 calc(6px + var(--safe-b)); border-top: 1px solid var(--line);
 }
 body.movil .dock button {
@@ -220,3 +220,13 @@ body.movil #mpro-round a { color: var(--accent); }
 body.movil #mpro-round .ck-failure { color: var(--used); }
 body.movil .mpro-say { display: flex; gap: 8px; }
 body.movil .mpro-say input { flex: 1; min-width: 0; }
+
+/* ---------- Música ---------- */
+body.movil #musica { grid-column: 1 / -1; justify-self: center; }
+body.movil .musica-marco { min-height: 200px; }
+body.movil .mus-lista { display: grid; gap: 6px; margin: 8px 0; }
+body.movil .mus-lista button { text-align: left; min-height: 44px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); color: var(--fg); display: grid; gap: 2px; }
+body.movil .mus-lista button small { color: var(--dim); font-size: 11px; }
+body.movil .mus-lista button:active { border-color: var(--accent); }
+body.movil.con-musica .orbwrap { width: min(36vw, 20dvh); height: min(36vw, 20dvh); }
+body.movil.con-musica .stage { overflow-y: auto; overscroll-behavior: contain; }
