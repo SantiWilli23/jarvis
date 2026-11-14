@@ -25,7 +25,7 @@ import { createStt } from "./stt.js";
 import { createChatService } from "./chat-service.js";
 import { createTts } from "./tts.js";
 import { createWebSearch } from "./tools/websearch.js";
-import { createPro } from "./pro/index.js";
+import { createPro, claudeIds, loadProConfig } from "./pro/index.js";
 import { buildExtensions } from "./extensions.js";
 import { createDespertador } from "./phone/despertador.js";
 import { createPush, loadWebPush } from "./push.js";
@@ -71,7 +71,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const prepare = createPrepare({ router, tasks, planner, privacy, bus });
   const approvals = createApprovals({ db, bus, audit, now });
   const phone = createPhoneQueue({ db, bus, approvals, audit, config: loadJson("phone-actions.json"), now });
-  const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, motores: config.motores_pc, now });
+  const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, motores: config.motores_pc, proModelos: () => claudeIds(loadProConfig()), now });
   const pro = createPro({ db, bus, agent, approvals, audit, permissions, now, quota, groq: () => providers.groq });
   const sessions = createSessions({ db, now });
   const limiter = createLoginLimiter({ db, now });

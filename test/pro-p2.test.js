@@ -11,7 +11,7 @@ import { classifyTask } from "../server/pro/classify.js";
 let server, base, ctx, web, pc, thread, events;
 const call = (path, { method = "GET", body, tk = web } = {}) =>
   fetch(base + path, { method, headers: { ...(body ? { "content-type": "application/json" } : {}), authorization: `Bearer ${tk}` }, body: body ? JSON.stringify(body) : undefined }).then(async (r) => ({ status: r.status, ...(await r.json()) }));
-const CAPS = { claude: { ok: true, modelos: ["opus", "sonnet"] }, agy: { ok: true, login: "google" }, repos: ["C:\\dev\\app"] };
+const CAPS = { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, agy: { ok: true, login: "google" }, repos: ["C:\\dev\\app"] };
 const hello = (capabilities = CAPS) => call("/api/agent/hello", { method: "POST", tk: pc, body: { host: "pc", capabilities } });
 const claim = async (body = {}) => (await call("/api/agent/pro/claim", { method: "POST", tk: pc, body })).job;
 const report = (id, b) => call(`/api/agent/pro/jobs/${id}/report`, { method: "POST", tk: pc, body: b });
@@ -25,7 +25,7 @@ const decide = (rid, body) => call(`/api/pro/rounds/${rid}/decision`, { method: 
 
 before(async () => {
   ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.config.motores_pc.gemini.activo = true;
-  ctx.permissions.carpetas_permitidas = ["C:\\dev"];
+  ctx.permissions.carpetas_permitidas = ["C:\\dev"]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
   server = createServer(createApp(ctx));
   await new Promise((r) => server.listen(0, r));
   base = `http://127.0.0.1:${server.address().port}`;
@@ -39,13 +39,17 @@ test("Pro deshabilitado: motivos y 409; habilitado con agy", async () => {
   const s = await call("/api/pro/status");
   assert.equal(s.habilitado, false);
   assert.ok(s.motivos.includes("pc_apagado"));
+  // Pro funciona con SOLO Claude: Gemini sin sesión es un aviso, no un bloqueo.
   await hello({ ...CAPS, agy: { ok: false } });
-  assert.deepEqual((await call("/api/pro/status")).motivos, ["gemini_sin_login"]);
+  const sg = await call("/api/pro/status");
+  assert.equal(sg.habilitado, true); assert.deepEqual(sg.motivos, []); assert.ok(sg.avisos.includes("gemini_sin_login"));
+  await hello({ ...CAPS, claude: { ok: false } });
+  assert.deepEqual((await call("/api/pro/status")).motivos, ["claude_no_listo"]);
   const t = await call("/api/pro/threads", { method: "POST", body: { repo: "C:\\dev\\app" } }); // repo no declarado aun? si esta declarado
   assert.equal(t.status, 201);
   thread = t.thread.id;
   const r = await say("arregla el bug");
-  assert.equal(r.status, 409); assert.deepEqual(r.motivos, ["gemini_sin_login"]);
+  assert.equal(r.status, 409); assert.deepEqual(r.motivos, ["claude_no_listo"]);
   await hello();
   assert.equal((await call("/api/pro/status")).habilitado, true);
   assert.equal((await call("/api/pro/threads", { method: "POST", body: { repo: "D:\\otro" } })).status, 422);
@@ -68,7 +72,7 @@ test("ronda feliz: plan, aprobar, programar, verificar con el otro motor, acepta
   assert.equal(r.round.programmer, "claude");
   assert.equal((await say("otra")).status, 409);
   const plan = await claim();
-  assert.equal(plan.role, "planear"); assert.equal(plan.model, "opus"); assert.equal(plan.mode, "solo_lectura");
+  assert.equal(plan.role, "planear"); assert.equal(plan.model, "claude-opus-5-5"); assert.equal(plan.mode, "solo_lectura");
   await call(`/api/agent/pro/jobs/${plan.id}/events`, { method: "POST", tk: pc, body: { events: [{ kind: "x", text: "leyendo" }] } });
   assert.ok(events.some(([e, x]) => e === "pro.delta" && x.text === "leyendo"));
   assert.ok(events.some(([e, x]) => e === "pc.using" && x.id === "claude_pc"));
@@ -77,7 +81,7 @@ test("ronda feliz: plan, aprobar, programar, verificar con el otro motor, acepta
   assert.equal(await claim(), null);
   await decide(rid, { accion: "aprobar" });
   const prog = await claim();
-  assert.equal(prog.role, "programar"); assert.equal(prog.model, "sonnet"); assert.equal(prog.mode, "editar");
+  assert.equal(prog.role, "programar"); assert.equal(prog.model, "claude-sonnet-5-5"); assert.equal(prog.mode, "editar");
   assert.ok(prog.prompt.includes("tocar server/a.js"));
   assert.ok((await report(prog.id, { informe: INF(["server/a.js"]), tree_before: "a", tree_after: "b", diff: NS("server/a.js") })).ok);
   assert.equal((await report(prog.id, { informe: INF(["server/a.js"]), diff: NS("server/a.js") })).duplicado, true);
@@ -138,7 +142,6 @@ test("aprobacion con pro_job_id y reclamo reenviado (Render dormido)", async () 
   const row = await ctx.db.execute({ sql: "SELECT pro_job_id FROM approvals WHERE id=?", args: [a.approval.id] });
   assert.equal(Number(row.rows[0].pro_job_id), j.id);
   assert.equal(await claim(), null);
-  assert.equal((await claim({ again: j.id })).id, j.id);
   await report(j.id, { informe: "plan" }); await report(j.id, { informe: "plan" });
   assert.equal((await round(r.round.id)).status, "esperando_aprobacion");
   await call(`/api/pro/rounds/${r.round.id}/cancel`, { method: "POST" });

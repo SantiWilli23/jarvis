@@ -16,7 +16,7 @@ import { createPrepare } from "../server/queue/prepare.js";
 import { runAgy, guardTool } from "../desktop/runner/agy-runner.js";
 import { buildAgyArgs } from "../desktop/runner/agy-args.js";
 import { policyFor, commandAllowed } from "../desktop/runner/agy-policy.js";
-import { runDoctor } from "../desktop/runner/doctor.js";
+import { runDoctor, limpiarCacheSonda } from "../desktop/runner/doctor.js";
 
 const FAKE = fileURLToPath(new URL("./fixtures/fake-agy.mjs", import.meta.url));
 const AGY = { command: process.execPath, prefix: [FAKE] };
@@ -174,8 +174,10 @@ test("args de agy: nunca modo automático ni --dangerously-skip-permissions", ()
 });
 
 test("doctor: con Gemini apagado no se ejecuta agy y las capacidades lo dicen", async () => {
-  let llamadas = 0;
-  const r = await runDoctor({ exec: async () => { llamadas++; return "1.5.8"; }, agyPath: "agy.exe", claudePath: "claude.exe", geminiActivo: false });
+  const llamadas = [];
+  limpiarCacheSonda();
+  const r = await runDoctor({ exec: async (b, args) => { llamadas.push(b.command); return args.includes("--version") ? "1.5.8" : JSON.stringify({ is_error: false, result: "ok" }); }, agyPath: "agy.exe", claudePath: "claude.exe", geminiActivo: false });
   assert.equal(r.agy.activo, false); assert.equal(r.agy.ok, false); assert.equal(r.gemini_cli.ok, false);
-  assert.equal(llamadas, 1); // solo `claude --version`
+  assert.ok(llamadas.length && llamadas.every((c) => c === "claude.exe")); // solo Claude (versión + sonda de modelos); agy nunca
+  assert.equal(r.claude.ok, true); assert.deepEqual(r.claude.modelos, ["claude-opus-5-5", "claude-sonnet-5-5"]);
 });

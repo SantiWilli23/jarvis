@@ -29,8 +29,8 @@ test("informe, diff y botón de diff", () => {
 test("ronda: plan editable, contador de correcciones y decisiones", () => {
   const p = renderRonda({ id: 3, status: "esperando_aprobacion", corrections: 0 }, [{ kind: "plan", text: "Plan <x>" }]);
   assert.ok(p.includes('id="plan-edit"') && p.includes("Plan &lt;x&gt;") && p.includes('data-accion="aprobar"') && p.includes("0/2"));
-  const n = renderRonda({ id: 3, status: "necesita_usuario", corrections: 2 }, []);
-  assert.ok(n.includes("2/2") && n.includes("Aceptar ronda (commit local)") && n.includes('data-accion="corregir"'));
+  const n = renderRonda({ id: 3, status: "necesita_usuario", corrections: 2, fase: "programado" }, []);
+  assert.ok(n.includes("2/2") && n.includes("Hacer commit") && n.includes('data-accion="corregir"'));
   assert.ok(!renderRonda({ id: 3, status: "hecha", corrections: 1 }, [], []).includes("cancelar"));
   assert.ok(renderRonda({ id: 3, status: "programando", corrections: 0 }, []).includes('data-act="cancelar"'));
   assert.ok(renderRonda({ id: 3, status: "programando", corrections: 0 }, [], [{ id: 9, detail: "npm test", summary: "cmd" }]).includes('data-act="aprobacion"'));
@@ -38,10 +38,10 @@ test("ronda: plan editable, contador de correcciones y decisiones", () => {
 
 test("trabajador: motor y modelo según estado", () => {
   assert.equal(trabajador({ status: "hecha" }), null);
-  assert.deepEqual(trabajador({ status: "programando", programmer: "claude", verifier: "gemini" }), { engine: "claude", modelo: "sonnet", rol: "programa" });
+  assert.deepEqual(trabajador({ status: "programando", programmer: "claude", verifier: "gemini" }), { engine: "claude", modelo: "claude-sonnet-5-5", rol: "programa" });
   assert.equal(trabajador({ status: "verificando", programmer: "claude", verifier: "gemini" }).modelo, "gemini-3.8-flash-high");
   assert.equal(trabajador({ status: "programando", programmer: "gemini" }).modelo, "gemini-3.8-flash-medium");
-  assert.equal(trabajador({ status: "planeando", programmer: "claude" }).modelo, "opus");
+  assert.equal(trabajador({ status: "planeando", programmer: "claude" }).modelo, "claude-opus-5-5");
   assert.ok(rondaViva({ status: "corrigiendo" }));
 });
 

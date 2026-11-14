@@ -20,6 +20,7 @@ export function proRoutes(ctx) {
   r.get("/coordinador", w((req) => o().coordinadorEstado(req.user.id)));
   r.post("/coordinador", w((req) => o().setCoordinador(req.user.id, !!req.body?.activo)));
   r.post("/rounds/:id/cancel", w((req) => o().cancel(req.user.id, id(req))));
+  r.post("/rounds/:id/reintentar", w((req) => o().reintentar(req.user.id, id(req))));
   r.get("/jobs/:id", w(async (req) => { const v = await o().jobDetail(req.user.id, id(req)); if (!v) throw new ProError(404, "no_existe"); return v; }));
   return r;
 }

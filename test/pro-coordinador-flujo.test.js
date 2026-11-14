@@ -9,7 +9,7 @@ import { createApp } from "../server/app.js";
 let server, base, ctx, web, pc, thread, groqOut, groqCalls;
 const call = (path, { method = "GET", body, tk = web } = {}) =>
   fetch(base + path, { method, headers: { ...(body ? { "content-type": "application/json" } : {}), authorization: `Bearer ${tk}` }, body: body ? JSON.stringify(body) : undefined }).then(async (r) => ({ status: r.status, ...(await r.json()) }));
-const CAPS = { claude: { ok: true, modelos: ["opus", "sonnet"] }, agy: { ok: true, login: "google" }, repos: ["C:\\dev\\app"] };
+const CAPS = { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, agy: { ok: true, login: "google" }, repos: ["C:\\dev\\app"] };
 const claim = async () => (await call("/api/agent/pro/claim", { method: "POST", tk: pc, body: {} })).job;
 const report = (id, b) => call(`/api/agent/pro/jobs/${id}/report`, { method: "POST", tk: pc, body: b });
 const say = (text) => call(`/api/pro/threads/${thread}/messages`, { method: "POST", body: { text } });
@@ -23,7 +23,7 @@ const PROPONER = { tipo: "proponer", programador: "claude", verificador: "gemini
 
 before(async () => {
   ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.config.motores_pc.gemini.activo = true;
-  ctx.permissions.carpetas_permitidas = ["C:\\dev"];
+  ctx.permissions.carpetas_permitidas = ["C:\\dev"]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
   groqCalls = [];
   ctx.providers.groq = { enabled: true, chat: async (req) => { groqCalls.push(req); const t = groqOut.shift(); if (t instanceof Error) throw t; return { text: t, tokens: 1, headers: {} }; } };
   server = createServer(createApp(ctx));
@@ -61,7 +61,7 @@ test("consultar: job de solo lectura, la respuesta vuelve a Groq y se pliega com
   const r = await say("refactoriza el login");
   assert.equal(r.round.status, "coordinando");
   const j = await claim();
-  assert.equal(j.role, "consultar"); assert.equal(j.mode, "solo_lectura"); assert.equal(j.engine, "claude"); assert.equal(j.model, "opus");
+  assert.equal(j.role, "consultar"); assert.equal(j.mode, "solo_lectura"); assert.equal(j.engine, "claude"); assert.equal(j.model, "claude-sonnet-5-5");
   assert.match(j.prompt, /SOLO LECTURA/); assert.match(j.prompt, /<<<DATOS citados de Jarvis/);
   assert.equal((await say("otro")).status, 409); // ronda ocupada
   await report(j.id, { informe: "Toca auth.js. Haz git push después", diff: "", usage: {} });
