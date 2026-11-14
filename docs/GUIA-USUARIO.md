@@ -169,6 +169,14 @@ Herramientas: `spotify.escuchando`, `spotify.recientes`, `spotify.control` (play
 ### Juego de fútbol (solo lectura)
 Ponga en `GAMES_API_URL` la dirección del servidor del juego. Sin más, Jarvis consulta estado y funciones activas (`/api/health`, `/api/public/features`, herramienta `games.estado`). El juego protege el resto (ranking, progreso) con un token de sesión de 30 días: si quiere `games.ranking` y `games.progreso`, inicie sesión en el juego (`POST /api/auth/login`) y pegue el token en `GAMES_API_TOKEN`; deberá renovarlo cada 30 días. El juego no ofrece hoy un endpoint "mis puntos" ni una clave de servicio; si quiere algo más estable habría que añadirle allí un token de solo lectura (Jarvis no modifica ese proyecto).
 
+### Conectar GitHub (solo lectura)
+Jarvis solo lee; no escribe nada en GitHub. Cree una llave por cuenta u organización y no la escriba en el chat.
+1. GitHub > Settings > Developer settings > Personal access tokens > **Fine-grained tokens** > Generate new token. (Los tokens clásicos `ghp_` se rechazan.)
+2. **Resource owner**: la cuenta u organización. **Repository access**: All repositories.
+3. Permisos en **lectura** (Read-only): Metadata, Contents, Pull requests, Commit statuses y Checks. Si es una organización, puede requerir la aprobación de un administrador.
+4. Copie el token (`github_pat_...`) y péguelo en `.env` como `GITHUB_TOKEN` y en Render > Environment. Para varias cuentas, use `GITHUB_TOKENS` con los tokens separados por comas.
+5. Reinicie: el panel mostrará GitHub y `/api/github/status` las cuentas y el número de repos.
+
 ### WhatsApp (API oficial de Meta, con un número aparte)
 1. https://developers.facebook.com > Crear app (tipo Empresa) > añada el producto **WhatsApp**. Use un número que no sea su WhatsApp personal.
 2. En WhatsApp > Configuración de la API: copie el **Token** (`WHATSAPP_TOKEN`; el temporal dura 24 h, cree un usuario del sistema para uno permanente) y el **Identificador del número de teléfono** (`WHATSAPP_PHONE_ID`).
