@@ -19,13 +19,5 @@
     "diario_tareas": null,
     "nota": "verificar según el plan Pro"
   },
-  "aprobacion_caduca_minutos": 30,
-  "carpetas_gemini": [],
-  "tope_gemini": {
-    "por_tarea_tokens": null,
-    "diario_tareas": null,
-    "diario_tokens": null,
-    "nota": "independiente del de Claude; verificar según su cuenta"
-  },
-  "nota_gemini": "Gemini del PC (agy) trabaja SOLO en carpetas_gemini (por defecto DocumentosJarvisgemini), separadas de las de Claude. Sus topes (tope_gemini) no se mezclan con los de Claude."
+  "aprobacion_caduca_minutos": 30
 }

@@ -76,13 +76,9 @@ Push o deploy sin permiso, `--dangerously-skip-permissions`, claves en git o en 
 - Etapa 3 (integración): servidor y runner, hechos en paralelo, se ajustaron al contrato (rol `commit` en el runner; plan como texto). Prueba extremo a extremo `test/pro-e2e.test.js` (servidor real + worker real + claude/agy falsos).
 - Pendiente de verificar a mano: `claude` y `agy` reales (flags, id del modelo, login), Render real, la web Pro con una ronda real.
 
-## Motores del PC (Flash / Gemini / Claude)
+## Motores del PC (Flash / Claude)
 
-- Selector Auto/Flash/Gemini/Claude en el chat (`localStorage jarvis_motor`). "Privado" desactiva Gemini.
-- Flash: cadena de nube (Gemini `gemini-3.8-flash`), siempre disponible. Con el PC apagado responde preguntas con la nota "(Flash: PC apagado)".
-- Gemini PC (APAGADO por defecto: `motores_pc.gemini.activo`; solo `true` lo enciende): tareas con `engine='gemini'` ejecutadas por `agy -p` (Antigravity CLI) con `gemini-3.8-flash-high` (`config/providers.json > motores_pc`). Planificación con `gemini-4-hydrogen` por API.
-- Disparadores: `/gemini`, `díselo a Gemini:`, `directo a Gemini:` (texto exacto, sin modelo).
-- Lo privado nunca va a Gemini: se comprueba antes de encolar (`privado_no_gemini`).
-- Solo trabaja en `carpetas_gemini` (por defecto Documentos\Jarvis\gemini). Topes propios en `ai_usage`.
-- Seguridad (agy no confina en Windows, ver docs/GUIA-USUARIO.md > "Límite exacto"): apagado por defecto (el servidor no encola, el doctor no ejecuta agy, Pro deshabilitado); cwd fijo en `carpetas_gemini` y agy no arranca si no está dentro; política por rol en `desktop/runner/agy-policy.js` (lectura = sin comandos/escritura/red/MCP; programar = escribir solo en carpetas_gemini y comandos de lista corta); guardián de eventos (`guardTool`) que mata el proceso ante ruta/herramienta fuera de política (reactivo, con carrera; no es confinamiento del SO); nunca `--dangerously-skip-permissions` ni modo auto. No se fijó HOME/config por ejecución (agy no lo documenta); `config/agy-settings.recomendado.json` es opcional y manual. El pedido va por argumento (máx. 28000 caracteres).
-- "Pasar a Claude" reasigna una tarea fallida/rechazada/pendiente a Claude.
+- Selector Auto/Flash/Claude en el chat (`localStorage jarvis_motor`).
+- Flash: cadena de nube (Gemini `gemini-3.8-flash`), siempre disponible.
+- La cola de tareas del PC es solo de Claude. El Gemini del PC (cola de tareas) se eliminó; lo que queda del motor "gemini" es solo del Modo Pro (apagado por defecto: `motores_pc.gemini.activo`).
+- `/gemini ...`, `díselo a Gemini:` y `directo a Gemini:` ya no encolan: se quita el prefijo y el texto se contesta por la API con el proveedor `gemini` primero y luego el resto de la cadena gratis (lo privado lo contesta Groq).

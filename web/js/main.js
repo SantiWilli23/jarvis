@@ -1,5 +1,5 @@
 // Punto de entrada: pantalla de contraseña, WebSocket, orbe, voz y paneles.
-import { getSettings, putSettings, api, login, getToken, setToken, onAuthLost, getStatus, sendChat, transcribe, decideApproval, pendingApprovals, deleteTask, approveReview, passToClaude, logout, waitForServer } from "./api.js";
+import { getSettings, putSettings, api, login, getToken, setToken, onAuthLost, getStatus, sendChat, transcribe, decideApproval, pendingApprovals, deleteTask, approveReview, logout, waitForServer } from "./api.js";
 import { connectWs, closeWs } from "./ws.js";
 import { store, setState, subscribe, LABELS, VISUAL } from "./state.js";
 import { initOrb, setVisual } from "./orb.js";
@@ -36,7 +36,7 @@ async function refreshStatus() {
 }
 
 async function onQueueAction(kind, id) {
-  try { kind === "borrar" ? await deleteTask(id) : kind === "claude" ? await passToClaude(id) : await approveReview(id); } catch (e) { say("Jarvis", "No pude hacerlo, señor: " + e.message); }
+  try { kind === "borrar" ? await deleteTask(id) : await approveReview(id); } catch (e) { say("Jarvis", "No pude hacerlo, señor: " + e.message); }
   refreshStatus();
 }
 
@@ -73,23 +73,17 @@ function onWs(m) {
   }
 }
 
-/* ---------- motor (Auto / Flash / Gemini / Claude) ---------- */
-const MOTORES = ["auto", "flash", "gemini", "claude"];
+/* ---------- motor (Auto / Flash / Claude) ---------- */
+const MOTORES = ["auto", "flash", "claude"];
 const motorGuardado = () => { try { const v = localStorage.getItem("jarvis_motor"); return MOTORES.includes(v) ? v : "auto"; } catch { return "auto"; } };
-// Con "privado" marcado Gemini queda desactivado (lo privado nunca va a Gemini): se usa Auto.
-const geminiApagado = () => store.status?.pc?.gemini_activo === false; // apagado por defecto en el servidor
-const motorEfectivo = (priv) => { const m = $("saymotor")?.value || motorGuardado(); return (priv || geminiApagado()) && m === "gemini" ? "auto" : m; };
+const motorEfectivo = () => $("saymotor")?.value || motorGuardado();
 function aplicarMotor() {
   const sel = $("saymotor"); if (!sel) return;
-  const priv = $("saypriv").checked;
-  const off = priv || geminiApagado(), op = sel.querySelector('option[value="gemini"]');
-  op.disabled = off; op.textContent = geminiApagado() ? "Gemini (apagado)" : "Gemini";
-  sel.value = off && motorGuardado() === "gemini" ? "auto" : motorGuardado();
+  sel.value = motorGuardado();
 }
 if ($("saymotor")) {
   aplicarMotor();
   $("saymotor").addEventListener("change", () => { try { localStorage.setItem("jarvis_motor", $("saymotor").value); } catch { /* modo privado */ } });
-  $("saypriv").addEventListener("change", aplicarMotor);
 }
 
 /* ---------- conversación ---------- */
@@ -102,7 +96,7 @@ async function converse(text, priv) {
   say("Usted", text);
   setState("thinking");
   try {
-    const r = await sendChat(text, priv, store.convId, motorEfectivo(priv));
+    const r = await sendChat(text, priv, store.convId, motorEfectivo());
     store.convId = r.conversationId || store.convId;
     activeProvider = r.provider || null;
     if (r.status === "ok" && r.provider) lastUsed = r.provider;

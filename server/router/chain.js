@@ -4,15 +4,16 @@
 import { ProviderError } from "../providers/base.js";
 
 export function createRouter({ providers, chain, orderByKind = {}, quota, privacy, onUse = () => {} }) {
-  function candidates(kind, isPrivate) {
+  // prefer: proveedor que va primero si se pide (p. ej. "/gemini"); lo privado sigue pasando por privacy.filter.
+  function candidates(kind, isPrivate, prefer = null) {
     const pref = orderByKind[kind] || [];
-    const ids = [...new Set([...pref, ...chain])].filter((id) => providers[id]);
+    const ids = [...new Set([...(prefer ? [prefer] : []), ...pref, ...chain])].filter((id) => providers[id]);
     return privacy.filter(ids, isPrivate);
   }
 
-  async function route({ userId, kind = "charla", messages, system, isPrivate = false, images }) {
+  async function route({ userId, kind = "charla", messages, system, isPrivate = false, images, prefer = null }) {
     const tried = [];
-    for (const id of candidates(kind, isPrivate)) {
+    for (const id of candidates(kind, isPrivate, prefer)) {
       const p = providers[id];
       if (!p.enabled) { tried.push({ id, skip: "apagado" }); continue; }
       const q = await quota.check(userId, id);

@@ -1,15 +1,12 @@
 <!-- estado-proyecto -->
-# Estado de Jarvis (13-nov-2026)
-**Pedido:** Jarvis personal gratis (orbe azul, voz Algenib), en Render+Turso, con control del PC/iPhone y Modo Pro (Claude y Gemini/`agy` programando con verificación cruzada).
+# Estado de Jarvis (14-nov-2026)
 
-**Hecho:** nube Render+Turso, cadena gratis de IAs, web y `/m`, cola del teléfono. Clásico y Pro en `main` y desplegados hasta c5a6d43. Local (sin push, 871817e): runner adaptado a `agy` real (`--mode plan`, modelos `gemini-3.8-flash-*`, login por `agy models`). PC: Claude Code y `agy` instalados con login, app de escritorio enrolada contra Render, `carpetas_permitidas` = jarvis; doctor lo detecta todo.
+**Pedido:** Jarvis personal gratis (orbe azul, voz Algenib), en Render+Turso, con control del PC/iPhone, Modo Pro y Estudio/Navegador.
 
-**Queda:** push/deploy de 871817e (pendiente de permiso); probar `agy --mode accept-edits` real, 429/503 reales, bloqueo de comandos con `agy` real, una ronda Pro completa; confirmar que el plan de `agy` llega completo en el mensaje; Gemini Pro/Argon no existe en la cuenta. Aparte: limpiar worktrees `jarvis-p1..p4`, regenerar claves vistas en el chat, Telegram, Google, Spotify, WhatsApp.
+**Hecho:** nube Render+Turso, cadena gratis de IAs, web y `/m`, cola del teléfono, Pro con ids Claude 5.5 y sonda en el doctor, Estudio (`/estudio`, Gemini por API, privado bloqueado) y Navegador de Jarvis. Rama `quitar-agy` (sin push, con main mezclado): la cola de tareas ya no usa Gemini del PC (motor, topes, planificador, puesto `gemini_pc`, "Pasar a Claude"); `/gemini ...` contesta por la API con el proveedor gemini primero (privado: Groq) y no encola. Caché web v9.
 
-**Coordinador Groq (rama pro-groq-coordinador, sin push):** Groq coordina en Pro (habla, consulta a Claude/Gemini solo lectura, propone; el usuario aprueba con botón); fallback al flujo clásico. Probado con Groq simulado; sin probar con Groq real. Ver docs/PRO.md.
+**Queda:** el Modo Pro conserva el interruptor `motores_pc.gemini.activo` (apagado) y los archivos del CLI de Gemini del runner; quitarlos es decisión aparte. Push/deploy con permiso; una ronda Pro real; claves vistas en el chat, Telegram, Google, Spotify, WhatsApp.
 
-**Rama pro-estabilidad (sin push):** Pro con solo Claude (ids 5.5, sonda real en el doctor, reserva de Opus avisada en el hilo, cancelar real, Reintentar paso, commit solo de la ronda, envío atómico, web con motivos/avisos). Ver docs/PRO.md al final. Sin probar: ronda real completa.
-**Siguiente paso:** con permiso, push y deploy; luego una ronda Pro real en un repo de prueba.
+**Siguiente paso:** revisar y mergear `quitar-agy`; luego push y deploy con permiso.
 
-**Verificar:** `npm test` (237); `node --test test/pro-e2e.test.js`; guía docs/GUIA-USUARIO.md sección 15. Sin probar: ronda real, iPhone.
-**Estudio + Navegador:** /estudio (Gemini gratis, privado bloqueado, "Abrir AI Studio") y Navegador de Jarvis asistido (Electron `desktop/browser/`, `server/browser.js`, `config/browser-sites.json` con activo:false). Probado con Gemini simulado y sitio falso (DOM real en el panel del navegador); SIN probar Electron, sitios reales ni selectores reales. Ver docs/GUIA-USUARIO.md sección 16.
+**Verificar:** `npm test`; `node --test test/gemini-prefijo.test.js`; abrir `/`, `/m` y `/estudio` sin errores de consola.

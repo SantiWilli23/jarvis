@@ -100,7 +100,7 @@ function startWorker() {
     allowedFolders: folders, log: (m) => console.log("[jarvis]", m),
     claude: cfg.claudePath ? { command: cfg.claudePath, prefix: [] } : null,
     agy: () => resolveAgy({ configured: cfg.agyPath || cfg.geminiPath }),
-    geminiActivo: () => !!worker?.geminiActive?.(), geminiFolders: () => worker?.geminiDirs?.() || [],
+    geminiFolders: () => (cfg.carpetas_gemini || []).filter(Boolean),
     onStatus: (s) => { lastStatus = { ...lastStatus, ...s }; updateTray(); },
   });
   worker = createWorker({
@@ -108,8 +108,6 @@ function startWorker() {
     hub, host: hostname(), version: app.getVersion(),
     claude: cfg.claudePath ? { command: cfg.claudePath, prefix: [] } : null,
     folders: null, fallbackCwd: cfg.workFolder || join(app.getPath("documents"), "Jarvis"),
-    agy: () => resolveAgy({ configured: cfg.agyPath || cfg.geminiPath }), geminiFolders: (cfg.carpetas_gemini || []).filter(Boolean).length ? cfg.carpetas_gemini.filter(Boolean) : null,
-    geminiDefaultDir: join(app.getPath("documents"), "Jarvis", "gemini"),
     log: (m) => console.log("[jarvis]", m),
     onStatus: (s) => { lastStatus = { ...lastStatus, ...s }; updateTray(); },
   });

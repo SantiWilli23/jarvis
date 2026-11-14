@@ -28,7 +28,6 @@ export const transcribe = (blob) => api("/stt", { method: "POST", raw: blob, hea
 export const decideApproval = (id, approve) => api(`/approvals/${id}`, { method: "POST", body: { approve } });
 export const pendingApprovals = () => api("/approvals");
 export const deleteTask = (id) => api(`/tasks/${id}`, { method: "DELETE" });
-export const passToClaude = (id) => api(`/tasks/${id}/pass-to-claude`, { method: "POST", body: {} });
 export const approveReview = (id) => api(`/tasks/${id}/approve-review`, { method: "POST", body: {} });
 export const logout = () => api("/auth/logout", { method: "POST", body: {} });
 

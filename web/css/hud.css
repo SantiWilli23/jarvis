@@ -160,7 +160,6 @@ body[data-state="permiso"] { --accent: var(--amber); }
 .say-form label { font-family: var(--mono); font-size: 11px; color: var(--dim); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .say-form select.motor { font: inherit; font-size: 16px; padding: 7px 6px; color: var(--fg); background: var(--input-bg); border: 1px solid var(--line); border-radius: 0; max-width: 104px; }
 .say-form select.motor:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.task .tag.gemini { color: var(--accent); border-color: var(--accent); }
 .task .acts { display: flex; gap: 6px; }
 .task .acts button { background: transparent; border: 1px solid var(--line); padding: 2px 8px; font-family: var(--mono); font-size: 11px; }
 

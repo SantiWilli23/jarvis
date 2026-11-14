@@ -18,24 +18,9 @@ export function parsePrepared(text, original) {
   }
 }
 
-// Planificador de Gemini: `planner` = proveedor de la API de Google con el modelo de planear (Hydrogen, nivel gratis).
-// Funciona con el PC apagado. NUNCA recibe contenido privado.
-export function createPrepare({ router, tasks, planner = null, privacy = null, bus = null }) {
-  async function planWithGemini({ userId, text, isPrivate }) {
-    if (!planner || isPrivate) return null;
-    privacy?.assert("gemini", isPrivate);
-    try {
-      const r = await planner.chat({ system: SISTEMA, messages: [{ role: "user", content: text }] });
-      if (!String(r.text || "").trim()) return null;
-      bus?.emit("pc.using", { userId, id: "gemini" });
-      return { ...parsePrepared(r.text, text), por: planner.model };
-    } catch { return null; } // sin cuota o sin red: planea la cadena normal
-  }
+export function createPrepare({ router, tasks }) {
   return {
     async prepare({ userId, text, isPrivate = false, reviewFirst = true, source = "texto", engine = "claude" }) {
-      if (engine === "gemini" && isPrivate) throw new Error("privado_no_gemini");
-      const hydrogen = engine === "gemini" ? await planWithGemini({ userId, text, isPrivate }) : null;
-      if (hydrogen) return tasks.create({ userId, rawText: text, mode: "preparar", prepared: hydrogen, reviewFirst, engine, header: { source } });
       const r = await router.route({ userId, kind: "accion_pc", isPrivate, system: SISTEMA, messages: [{ role: "user", content: text }] });
       const prepared = r.ok
         ? { ...parsePrepared(r.text, text), por: r.provider }

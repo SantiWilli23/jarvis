@@ -23,12 +23,10 @@ const dayOf = (t) => new Date(t).toISOString().slice(0, 10);
 export function createAgent({ db, bus, tasks, approvals, audit, permissions, state, motores = null, proModelos = null, now = () => Date.now() }) {
   const pc = state.pc;
   Object.assign(pc, { capabilities: null, online: false, last_seen: null, current_task: null, paused: false, version: null, host: null });
-  // Topes por motor: los de Gemini (tope_gemini) son independientes de los de Claude (tope_claude).
-  const caps = (engine = "claude") => {
-    const t = (engine === "gemini" ? permissions.tope_gemini : permissions.tope_claude) || {};
+  const caps = () => {
+    const t = permissions.tope_claude || {};
     return { por_tarea_tokens: t.por_tarea_tokens ?? null, diario_tareas: t.diario_tareas ?? null, diario_tokens: t.diario_tokens ?? null };
   };
-  const geminiModel = () => motores?.gemini?.modelo || "gemini-3.8-flash-high";
   const publish = (userId) => bus.emit("pc.status", { userId, ...api.view() });
   const setCaps = (c) => { if (c && typeof c === "object") pc.capabilities = cleanCaps(c); };
   const touch = () => { pc.last_seen = now(); };
@@ -36,17 +34,17 @@ export function createAgent({ db, bus, tasks, approvals, audit, permissions, sta
   const api = {
     caps,
     capabilities: () => pc.capabilities,
-    // Motores que el PC puede atender (según lo que informó): Claude siempre; Gemini solo con agy listo.
-    // Gemini del PC está APAGADO por defecto: solo motores_pc.gemini.activo === true lo enciende (config/providers.json).
+    // Interruptor del Modo Pro para su motor "gemini" (apagado por defecto): solo motores_pc.gemini.activo === true lo enciende.
     geminiActive: () => motores?.gemini?.activo === true,
-    engines: () => ["claude", ...(api.geminiReady() ? ["gemini"] : [])],
-    geminiReady: () => motores?.gemini?.activo === true && !!pc.capabilities?.gemini_cli?.ok,
-    // ¿Este motor llegó a su tope diario? (tareas o tokens)
-    async capped(userId, engine = "claude") {
-      const c = caps(engine), u = await api.usageToday(userId), x = engine === "gemini" ? u.gemini : u;
+    geminiReady: () => motores?.gemini?.activo === true && !!pc.capabilities?.gemini_cli?.ok, // lo usa el Modo Pro
+    // Motores de la cola de tareas que el PC atiende: solo Claude.
+    engines: () => ["claude"],
+    // ¿Claude llegó a su tope diario? (tareas o tokens)
+    async capped(userId) {
+      const c = caps(), x = await api.usageToday(userId);
       return (c.diario_tareas != null && x.tareas >= c.diario_tareas) || (c.diario_tokens != null && x.tokens >= c.diario_tokens);
     },
-    view() { return { online: pc.online, current_task: pc.current_task, paused: pc.paused, last_seen: pc.last_seen, host: pc.host, engines: api.engines(), gemini_activo: motores?.gemini?.activo === true }; },
+    view() { return { online: pc.online, current_task: pc.current_task, paused: pc.paused, last_seen: pc.last_seen, host: pc.host, engines: api.engines() }; },
     // Si el PC dejó de avisar, se marca desconectado (lo llama un temporizador y también /status).
     sweep(userId) {
       if (pc.online && now() - pc.last_seen > PC_TIMEOUT_MS) {
@@ -68,8 +66,8 @@ export function createAgent({ db, bus, tasks, approvals, audit, permissions, sta
       publish(userId);
       return {
         ok: true, interrumpidas: hung.changes || 0, caps: caps(), uso: await api.usageToday(userId),
-        permissions: { automatico: permissions.automatico, requiere_aprobacion: permissions.requiere_aprobacion, carpetas_permitidas: permissions.carpetas_permitidas, carpetas_gemini: permissions.carpetas_gemini || [], aprobacion_caduca_minutos: permissions.aprobacion_caduca_minutos },
-        motores: { gemini: { modelo: geminiModel(), activo: motores?.gemini?.activo === true } },
+        permissions: { automatico: permissions.automatico, requiere_aprobacion: permissions.requiere_aprobacion, carpetas_permitidas: permissions.carpetas_permitidas, aprobacion_caduca_minutos: permissions.aprobacion_caduca_minutos },
+        motores: { gemini: { activo: motores?.gemini?.activo === true } }, // interruptor del Modo Pro
         pro: { modelos_claude: proModelos ? proModelos() : [] }, // ids de Claude que el doctor debe verificar
       };
     },
@@ -89,9 +87,7 @@ export function createAgent({ db, bus, tasks, approvals, audit, permissions, sta
     async usageToday(userId) {
       const r = await get(db, "SELECT COUNT(DISTINCT task_id) AS tareas, COALESCE(SUM(tokens_in+tokens_out),0) AS tokens FROM claude_usage WHERE user_id=? AND day=?", [userId, dayOf(now())]);
       const ai = await all(db, "SELECT engine, COALESCE(SUM(tokens_in+tokens_out),0) AS tokens, COUNT(*) AS llamadas FROM ai_usage WHERE user_id=? AND day=? GROUP BY engine", [userId, dayOf(now())]);
-      const g = await get(db, "SELECT COUNT(*) AS tareas, COALESCE(SUM(tokens_in+tokens_out),0) AS tokens FROM ai_usage WHERE user_id=? AND day=? AND engine='gemini' AND role='tarea'", [userId, dayOf(now())]);
-      const gt = ai.find((x) => x.engine === "gemini");
-      return { tareas: Number(r.tareas), tokens: Number(r.tokens), gemini: { tareas: Number(g.tareas), tokens: Number(gt?.tokens || 0) }, ai: Object.fromEntries(ai.map((x) => [x.engine, { tokens: Number(x.tokens), llamadas: Number(x.llamadas) }])) };
+      return { tareas: Number(r.tareas), tokens: Number(r.tokens), ai: Object.fromEntries(ai.map((x) => [x.engine, { tokens: Number(x.tokens), llamadas: Number(x.llamadas) }])) };
     },
     // Entrega la siguiente tarea, solo de los motores que el PC atiende y que no llegaron a su tope diario.
     async claim(userId) {
@@ -141,9 +137,7 @@ export function createAgent({ db, bus, tasks, approvals, audit, permissions, sta
       const st = ["hecha", "fallida", "rechazada", "tope_tarea"].includes(status) ? status : "fallida";
       const out = await tasks.finish(userId, taskId, { status: st, result: result == null ? null : String(result).slice(0, 20000) });
       const tin = Math.max(0, Math.floor(Number(usage.tokens_in) || 0)), tout = Math.max(0, Math.floor(Number(usage.tokens_out) || 0));
-      // Cada motor cuenta en su propia tabla: Claude en claude_usage, Gemini en ai_usage (topes independientes).
-      if (t.engine === "gemini") await run(db, "INSERT INTO ai_usage (user_id, day, engine, model, role, job_id, tokens_in, tokens_out, created_at) VALUES (?,?,?,?,?,?,?,?,?)", [userId, dayOf(now()), "gemini", geminiModel(), "tarea", null, tin, tout, now()]);
-      else await run(db, "INSERT INTO claude_usage (user_id, task_id, day, tokens_in, tokens_out, created_at) VALUES (?,?,?,?,?,?)", [userId, taskId, dayOf(now()), tin, tout, now()]);
+      await run(db, "INSERT INTO claude_usage (user_id, task_id, day, tokens_in, tokens_out, created_at) VALUES (?,?,?,?,?,?)", [userId, taskId, dayOf(now()), tin, tout, now()]);
       pc.current_task = null; publish(userId);
       await audit?.log({ userId, action: `tarea.${st}`, detail: `#${t.seq} ${tin + tout} tokens` });
       return { ok: true, task: out };
