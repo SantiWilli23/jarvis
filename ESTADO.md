@@ -10,6 +10,8 @@
 
 **Queda:** el Modo Pro conserva el interruptor `motores_pc.gemini.activo` (apagado) y los archivos del CLI de Gemini del runner; quitarlos es decisión aparte. Push/deploy con permiso; una ronda Pro real; claves vistas en el chat, Telegram, Google, Spotify, WhatsApp.
 
+**Navegador:** contrato `solo_preparar` en el PC (prompt_listo sin enviar ni leer; aviso "copiado" si falla el selector).
+
 **Siguiente paso:** fases del Pro web (servidor, escritorio, interfaz); push y deploy con permiso.
 
 **Verificar:** `npm test`; `node --test test/gemini-prefijo.test.js`; abrir `/`, `/m` y `/estudio` sin errores de consola.
