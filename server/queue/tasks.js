@@ -6,8 +6,7 @@ import { all, get, run } from "../db/client.js";
 export const MAX_FOTO_BYTES = 4 * 1024 * 1024;
 export const MAX_FOTOS_POR_TAREA = 3;
 const EDITABLES = ["pendiente", "por_revisar"];
-export const ENGINES = ["claude", "gemini"]; // lista cerrada de motores del PC
-const REASIGNABLES = ["pendiente", "por_revisar", "fallida", "rechazada", "interrumpida", "tope_tarea"];
+export const ENGINES = ["claude"]; // lista cerrada de motores del PC
 
 export const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 
@@ -92,14 +91,6 @@ export function createTasks({ db, bus, now = () => Date.now() }) {
       const task = toTask(r[0]);
       emit(task);
       return task;
-    },
-    // "Pasar a Claude": cambia el motor y la vuelve a la cola (lo privado solo puede ir a Claude, nunca a Gemini).
-    async reassign(userId, id, engine) {
-      if (!ENGINES.includes(engine)) return { ok: false, reason: "motor_invalido" };
-      const r = await run(db, `UPDATE tasks SET engine=?, status='pendiente', result=NULL, claimed_by=NULL, updated_at=? WHERE id=? AND user_id=? AND status IN (${REASIGNABLES.map((s) => `'${s}'`).join(",")})`, [engine, now(), id, userId]);
-      if (!r.changes) return { ok: false, reason: "no_reasignable" };
-      const task = await api.get(userId, id); emit(task);
-      return { ok: true, task };
     },
     async setStatus(userId, id, status) {
       await run(db, "UPDATE tasks SET status=?, updated_at=? WHERE id=? AND user_id=?", [status, now(), id, userId]);

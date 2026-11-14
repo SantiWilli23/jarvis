@@ -16,7 +16,6 @@ import { createInbox } from "./memory/inbox.js";
 import { createTasks } from "./queue/tasks.js";
 import { createDirect } from "./queue/direct.js";
 import { createPrepare } from "./queue/prepare.js";
-import { GeminiProvider } from "./providers/gemini.js";
 import { createApprovals } from "./approvals.js";
 import { createAgent } from "./agent.js";
 import { createAudit } from "./audit.js";
@@ -65,10 +64,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const audit = createAudit({ db, now });
   const tasks = createTasks({ db, bus, now });
   const direct = createDirect({ tasks });
-  // Planificador de Gemini (Hydrogen, gratis, por la API de Google; no necesita el PC). Solo con clave real.
-  const g = providers.gemini;
-  const planner = g?.enabled && g.apiKey ? new GeminiProvider({ apiKey: g.apiKey, fetch: g.fetch, model: config.motores_pc?.gemini?.planificador || "gemini-4-hydrogen" }) : null;
-  const prepare = createPrepare({ router, tasks, planner, privacy, bus });
+  const prepare = createPrepare({ router, tasks });
   const approvals = createApprovals({ db, bus, audit, now });
   const phone = createPhoneQueue({ db, bus, approvals, audit, config: loadJson("phone-actions.json"), now });
   const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, motores: config.motores_pc, now });
@@ -104,10 +100,10 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
         pausado_hasta: paused ? s.paused_until : null, activo: state.lastProvider === id,
       };
     });
-    const puestos = config.puestos.map((p) => ({ id: p.id, nombre: p.nombre, rol: p.rol, pc: !!p.pc, estado: p.pc ? (p.id === "gemini_pc" && !agent.geminiActive() ? "apagado" : ((p.id === "gemini_pc" ? agent.view().online && agent.geminiReady() : agent.view().online) ? "activo" : "pc_apagado")) : (providers[p.proveedor || p.id]?.enabled ? "activo" : "apagado") }));
+    const puestos = config.puestos.map((p) => ({ id: p.id, nombre: p.nombre, rol: p.rol, pc: !!p.pc, estado: p.pc ? (agent.view().online ? "activo" : "pc_apagado") : (providers[p.proveedor || p.id]?.enabled ? "activo" : "apagado") }));
     const q = await tasks.counts(userId);
-    const queue = (await tasks.list(userId)).filter((x) => ["pendiente", "por_revisar", "reclamada", "en_curso"].includes(x.status) || (x.engine === "gemini" && ["fallida", "rechazada", "interrumpida"].includes(x.status))).reverse()
-      .map((x) => ({ id: x.id, seq: x.seq, mode: x.mode, engine: x.engine, status: x.status, text: x.text.slice(0, 200), res: x.engine === "gemini" && x.result && !["pendiente", "por_revisar"].includes(x.status) ? String(x.result).slice(-200) : null, pasos: x.prepared?.pasos?.length || 0, por: x.prepared?.por || null, at: x.created_at }));
+    const queue = (await tasks.list(userId)).filter((x) => ["pendiente", "por_revisar", "reclamada", "en_curso"].includes(x.status)).reverse()
+      .map((x) => ({ id: x.id, seq: x.seq, mode: x.mode, engine: x.engine, status: x.status, text: x.text.slice(0, 200), pasos: x.prepared?.pasos?.length || 0, por: x.prepared?.por || null, at: x.created_at }));
     const lastSync = await get(db, "SELECT value FROM settings WHERE user_id=? AND key='ultima_sync_pc'", [userId]);
     const conn = (id, n, ok) => ({ id, nombre: n, ok: !!ok, usa: isUsing(id) });
     return {
@@ -117,7 +113,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
       queue: { items: queue, total: queue.length, porEstado: q },
       pc: (agent.sweep(), agent.view()),
       connections: [conn("groq", "Groq", providers.groq?.enabled), conn("gemini", "Gemini", providers.gemini?.enabled), conn("openrouter", "OpenRouter", providers.openrouter?.enabled),
-        conn("claude_pc", "Claude (PC)", agent.view().online), conn("gemini_pc", "Gemini (PC)", agent.geminiActive() && agent.view().online && agent.geminiReady()), conn("telegram", "Telegram", !!env.TELEGRAM_BOT_TOKEN),
+        conn("claude_pc", "Claude (PC)", agent.view().online), conn("telegram", "Telegram", !!env.TELEGRAM_BOT_TOKEN),
         conn("turso", "Turso", !!env.DATABASE_URL), conn("render", "Render", !!env.RENDER), conn("gmail", "Gmail", await ext?.google.connected(userId)), conn("calendar", "Calendar", await ext?.google.connected(userId)), conn("spotify", "Spotify", await ext?.spotify.connected(userId)),
         conn("juegos", "Juegos", ext?.games.enabled), conn("whatsapp", "WhatsApp", ext?.whatsapp.enabled)],
       pro: await pro.status(userId),

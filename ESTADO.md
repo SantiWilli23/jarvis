@@ -1,14 +1,14 @@
 <!-- estado-proyecto -->
 # Estado de Jarvis (13-nov-2026)
 
-**Pedido:** Jarvis personal gratis (orbe azul, voz Algenib), en Render+Turso, con control del PC/iPhone y Modo Pro (Claude y Gemini/`agy` programando con verificación cruzada).
+**Pedido:** Jarvis personal gratis (orbe azul, voz Algenib), en Render+Turso, con control del PC/iPhone y Modo Pro (Claude y Gemini programando con verificación cruzada).
 
-**Hecho:** nube Render+Turso, cadena gratis de IAs, web y `/m`, cola del teléfono. Clásico y Pro en `main` y desplegados hasta c5a6d43. Local (sin push, 871817e): runner adaptado a `agy` real (`--mode plan`, modelos `gemini-3.8-flash-*`, login por `agy models`). PC: Claude Code y `agy` instalados con login, app de escritorio enrolada contra Render, `carpetas_permitidas` = jarvis; doctor lo detecta todo.
+**Hecho:** nube Render+Turso, cadena gratis de IAs, web y `/m`, cola del teléfono. Clásico y Pro en `main`. Rama `quitar-agy` (sin push): se quitó el Gemini del PC de la cola de tareas (motor, topes, planificador, selector, puesto `gemini_pc`, "Pasar a Claude"); `/gemini ...` ahora contesta por la API con el proveedor gemini primero (privado: Groq) y no encola. Caché web v9.
 
-**Queda:** push/deploy de 871817e (pendiente de permiso); probar `agy --mode accept-edits` real, 429/503 reales, bloqueo de comandos con `agy` real, una ronda Pro completa; confirmar que el plan de `agy` llega completo en el mensaje; Gemini Pro/Argon no existe en la cuenta. Aparte: limpiar worktrees `jarvis-p1..p4`, regenerar claves vistas en el chat, Telegram, Google, Spotify, WhatsApp.
+**Queda:** el motor Gemini del Modo Pro sigue usando los archivos de Antigravity CLI del runner y `motores_pc.gemini.activo` (interruptor de Pro, apagado); quitarlo es decisión aparte. Push/deploy pendientes de permiso; una ronda Pro real; claves vistas en el chat, Telegram, Google, Spotify, WhatsApp.
 
-**Coordinador Groq (rama pro-groq-coordinador, sin push):** Groq coordina en Pro (habla, consulta a Claude/Gemini solo lectura, propone; el usuario aprueba con botón); fallback al flujo clásico. Probado con Groq simulado; sin probar con Groq real. Ver docs/PRO.md.
+**Coordinador Groq (rama pro-groq-coordinador, sin push):** Groq coordina en Pro; el usuario aprueba con botón. Ver docs/PRO.md.
 
-**Siguiente paso:** con permiso, push y deploy; luego una ronda Pro real en un repo de prueba.
+**Siguiente paso:** revisar y mergear `quitar-agy`; luego push y deploy con permiso.
 
-**Verificar:** `npm test` (145); `node --test test/pro-e2e.test.js`; guía docs/GUIA-USUARIO.md sección 15. Sin probar: ronda real, iPhone.
+**Verificar:** `npm test`; `node --test test/gemini-prefijo.test.js`; abrir `/` y `/m` sin errores de consola.
