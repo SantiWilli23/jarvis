@@ -1,13 +1,8 @@
 <!-- estado-proyecto -->
-# Estado de Jarvis (14-nov-2026)
-**Pedido:** Jarvis personal gratis (orbe azul, voz Algenib), en Render+Turso, con control del PC/iPhone, Modo Pro y Estudio/Navegador.
-**Hecho:** nube Render+Turso, cadena gratis de IAs, web y `/m`, cola del teléfono, Pro con ids Claude 5.5 y sonda en el doctor, Estudio (`/estudio`, Gemini por API, privado bloqueado) y Navegador de Jarvis. Rama `quitar-agy` (sin push, con main mezclado): la cola de tareas ya no usa Gemini del PC (motor, topes, planificador, puesto `gemini_pc`, "Pasar a Claude"); `/gemini ...` contesta por la API con el proveedor gemini primero (privado: Groq) y no encola. Caché web v10.
-**Groq primero (rama groq-primero):** cadena Groq>OpenRouter>Cloudflare>Ollama; Gemini solo bajo pedido (`solo_bajo_pedido`; /gemini, "pregúntale a Gemini", "... con Gemini" o motor Gemini del selector). La búsqueda web y la voz Algenib no cambian.
-**GitHub (rama github-lectura):** conector solo lectura `server/connectors/github.js` + `/api/github/*` (status, repos, branches); llaves fine-grained `GITHUB_TOKEN(S)` en .env y Render; guía en docs. Sin token real no probado; el Pro web aún no.
-**Pro web, servidor (rama pro-web):** hilos modo web (gh_repo/gh_rama validados contra GitHub), traductor Groq (`server/pro/traductor.js`), `server/pro/web.js` (enviar copiar/asistido, revisión cruzada, sondeo, vincular PR/rama, marcar hecha), tabla `pro_web_envios`; Pro local escondido (`local_visible:false`). Pruebas `test/pro-modo-web.test.js`. Sin GitHub real no probado.
-**Pro web, interfaz (rama pro-web-ui):** `web/js/pro-web.js` (render puro, errores en español, copiar y abrir síncrono, controlador), pestaña Pro con desplegables de repo/rama y tarjeta de ronda web, hoja «Pro web» en /m (`movil-pro.js`), docs PRO.md y GUIA-USUARIO.md; `test/pro-web-ui.test.js`. Sin navegador, iPhone ni GitHub real no probado.
-**Control del PC, Ola 0+1 (rama control-pc-ola0):** cola propia `pc_actions` (`server/pc/queue.js`, `config/pc-actions.json`, rutas `/api/pc/*` y `/api/agent/pc/next|:id/result`); PC: `desktop/runner/pc-spec.js` (validación), `pc-exec.js` (teclas multimedia/volumen por PowerShell fijo, bloquear, suspender, apagar/reiniciar con aprobación, temporizador, apps de lista, estado, portapapeles), `pc-worker.js` (sondeo 2,5 s). Chat: reglas + Groq tipado (`server/pc/intents.js`); lo ambiguo va al dispositivo de origen. Sin probar en Windows real. `test/pc-actions.test.js`.
-**Queda:** el Modo Pro conserva el interruptor `motores_pc.gemini.activo` (apagado) y los archivos del CLI de Gemini del runner; quitarlos es decisión aparte. Push/deploy con permiso; una ronda Pro real; claves vistas en el chat, Telegram, Google, Spotify, WhatsApp.
-**Navegador:** contrato `solo_preparar` en el PC (prompt_listo sin enviar ni leer; aviso "copiado" si falla el selector).
-**Siguiente paso:** probar Pro web en navegador/iPhone con llave GitHub real; push y deploy con permiso.
-**Verificar:** `npm test`; `node --test test/gemini-prefijo.test.js`; abrir `/`, `/m` y `/estudio` sin errores de consola.
+# Estado de Jarvis (14-nov-2026) - rama youtube-musica
+**Pedido:** música desde el iPhone con sus playlists de YouTube Music, costo cero, solo lectura.
+**Hecho (servidor):** scope `youtube.readonly`, `server/connectors/youtube.js` (playlists, pistas, búsqueda, cuota 'youtube' en hora del Pacífico, caché cifrada `yt:*`), `server/music/*` (órdenes sin modelo), paso de música en `chat-service` (`status:"musica"`, private=1), herramientas `youtube.*`, `/api/connect` con `youtube`, CSP para el reproductor, docs.
+**Contrato web:** `reproductor:{activo}` en `/api/chat`; respuesta `musica:{op,items,index,titulo,fuente,abrir}`; herramientas devuelven `items`.
+**Queda:** la web (reproductor IFrame, en otra rama), activar YouTube Data API v3 y reconectar Google, probar con cuenta real. Sin push ni merge.
+**Otras ramas:** control del PC (Ola 0+1), Pro web, GitHub lectura, Groq primero: ver docs/PLAN.md.
+**Verificar:** `npm test` (299 pruebas); `node --test test/youtube.test.js test/musica-chat.test.js test/musica-intents.test.js`.

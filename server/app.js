@@ -29,8 +29,8 @@ const WEB = fileURLToPath(new URL("../web", import.meta.url));
 
 // CSP: solo scripts propios (sin inline), fuentes de Google, WebSocket al mismo servidor, audio/blob del TTS.
 export const csp = (host = "") => [
-  "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: blob:", "media-src 'self' blob: data:", `connect-src 'self'${host ? ` wss://${host} ws://${host}` : ""}`,
+  "default-src 'self'", "script-src 'self' https://www.youtube.com https://s.ytimg.com", "frame-src https://www.youtube-nocookie.com https://www.youtube.com", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https://i.ytimg.com", "media-src 'self' blob: data:", `connect-src 'self'${host ? ` wss://${host} ws://${host}` : ""}`,
   "worker-src 'self'", "manifest-src 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'",
 ].join("; ");
 

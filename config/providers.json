@@ -10,6 +10,7 @@
     { "id": "grok", "nombre": "Grok", "rol": "Datos y videos (apagado hasta pegar clave)", "proveedor": "xai", "sustituto": "groq", "apagado": true },
     { "id": "perplexity", "nombre": "Perplexity", "rol": "Investigar (apagado hasta pegar clave)", "proveedor": "perplexity", "sustituto": "groq", "apagado": true }
   ],
+  "youtube": { "tope_unidades_dia": 8000, "max_busquedas_dia": 50, "cache_busqueda_dias": 7, "cache_playlists_horas": 12, "cache_pistas_horas": 6, "max_pistas": 200 },
   "voz": {
     "nota": "Cadena de voz: frases pregrabadas > Gemini TTS > MiniMax > voz del navegador. Lo privado nunca sale a Gemini ni a MiniMax. Los topes de Gemini son propios (verifique su cuota real en la consola).",
     "max_caracteres": 400,

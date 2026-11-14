@@ -4,6 +4,7 @@ import { detectDirect } from "./queue/direct.js";
 import { detectPedidoGemini } from "./router/pedido.js";
 import { classify } from "./router/classify.js";
 import { parsePhoneIntent, phoneReply } from "./phone/intents.js";
+import { parseMusicIntent, CONTROLES } from "./music/intents.js";
 import { getModo } from "./settings.js";
 import { detectDestino, stripDestino, parsePcIntent, interpretWithModel, pcReply, pcError } from "./pc/intents.js";
 
@@ -14,7 +15,7 @@ const MSG_SIN_CUOTA = "Mis proveedores gratuitos llegaron a su límite por ahora
 
 const MOTORES = ["auto", "flash", "gemini", "claude"]; // lista cerrada del selector del chat
 
-export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, pc = null, persona = "", webSearch = null, agent = null, now = () => Date.now() }) {
+export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, pc = null, persona = "", webSearch = null, agent = null, getMusic = () => null, now = () => Date.now() }) {
   async function ensureConversation(userId, id, firstText) {
     if (id) {
       const c = await get(db, "SELECT id FROM conversations WHERE id=? AND user_id=?", [id, userId]);
@@ -35,7 +36,7 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       const found = await search.search({ userId, query: String(text ?? ""), k: 4, tokenBudget: 600, includePrivate: true });
       return privacy.isPrivateMessage({ flag: flagPrivate, classification: cls, notes: found.notes });
     },
-    async handle({ userId, text, conversationId, flagPrivate = false, source = "texto", engine = "auto", origen = null }) {
+    async handle({ userId, text, conversationId, flagPrivate = false, source = "texto", engine = "auto", origen = null, reproductor = null }) {
       const motor = MOTORES.includes(engine) ? engine : "auto";
       const chatSolo = (await getModo(db, userId)) === "chat"; // el servidor decide, no el cliente
       let original = String(text ?? "");
@@ -65,6 +66,21 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
         bus?.emit("chat.done", { userId, text: reply, provider: "cola" });
         state(userId, "speaking");
         return { status: "tarea", conversationId: conv, reply, task: { id: task.id, seq: task.seq, sha256: task.sha256, engine: task.engine } };
+      }
+
+      // 1a) Música (YouTube Music): sin modelo y solo texto. Los controles (pausa, siguiente...) solo se atienden aquí si el
+      // reproductor de la web está activo; si no, siguen de largo y se conserva la cola del teléfono. Todo se guarda como privado.
+      const music = !chatSolo ? getMusic() : null;
+      if (music?.enabled) {
+        const mi = parseMusicIntent(original);
+        if (mi && !(CONTROLES.includes(mi.op) && !reproductor?.activo) && (await music.acepta(userId, mi, { reproductor }))) {
+          const out = source === "atajo" ? { reply: "Ábralo en Jarvis o en YouTube Music, señor.", musica: null } : await music.resolve(userId, mi, { reproductor });
+          await saveMsg(userId, conv, "user", original, null, true);
+          await saveMsg(userId, conv, "assistant", out.reply, "musica", true);
+          bus?.emit("chat.done", { userId, text: out.reply, provider: "musica" });
+          state(userId, "idle");
+          return { status: "musica", conversationId: conv, reply: out.reply, private: true, musica: out.musica };
+        }
       }
 
       // 1b) Orden fija para el teléfono ("enciende la linterna", "brillo al 30"): sin modelo

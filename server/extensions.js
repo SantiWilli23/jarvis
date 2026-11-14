@@ -5,6 +5,8 @@ import { createConnections } from "./connections.js";
 import { createOAuthStates } from "./oauth-state.js";
 import { createTelegram } from "./connectors/telegram.js";
 import { createGoogle } from "./connectors/google.js";
+import { createYouTube } from "./connectors/youtube.js";
+import { createMusic } from "./music/service.js";
 import { createSpotify } from "./connectors/spotify.js";
 import { createGames } from "./connectors/games.js";
 import { createWhatsApp } from "./connectors/whatsapp.js";
@@ -20,11 +22,13 @@ export function buildExtensions(ctx, { fetch: f } = {}) {
     tools: { run: (x) => tools.run(x) } });
   const notify = (text, extra) => telegram.notify(text, extra);
   const google = createGoogle({ env, fetch: f, connections, crypto, now });
+  const youtube = createYouTube({ google, db, crypto, config: ctx.config?.youtube, fetch: f, now });
+  const music = createMusic({ youtube, now });
   const spotify = createSpotify({ env, fetch: f, connections, crypto, now });
   const games = createGames({ env, fetch: f });
   const whatsapp = createWhatsApp({ env, fetch: f, db, notify, ownerId: ctx.ownerId, now });
   const tools = createTools({ db, approvals: ctx.approvals, audit: ctx.audit, bus, permissions: ctx.permissions, websearch: ctx.websearch,
-    google, spotify, games, whatsapp, phone: ctx.phone, notify, status: ctx.status, now });
+    google, youtube, spotify, games, whatsapp, phone: ctx.phone, notify, status: ctx.status, now });
   const cron = createCron({ db, notify, state: ctx.state, status: ctx.status, ownerId: ctx.ownerId, env, now, bus, proWeb: ctx.pro.orch.web });
-  return { crypto, connections, oauthStates, telegram, notify, google, spotify, games, whatsapp, tools, cron };
+  return { crypto, connections, oauthStates, telegram, notify, google, youtube, music, spotify, games, whatsapp, tools, cron };
 }

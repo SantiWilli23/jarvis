@@ -5,8 +5,9 @@
 // y NUNCA se pasan a ningún modelo desde aquí (este módulo no llama al enrutador).
 import { run } from "../db/client.js";
 import { parsePhoneIntent, phoneReply } from "../phone/intents.js";
+import { bestMatch } from "../music/match.js";
 
-export function createTools({ db, approvals, audit, bus, permissions, websearch, google, spotify, games, whatsapp, phone, notify, status, now = () => Date.now() }) {
+export function createTools({ db, approvals, audit, bus, permissions, websearch, google, youtube, spotify, games, whatsapp, phone, notify, status, now = () => Date.now() }) {
   const list = new Map();
   const add = (t) => list.set(t.name, t);
   const off = (c) => () => !!c?.enabled;
@@ -66,6 +67,24 @@ export function createTools({ db, approvals, audit, bus, permissions, websearch,
   add({ name: "google.crear_evento", desc: "Crea un evento en Calendar (APROBACIÓN)", mode: "approval", private: true, enabled: off(google),
     summary: (a) => `Crear evento "${a.summary}" ${a.start}`, validate: (a) => a.summary && a.start && a.end,
     run: async (u, a) => { await google.createEvent(u, a); return { text: `Evento "${a.summary}" creado.` }; } });
+
+  // YouTube (solo lectura). Playlists y pistas son datos personales; la búsqueda pública no.
+  const pistas = (l) => l.map((x) => `- ${x.titulo}${x.canal ? ` (${x.canal})` : ""}`).join("\n");
+  add({ name: "youtube.buscar", desc: "Busca canciones en YouTube (cuesta 100 unidades de cuota; max 5)", mode: "auto", private: false, enabled: off(youtube),
+    validate: (a) => typeof a.q === "string" && a.q.trim().length > 0,
+    run: async (u, a) => { const r = await youtube.search(u, { q: a.q, max: Math.min(Number(a.max) || 5, 5) }); return { items: r, data: r, text: r.length ? pistas(r) : "Sin resultados." }; } });
+  add({ name: "youtube.mis_playlists", desc: "Sus playlists de YouTube", mode: "auto", private: true, enabled: off(youtube),
+    run: async (u) => { const r = await youtube.playlists(u); return { items: r, data: r, text: r.length ? r.map((p) => `- ${p.titulo}${p.n != null ? ` (${p.n})` : ""}`).join("\n") : "Sin playlists." }; } });
+  add({ name: "youtube.playlist", desc: "Canciones de una playlist (id o nombre)", mode: "auto", private: true, enabled: off(youtube),
+    validate: (a) => !!(a.id || a.nombre),
+    run: async (u, a) => {
+      let id = a.id;
+      if (!id) { id = bestMatch(await youtube.playlists(u), a.nombre).mejor?.id; if (!id) throw new Error("no_encontrado"); }
+      const r = await youtube.items(u, id);
+      return { items: r, data: r, text: r.length ? pistas(r) : "Sin canciones reproducibles." };
+    } });
+  add({ name: "youtube.cuota", desc: "Cuota de YouTube usada hoy", mode: "auto", private: false, enabled: off(youtube),
+    run: async (u) => { const r = await youtube.usage(u); return { ...r, data: r, text: `Cuota de YouTube hoy: ${r.unidades} de ${r.tope} unidades.${r.pausado_hasta ? " En pausa hasta la medianoche del Pacífico." : ""}` }; } });
 
   // Spotify
   add({ name: "spotify.escuchando", desc: "Qué suena ahora", mode: "auto", private: true, enabled: off(spotify), run: async (u) => {
