@@ -73,9 +73,20 @@ export function renderPc(pc) {
 }
 
 // Tarjeta ámbar de permiso
+const esPc = (a) => typeof a?.kind === "string" && a.kind.startsWith("pc:");
+// Parámetros del PC en texto legible ("clave: valor"); el detalle viene como JSON.
+function detalleLegible(a) {
+  if (!a?.detail) return "Esta acción necesita su aprobación.";
+  if (!esPc(a)) return a.detail;
+  try {
+    const p = JSON.parse(a.detail);
+    if (p && typeof p === "object") return Object.entries(p).map(([k, v]) => k + ": " + v).join(", ") || "Sin parámetros.";
+  } catch { /* texto plano */ }
+  return a.detail;
+}
 export function showApproval(a) {
-  $("permk").textContent = a ? "Claude pide permiso" : "";
+  $("permk").textContent = a ? (esPc(a) ? "El PC pide permiso" : "Claude pide permiso") : "";
   $("permcode").textContent = a?.summary || "";
-  $("permp").textContent = a?.detail || "Esta acción necesita su aprobación.";
+  $("permp").textContent = detalleLegible(a);
   $("perm").classList.toggle("show", !!a);
 }

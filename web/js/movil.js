@@ -4,6 +4,7 @@ import { api, getToken, getConnect, runTool, googleStart } from "./api.js";
 import { store, setState } from "./state.js";
 import { showApproval } from "./panels.js";
 import { proAbrir, proCerrar } from "./movil-pro.js";
+import { initAccionesPc, refrescarAccionesPc } from "./acciones-pc.js";
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -35,7 +36,7 @@ function openSheet(name) {
   void s.offsetHeight; // reflujo para que corra la transición
   s.classList.add("on"); $("scrim").classList.add("on");
   document.querySelectorAll(".dock [data-open]").forEach((b) => b.classList.toggle("on", b.dataset.open === name));
-  if (name === "tel") loadPhone();
+  if (name === "tel") { loadPhone(); refrescarAccionesPc(); }
   if (name === "cola") { loadPhone(); }
   if (name === "mas") renderMas();
   if (name === "musica") abrirMusica();
@@ -95,6 +96,14 @@ $("sayform").addEventListener("focusout", (e) => {
   setTimeout(() => { if (!$("sayform").contains(document.activeElement)) closeKeyboard(); }, 200);
 });
 $("orb").addEventListener("click", () => { closeKeyboard(); closeSheet(); }, true);
+
+/* ---------- hoja Control: pestañas iPhone / PC ---------- */
+initAccionesPc({ visible: () => current === "tel" && !$("ctab-pc").hidden });
+document.querySelectorAll("#sh-tel .tabs [data-ctab]").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll("#sh-tel .tabs [data-ctab]").forEach((x) => x.classList.toggle("on", x === b));
+  $("ctab-ios").hidden = b.dataset.ctab !== "ios"; $("ctab-pc").hidden = b.dataset.ctab !== "pc";
+  if (b.dataset.ctab === "pc") refrescarAccionesPc();
+}));
 
 /* ---------- pestañas de la hoja Cola ---------- */
 document.querySelectorAll("#sh-cola .tabs [data-tab]").forEach((b) => b.addEventListener("click", () => {
