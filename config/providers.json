@@ -5,10 +5,10 @@
   "motores_pc": { "por_defecto": "claude", "gemini": { "activo": false } },
   "puestos": [
     { "id": "claude", "nombre": "Claude Pro", "rol": "Solo PC · tope diario", "pc": true },
-    { "id": "chatgpt", "nombre": "ChatGPT", "rol": "Revisor de fallas · fotos (apagado hasta pegar clave)", "proveedor": "openai", "sustituto": "gemini", "apagado": true },
-    { "id": "gemini", "nombre": "Gemini", "rol": "Fotos · preguntas medias" },
+    { "id": "chatgpt", "nombre": "ChatGPT", "rol": "Revisor de fallas · fotos (apagado hasta pegar clave)", "proveedor": "openai", "sustituto": "groq", "apagado": true },
+    { "id": "gemini", "nombre": "Gemini", "rol": "Solo si lo pide (/gemini, Estudio)" },
     { "id": "grok", "nombre": "Grok", "rol": "Datos y videos (apagado hasta pegar clave)", "proveedor": "xai", "sustituto": "groq", "apagado": true },
-    { "id": "perplexity", "nombre": "Perplexity", "rol": "Investigar (apagado hasta pegar clave)", "proveedor": "perplexity", "sustituto": "gemini", "apagado": true }
+    { "id": "perplexity", "nombre": "Perplexity", "rol": "Investigar (apagado hasta pegar clave)", "proveedor": "perplexity", "sustituto": "groq", "apagado": true }
   ],
   "voz": {
     "nota": "Cadena de voz: frases pregrabadas > Gemini TTS > MiniMax > voz del navegador. Lo privado nunca sale a Gemini ni a MiniMax. Los topes de Gemini son propios (verifique su cuota real en la consola).",
@@ -64,7 +64,8 @@
       }
     ]
   },
-  "cadena_gratis": ["gemini", "groq", "openrouter", "cloudflare", "ollama"],
+  "cadena_gratis": ["groq", "openrouter", "cloudflare", "ollama"],
+  "solo_bajo_pedido": ["gemini"],
   "proveedores": {
     "gemini":     { "nombre": "Gemini Flash", "rol": "Fotos · preguntas medias", "env": "GEMINI_API_KEY", "modelo": "gemini-3.8-flash", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
     "groq":       { "nombre": "Groq gpt-oss-120b", "rol": "Rápido · lo privado", "env": "GROQ_API_KEY", "modelo": "openai/gpt-oss-120b", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
@@ -78,13 +79,13 @@
     "fake":       { "nombre": "Proveedor de pruebas", "rol": "Sin claves · respuestas simuladas", "limites": { "rpm": null, "rpd": null } }
   },
   "orden_por_tipo": {
-    "charla": ["groq", "gemini"],
-    "razonamiento": ["gemini", "groq"],
-    "foto_video": ["openai", "gemini"],
-    "investigacion": ["perplexity", "gemini", "groq"],
-    "revision": ["openai", "gemini", "groq"],
-    "datos": ["xai", "groq", "gemini"],
-    "accion_pc": ["groq", "gemini"],
+    "charla": ["groq"],
+    "razonamiento": ["groq"],
+    "foto_video": ["openai", "groq"],
+    "investigacion": ["perplexity", "groq"],
+    "revision": ["openai", "groq"],
+    "datos": ["xai", "groq"],
+    "accion_pc": ["groq"],
     "privado": ["groq"]
   }
 }
