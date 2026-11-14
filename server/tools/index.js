@@ -40,7 +40,7 @@ export function createTools({ db, approvals, audit, bus, permissions, websearch,
       if (a.frase && !accion) {
         const p = parsePhoneIntent(a.frase, phone.config);
         if (p) { accion = p.action; args = p.args; }
-        else { const [x, ...v] = String(a.frase).trim().split(/s+/); accion = x; args = { valor: v.join(" ") }; }
+        else { const [x, ...v] = String(a.frase).trim().split(/\s+/); accion = x; args = { valor: v.join(" ") }; }
       }
       const out = await phone.create({ userId, action: String(accion || ""), args, source: "tool" });
       if (!out.ok) throw new Error(out.error);

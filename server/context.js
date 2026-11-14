@@ -22,6 +22,7 @@ import { createApprovals } from "./approvals.js";
 import { createAgent } from "./agent.js";
 import { createAudit } from "./audit.js";
 import { createPhoneQueue } from "./phone/queue.js";
+import { createPcQueue } from "./pc/queue.js";
 import { createStt } from "./stt.js";
 import { createChatService } from "./chat-service.js";
 import { createTts } from "./tts.js";
@@ -71,13 +72,14 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const approvals = createApprovals({ db, bus, audit, now });
   const phone = createPhoneQueue({ db, bus, approvals, audit, config: loadJson("phone-actions.json"), now });
   const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, motores: config.motores_pc, proModelos: () => claudeIds(loadProConfig()), now });
+  const pc = createPcQueue({ db, bus, approvals, audit, agent, config: loadJson("pc-actions.json"), now });
   const github = createGitHub({ env, fetch: f, now });
   const pro = createPro({ github: () => github, browser: () => browser, chat: () => chat, db, bus, agent, approvals, audit, permissions, now, quota, groq: () => providers.groq });
   const sessions = createSessions({ db, now });
   const limiter = createLoginLimiter({ db, now });
   const stt = createStt({ apiKey: env.GROQ_API_KEY, fetch: f });
   const websearch = createWebSearch({ providers, quota, config: config.busqueda, fetch: f, env, now });
-  const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, phone, persona, webSearch: websearch, agent, now });
+  const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, phone, pc, persona, webSearch: websearch, agent, now });
   let ext = null; // conectores de las fases 4-6 (se arman al final)
   const studio = createStudio({ db, config: config.estudio, providers, chat, privacy, now });
   const browser = createBrowser({ db, config: loadJson("browser-sites.json"), agent, chat, privacy, bus, audit, now });
@@ -129,7 +131,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   }
 
   const base = { db, env, config, permissions, persona, ownerId, providers, chain, keyless, privacy, quota, bus, state, router,
-    notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, agent, pro, github, sessions, limiter, stt, tts, studio, browser, chat, websearch, status, now, fts };
+    notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, pc, agent, pro, github, sessions, limiter, stt, tts, studio, browser, chat, websearch, status, now, fts };
   ext = buildExtensions(base, { fetch: f });
   const despertador = createDespertador({ env, bus, audit, getGoogle: () => ext?.google, now });
   const push = createPush({ db, env, bus, audit, ownerId, webpush: webpushOverride === undefined ? await loadWebPush() : webpushOverride, now });

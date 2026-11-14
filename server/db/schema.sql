@@ -160,6 +160,22 @@ CREATE TABLE IF NOT EXISTS phone_actions (
   done_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_phone_actions_user_status ON phone_actions (user_id, status, id);
+-- Cola de acciones del PC (Ola 0). Estados: aprobacion | lista | reclamada | hecha | fallida | rechazada | caducada.
+CREATE TABLE IF NOT EXISTS pc_actions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  action TEXT NOT NULL,
+  params TEXT,
+  status TEXT NOT NULL,
+  result TEXT,
+  approved INTEGER NOT NULL DEFAULT 0,
+  approval_id INTEGER,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  claimed_at INTEGER,
+  done_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_pc_actions_user_status ON pc_actions (user_id, status, id);
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,

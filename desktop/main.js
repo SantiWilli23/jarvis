@@ -1,7 +1,7 @@
 // Jarvis para Windows (Electron). Carga la web del hub, bandeja, atajo global, arranque con Windows,
 // saludo y el runner que pasa la cola a Claude Code.
 //   Prueba de arranque:  npm start -- --smoke-test   (abre, comprueba y cierra solo; usa datos temporales)
-import { app, BrowserWindow, Tray, Menu, globalShortcut, safeStorage, shell, nativeImage } from "electron";
+import { app, BrowserWindow, Tray, Menu, globalShortcut, safeStorage, shell, nativeImage, clipboard, Notification } from "electron";
 import { mkdtempSync } from "node:fs";
 import { tmpdir, hostname } from "node:os";
 import { join } from "node:path";
@@ -14,7 +14,13 @@ import { runDoctor, resolveAgy } from "./runner/doctor.js";
 import { createBrowserWindow } from "./browser/window.js";
 import { createBrowserWorker } from "./browser/worker.js";
 import selectors from "./browser/selectors.json" with { type: "json" };
-import { appendFileSync } from "node:fs";
+import { appendFileSync, statfsSync } from "node:fs";
+import * as os from "node:os";
+import { spawn, execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { createPcWorker } from "./runner/pc-worker.js";
+import { createPcExecutor } from "./runner/pc-exec.js";
+const execFileP = promisify(execFile);
 
 const smoke = process.argv.includes("--smoke-test") || process.env.JARVIS_SMOKE === "1";
 if (smoke) app.setPath("userData", mkdtempSync(join(tmpdir(), "jarvis-smoke-")));
@@ -22,7 +28,7 @@ const dataDir = app.getPath("userData");
 
 const gotLock = smoke || app.requestSingleInstanceLock(); // instancia única
 if (!gotLock) app.quit();
-let browserWin = null, browserWorker = null;
+let browserWin = null, browserWorker = null, pcWorker = null;
 let win = null, tray = null, worker = null, cfg = null, quitting = false, lastStatus = {};
 
 const origin = () => new URL(cfg.hubUrl).origin;
@@ -116,6 +122,16 @@ function startWorker() {
   const blog = (m) => { console.log("[jarvis:navegador]", m); try { appendFileSync(join(dataDir, "navegador.log"), `${new Date().toISOString()} ${m}\n`); } catch { /* sin registro */ } };
   browserWorker = createBrowserWorker({ hub, win: ensureBrowserWin(), selectors, log: blog });
   browserWorker.start();
+  // Acciones del PC (volumen, bloquear, apps...): bucle propio de 2,5 s, solo lista blanca y con validación local.
+  pcWorker = createPcWorker({
+    hub, log: (m) => console.log("[jarvis:pc]", m),
+    executor: createPcExecutor({
+      execFile: (cmd, args) => execFileP(cmd, args, { windowsHide: true, timeout: 15_000 }), spawn, clipboard, os, statfs: statfsSync,
+      notify: (title, body) => { try { new Notification({ title, body }).show(); } catch { /* sin aviso */ } },
+      apps: cfg.pc_apps,
+    }),
+  });
+  pcWorker.start();
   worker.start(); // al encender Windows la cola empieza de inmediato y el hub recibe pc_online
 }
 
@@ -160,7 +176,7 @@ function iconImage() {
 
 app.on("second-instance", () => show(false));
 app.on("window-all-closed", () => { /* sigue en la bandeja */ });
-app.on("before-quit", () => { quitting = true; });
+app.on("before-quit", () => { quitting = true; pcWorker?.stop(); });
 app.on("will-quit", () => { globalShortcut.unregisterAll(); });
 
 app.whenReady().then(async () => {

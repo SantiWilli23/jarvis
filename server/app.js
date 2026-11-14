@@ -19,6 +19,7 @@ import { extensionRoutes } from "./routes/extensions.js";
 import { proRoutes } from "./routes/pro.js";
 import { agentProRoutes } from "./routes/agent-pro.js";
 import { phoneRoutes } from "./routes/phone.js";
+import { pcRoutes, agentPcRoutes } from "./routes/pc.js";
 import { pushRoutes } from "./routes/push.js";
 import { studioRoutes } from "./routes/studio.js";
 import { githubRoutes } from "./routes/github.js";
@@ -53,6 +54,7 @@ export function createApp(ctx) {
   const api = express.Router();
   api.use(healthRoutes());                    // GET /api/health
   api.use("/auth", authRoutes(ctx));
+  api.use("/agent/pc", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentPcRoutes(ctx)); // cola de acciones del PC (antes de /agent)
   api.use("/agent/browser", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentBrowserRoutes(ctx)); // antes de /agent
   api.use("/agent/pro", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentProRoutes(ctx)); // antes de /agent
   api.use("/agent", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentRoutes(ctx));
@@ -61,6 +63,7 @@ export function createApp(ctx) {
   api.use(extensionRoutes(ctx, auth));        // telegram, cron, whatsapp, connect, tools, search (fases 4-6)
   api.use("/shortcut", requireAuth(ctx.sessions, { kinds: ["shortcut"] }), shortcutRoutes(ctx));
   api.use("/phone", phoneRoutes(ctx));         // cola del iPhone: token "phone" en next/done, sesión web en actions
+  api.use("/pc", auth, pcRoutes(ctx));         // cola del PC desde la web: encolar, ver, aprobar
   api.use("/push", auth, pushRoutes(ctx));
   api.use("/devices", auth, deviceRoutes(ctx));
   api.use("/studio", auth, studioRoutes(ctx));

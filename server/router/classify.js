@@ -1,7 +1,7 @@
 // Clasificador por reglas (sin modelo). Devuelve { kind, private }.
 // kind: charla | razonamiento | foto_video | investigacion | revision | datos | accion_pc | privado
 const RE_PRIVADO = /\b(privad[oa]|confidencial|secret[oa]|contrase[ñn]a|clave\s+de|mi\s+banco|tarjeta|salud|m[eé]dic[oa])\b/i;
-const RE_ACCION_PC = /\b(en\s+(mi\s+)?(pc|ordenador|computadora)|abre\s+(el|la|mi)|ejecuta|compila|despliega|haz\s+(un\s+)?commit|git\s+\w+|arregla\s+(el|la)\s+(bug|c[oó]digo)|programa|refactoriza|crea\s+(un\s+)?(archivo|carpeta)|borra\s+(el|la|los)\s+archivo)/i;
+const RE_ACCION_PC = /\b((en\s+(mi\s+|el\s+|este\s+)?|mi\s+|este\s+)(pc|ordenador|computadora|computador|compu|port[aá]til)\b|abre\s+(el|la|mi)|ejecuta|compila|despliega|haz\s+(un\s+)?commit|git\s+\w+|arregla\s+(el|la)\s+(bug|c[oó]digo)|programa|refactoriza|crea\s+(un\s+)?(archivo|carpeta)|borra\s+(el|la|los)\s+archivo)/i;
 const RE_INVESTIGACION = /\b(investiga|busca\s+en\s+(internet|la\s+web)|[uú]ltimas\s+noticias|noticias\s+de|qui[eé]n\s+gan[oó]|precio\s+actual|qu[eé]\s+pas[oó])\b/i;
 const RE_REVISION = /\b(revisa|revisar|rev[ií]same|encuentra\s+(la\s+)?falla|qu[eé]\s+falla|busca\s+errores)\b/i;
 const RE_DATOS = /\b(estad[ií]sticas|cifras|datos\s+(de|sobre)|tendencias?|v[ií]deos?\s+(de|sobre))\b/i;
