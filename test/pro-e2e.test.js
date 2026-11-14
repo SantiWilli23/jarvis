@@ -57,7 +57,7 @@ const tick = (o = {}) => { env(o); return worker.tick(); };
 before(async () => {
   root = realpathSync.native(mkdtempSync(join(tmpdir(), "e2e-pro-")));
   repo = mkRepo("app"); repoB = mkRepo("otro");
-  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.config.motores_pc.gemini.activo = true;
+  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.config.motores_pc.gemini.activo = true; ctx.pro.config.local_visible = true;
   ctx.permissions.carpetas_permitidas = [root]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
   server = createServer(createApp(ctx));
   await new Promise((r) => server.listen(0, r));

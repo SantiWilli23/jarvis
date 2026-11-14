@@ -10,6 +10,7 @@ import { redact, cleanDiff } from "./redact.js";
 import { availability, repoValid, canonicalRepo, geminiUsable } from "./availability.js";
 import { classify as classifyText } from "../router/classify.js";
 import { run } from "../db/client.js";
+import { createProWeb } from "./web.js";
 
 export class ProError extends Error {
   constructor(status, code, extra = {}) { super(code); this.status = status; this.code = code; this.extra = extra; }
@@ -53,7 +54,7 @@ const humanVerif = (v) => {
   return `${l("Dijo y no hizo", v.dijo_no_hizo)}${l("Hizo y no dijo", v.hizo_no_dijo)}${l("Cambios ajenos", v.cambios_ajenos)}Veredicto: ${v.veredicto}`;
 };
 
-export function createOrchestrator({ db, bus, agent, approvals, audit, permissions, config, now = () => Date.now(), textProvider, quota = null, groq = () => null }) {
+export function createOrchestrator({ db, bus, agent, approvals, audit, permissions, config, now = () => Date.now(), textProvider, quota = null, groq = () => null, github = () => null, browser = () => null, chat = () => null }) {
   const store = createStore({ db, now });
   const lim = config.limites || {};
   const cc = config.coordinador || {};
@@ -163,14 +164,17 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
     if (!ok) { const r = await store.getRound(userId, roundId); if (r && r.status === "coordinando") await arrancarPlan(userId, r); }
   };
 
+  const web = createProWeb({ store, say, setRound, llamarGroq, groq, github, browser, chat, agent, audit, config, ProError, now });
   const orch = {
-    store,
+    store, web,
     // enqueue sin redactar de nuevo (el prompt ya está redactado) para el reintento
     reenqueue: (userId, round, thread, role, engine, prompt) => enqueue(userId, round, thread, role, engine, prompt),
     status: (userId) => availability({ agent, config, permissions }),
     geminiOkFor,
     // ---------- web ----------
-    async createThread(userId, { title, repo }) {
+    async createThread(userId, { title, repo, modo, gh_repo, gh_rama } = {}) {
+      if (modo === "web") return web.crearHilo(userId, { title, gh_repo, gh_rama });
+      if (config.local_visible !== true) throw new ProError(422, "modo_local_oculto"); // el Pro local está escondido (no borrado)
       if (!repoValid(repo, { agent, permissions })) throw new ProError(422, "repo_invalido");
       return store.createThread(userId, { title: redact(String(title || "Nuevo hilo")).slice(0, 80), repo: canonicalRepo(repo, agent) });
     },
@@ -178,6 +182,7 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
       const thread = await store.getThread(userId, threadId);
       if (!thread) throw new ProError(404, "no_existe");
       const t = String(text || "").trim();
+      if (thread.modo === "web") return web.mensaje(userId, thread, text, { privado });
       if (!t || t.length > (lim.mensaje_max_caracteres ?? 8000)) throw new ProError(400, "texto_invalido");
       const av = availability({ agent, config, permissions });
       if (!av.habilitado) throw new ProError(409, "pro_deshabilitado", { motivos: av.motivos });
@@ -275,6 +280,10 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
       if (!thread) return null;
       await orch.sweep(userId);
       const rounds = [];
+      if (thread.modo === "web") {
+        const ar = await store.activeRound(id);
+        if (ar?.status === "en_curso_web") { try { await web.sondear(userId, ar.id); } catch { /* GitHub no responde: se ve igual */ } }
+      }
       for (const r of await store.listRounds(id)) {
         // Datos para que la web muestre el modelo REAL y los botones correctos (no los adivina).
         const js = await store.jobsOfRound(r.id), vivo = js.filter((j) => ["pendiente", "reclamado", "en_curso"].includes(j.status)).at(-1), ult = js.at(-1);
@@ -285,7 +294,14 @@ export function createOrchestrator({ db, bus, agent, approvals, audit, permissio
           ultimo_fallo: ult && ult.status === "fallido" && ult.role !== "consultar" ? { role: ult.role, error: String(ult.error || "").slice(0, 200) } : null,
         });
       }
-      return { thread, messages: await store.listMessages(id), rounds };
+      const out = { thread, messages: await store.listMessages(id), rounds };
+      if (thread.modo === "web") {
+        const env = await web.extras(userId, rounds.map((r) => r.id));
+        out.envios = Object.values(env).flat();
+        const ult = out.envios.at(-1);
+        out.candidatos = ult && !ult.resultado ? ult.candidatos : [];
+      }
+      return out;
     },
     async jobDetail(userId, id) {
       const row = await store.getJobRow(userId, id);

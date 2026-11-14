@@ -6,8 +6,8 @@ import { createOrchestrator } from "./orchestrator.js";
 export { proReasons, claudeIds, loadProConfig };
 export { ProError } from "./orchestrator.js";
 
-export function createPro({ db, bus, agent, approvals, audit, permissions = {}, config = loadProConfig(), now = () => Date.now(), textProvider, quota, groq }) {
-  const orch = createOrchestrator({ db, bus, agent, approvals, audit, permissions, config, now, textProvider, quota, groq });
+export function createPro({ db, bus, agent, approvals, audit, permissions = {}, config = loadProConfig(), now = () => Date.now(), textProvider, quota, groq, github = () => null, browser = () => null, chat = () => null }) {
+  const orch = createOrchestrator({ db, bus, agent, approvals, audit, permissions, config, now, textProvider, quota, groq, github, browser, chat });
   let last = null;
   // El PC volvió a avisar "en línea" (reinicio): los jobs que tenía en marcha se dan por fallidos.
   bus.on("pc.hello", ({ userId }) => { orch.pcReinicio(userId).catch(() => {}); });
@@ -16,5 +16,5 @@ export function createPro({ db, bus, agent, approvals, audit, permissions = {}, 
     const s = orch.status(userId), k = JSON.stringify(s);
     if (k !== last) { last = k; bus.emit("pro.status", { userId, ...s }); }
   });
-  return { config, orch, async status(userId) { return orch.status(userId); } };
+  return { config, orch, async status(userId) { return { ...orch.status(userId), local_visible: config.local_visible === true, web: await orch.web.disponibilidad() }; } };
 }

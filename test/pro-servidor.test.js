@@ -24,7 +24,7 @@ const round = async (id) => (await call(`/api/pro/threads/${thread}`)).rounds.fi
 const decide = (rid, body) => call(`/api/pro/rounds/${rid}/decision`, { method: "POST", body });
 
 before(async () => {
-  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.config.motores_pc.gemini.activo = true;
+  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.config.motores_pc.gemini.activo = true; ctx.pro.config.local_visible = true;
   ctx.permissions.carpetas_permitidas = ["C:\\dev"]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
   server = createServer(createApp(ctx));
   await new Promise((r) => server.listen(0, r));

@@ -7,8 +7,10 @@ const day = (t) => new Date(t).toISOString().slice(0, 10);
 
 export const msgView = (r) => r && { id: Number(r.id), thread_id: Number(r.thread_id), round_id: n(r.round_id), author: r.author, kind: r.kind, text: r.text, meta: j(r.meta) || {}, created_at: Number(r.created_at) };
 export const roundView = (r) => r && { id: Number(r.id), thread_id: Number(r.thread_id), status: r.status, corrections: Number(r.corrections), programmer: r.programmer, verifier: r.verifier, summary: r.summary, task_kind: r.task_kind, message_id: n(r.message_id), created_at: Number(r.created_at), updated_at: Number(r.updated_at) };
-export const threadView = (r) => r && { id: Number(r.id), title: r.title, repo: r.repo, status: r.status, resumen: r.resumen || null, created_at: Number(r.created_at), updated_at: Number(r.updated_at) };
+export const threadView = (r) => r && { id: Number(r.id), title: r.title, repo: r.repo, status: r.status, resumen: r.resumen || null, modo: r.modo || "local", gh_repo: r.gh_repo || null, gh_rama: r.gh_rama || null, created_at: Number(r.created_at), updated_at: Number(r.updated_at) };
 export const jobView = (r) => r && { id: Number(r.id), round_id: Number(r.round_id), thread_id: Number(r.thread_id), role: r.role, engine: r.engine, model: r.model, repo: r.repo, mode: r.mode, status: r.status, model_real: r.model_real || null, tree_before: r.tree_before, tree_after: r.tree_after, error: r.error, created_at: Number(r.created_at), started_at: n(r.started_at), finished_at: n(r.finished_at) };
+
+export const envioView = (r) => r && { id: Number(r.id), round_id: Number(r.round_id), thread_id: Number(r.thread_id), destino: r.destino, rol: r.rol, prompt: r.prompt, browser_task_id: n(r.browser_task_id), status: r.status, resultado: j(r.resultado), candidatos: j(r.candidatos) || [], created_at: Number(r.created_at), sent_at: n(r.sent_at), linked_at: n(r.linked_at), finished_at: n(r.finished_at), last_poll_at: n(r.last_poll_at) };
 
 export function createStore({ db, now = () => Date.now() }) {
   const self = {
@@ -18,6 +20,25 @@ export function createStore({ db, now = () => Date.now() }) {
       const r = await run(db, "INSERT INTO pro_threads (user_id,title,repo,created_at,updated_at) VALUES (?,?,?,?,?)", [userId, title || "Nuevo hilo", repo, t, t]);
       return threadView(await get(db, "SELECT * FROM pro_threads WHERE id=?", [r.id]));
     },
+    async createWebThread(userId, { title, ghRepo, ghRama }) {
+      const t = now();
+      const r = await run(db, "INSERT INTO pro_threads (user_id,title,repo,modo,gh_repo,gh_rama,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", [userId, title || "Nuevo hilo", ghRepo, "web", ghRepo, ghRama, t, t]);
+      return threadView(await get(db, "SELECT * FROM pro_threads WHERE id=?", [r.id]));
+    },
+    async setGhRama(userId, id, rama) { await run(db, "UPDATE pro_threads SET gh_rama=?, updated_at=? WHERE id=? AND user_id=?", [rama, now(), id, userId]); return self.getThread(userId, id); },
+    // envíos Pro web
+    async createEnvio({ roundId, threadId, userId, destino, rol, prompt, ramasAntes, prsAntes }) {
+      const r = await run(db, "INSERT INTO pro_web_envios (round_id,thread_id,user_id,destino,rol,prompt,ramas_antes,prs_antes,created_at) VALUES (?,?,?,?,?,?,?,?,?)", [roundId, threadId, userId, destino, rol, prompt, JSON.stringify(ramasAntes || []), JSON.stringify(prsAntes || []), now()]);
+      return self.getEnvioRow(userId, r.id);
+    },
+    async getEnvioRow(userId, id) { return get(db, "SELECT * FROM pro_web_envios WHERE id=? AND user_id=?", [id, userId]); },
+    async enviosOfRound(roundId) { return all(db, "SELECT * FROM pro_web_envios WHERE round_id=? ORDER BY id", [roundId]); },
+    async updateEnvio(id, patch) {
+      const keys = Object.keys(patch);
+      await run(db, `UPDATE pro_web_envios SET ${keys.map((k) => `${k}=?`).join(",")} WHERE id=?`, [...keys.map((k) => patch[k]), id]);
+    },
+    async enviosHoy(userId) { return Number((await get(db, "SELECT COUNT(*) AS n FROM pro_web_envios WHERE user_id=? AND created_at>=?", [userId, now() - 86_400_000]))?.n || 0); },
+    async openWebRounds() { return all(db, "SELECT r.* FROM pro_rounds r JOIN pro_threads t ON t.id=r.thread_id WHERE t.modo='web' AND r.status IN ('en_curso_web','resultado_listo')"); },
     async getThread(userId, id) { return threadView(await get(db, "SELECT * FROM pro_threads WHERE id=? AND user_id=?", [id, userId])); },
     async listThreads(userId) { return (await all(db, "SELECT * FROM pro_threads WHERE user_id=? ORDER BY updated_at DESC, id DESC", [userId])).map(threadView); },
     async touchThread(id) { await run(db, "UPDATE pro_threads SET updated_at=? WHERE id=?", [now(), id]); },
