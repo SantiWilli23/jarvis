@@ -59,7 +59,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const markUsing = (id, userId) => { usingAt.set(id, now()); bus.emit("conn.using", { userId, id }); };
   const isUsing = (id) => now() - (usingAt.get(id) ?? -Infinity) < USING_MS;
   bus.on("pc.using", ({ userId, id = "claude_pc" }) => markUsing(id, userId)); // el orquestador Pro/PC avisa por aquí
-  const router = createRouter({ providers, chain, orderByKind: config.orden_por_tipo, quota, privacy, onUse: (id, { userId } = {}) => markUsing(id, userId) });
+  const router = createRouter({ providers, chain, orderByKind: config.orden_por_tipo, soloBajoPedido: config.solo_bajo_pedido || [], quota, privacy, onUse: (id, { userId } = {}) => markUsing(id, userId) });
   const notes = createNotes({ db, fts, now });
   const search = createSearch({ db, fts });
   const inbox = createInbox({ notes });

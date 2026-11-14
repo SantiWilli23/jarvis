@@ -125,10 +125,10 @@ test("ChatGPT, Grok y Perplexity: apagados sin clave, implementados con ella, y 
   assert.equal(f.calls[2].url, "https://api.perplexity.ai/v1/agent");
   // El sustituto está definido en config y los puestos apuntan a su proveedor
   const puestos = Object.fromEntries(config.puestos.map((p) => [p.id, p]));
-  assert.equal(puestos.chatgpt.sustituto, "gemini");
+  assert.equal(puestos.chatgpt.sustituto, "groq");
   assert.equal(puestos.grok.sustituto, "groq");
-  assert.equal(puestos.perplexity.sustituto, "gemini");
-  assert.deepEqual(config.orden_por_tipo.revision.slice(0, 2), ["openai", "gemini"]);
+  assert.equal(puestos.perplexity.sustituto, "groq");
+  assert.deepEqual(config.orden_por_tipo.revision.slice(0, 2), ["openai", "groq"]);
   // Apagados sin clave: el enrutador salta al sustituto
   const off = buildProviders({ env: {}, fetch: f, config });
   for (const id of ["openai", "xai", "perplexity"]) assert.equal(off[id].enabled, false);
