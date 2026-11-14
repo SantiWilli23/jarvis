@@ -1,10 +1,10 @@
 // WebSocket /ws. Se autentica con el PRIMER mensaje {type:"auth", token} (nunca en la URL).
 // Eventos hacia el cliente: state, chat.delta, chat.done, task.update, approval.request,
-// approval.resolved, providers.update, pc.status, phone.update, pro.status, pro.message, pro.delta, pro.round, conn.using. Solo dispositivos "web" (lista blanca).
+// approval.resolved, providers.update, pc.status, phone.update, pro.status, pro.message, pro.delta, pro.round, conn.using, accion.resultado, pc.actions. Solo dispositivos "web" (lista blanca).
 import { WebSocketServer } from "ws";
 import { cookieValue } from "./auth/middleware.js";
 
-const EVENTOS = ["state", "chat.delta", "chat.done", "task.update", "approval.request", "approval.resolved", "providers.update", "pc.status", "task.progress", "phone.update", "pro.status", "pro.message", "pro.delta", "pro.round", "conn.using"];
+const EVENTOS = ["state", "chat.delta", "chat.done", "task.update", "approval.request", "approval.resolved", "providers.update", "pc.status", "task.progress", "phone.update", "pro.status", "pro.message", "pro.delta", "pro.round", "conn.using", "accion.resultado", "pc.actions"];
 const AUTH_TIMEOUT_MS = 5000;
 
 export function createHub({ server, sessions, bus, initial = async () => [] }) {
@@ -40,12 +40,23 @@ export function createHub({ server, sessions, bus, initial = async () => [] }) {
     const data = JSON.stringify(msg);
     for (const c of clients) if (c.userId === userId && c.ws.readyState === 1) c.ws.send(data);
   }
+  const hasDevice = (deviceId) => { for (const c of clients) if (c.deviceId === deviceId && c.ws.readyState === 1) return true; return false; };
+  const hasUser = (userId) => { for (const c of clients) if (c.userId === Number(userId) && c.ws.readyState === 1) return true; return false; };
+  function sendDevice(userId, deviceId, msg) {
+    const data = JSON.stringify(msg);
+    for (const c of clients) if (c.userId === userId && c.deviceId === deviceId && c.ws.readyState === 1) c.ws.send(data);
+  }
   for (const ev of EVENTOS) {
-    bus.on(ev, ({ userId, ...rest }) => send(Number(userId), { type: ev, ...rest }));
+    bus.on(ev, ({ userId, ...rest }) => {
+      const uid = Number(userId), msg = { type: ev, ...rest };
+      // Un resultado va al dispositivo que originó la acción; si no hay deviceId o no está conectado, a todos los del dueño.
+      if (ev === "accion.resultado" && rest.deviceId != null && hasDevice(rest.deviceId)) sendDevice(uid, rest.deviceId, msg);
+      else send(uid, msg);
+    });
   }
 
   return {
-    send,
+    send, hasDevice, hasUser,
     count: () => clients.size,
     // Cierra los sockets de un dispositivo revocado.
     dropDevice(deviceId) { for (const c of clients) if (c.deviceId === deviceId) c.ws.close(4401, "revocado"); },

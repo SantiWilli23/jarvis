@@ -94,7 +94,7 @@ test("acción con aprobación: espera, al aprobar pasa a lista; al rechazar, rec
   assert.equal(n.acciones[0].para, "Mamá");
   await call(`/api/phone/actions/${n.acciones[0].id}/done`, { method: "POST", tk: phoneTk, body: { ok: true, result: "secreto" } });
   const row = await ctx.db.execute({ sql: "SELECT result FROM phone_actions WHERE id=?", args: [n.acciones[0].id] });
-  assert.equal(row.rows[0].result, "[omitido]");
+  assert.equal(row.rows[0].result, "[privado]");
 
   const w = await json("/api/phone/actions", { method: "POST", body: { accion: "wifi", valor: "off" } });
   assert.equal(w.action.status, "aprobacion");

@@ -37,7 +37,7 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       const found = await search.search({ userId, query: String(text ?? ""), k: 4, tokenBudget: 600, includePrivate: true });
       return privacy.isPrivateMessage({ flag: flagPrivate, classification: cls, notes: found.notes });
     },
-    async handle({ userId, text, conversationId, flagPrivate = false, source = "texto", engine = "auto", origen = null, reproductor = null }) {
+    async handle({ userId, text, conversationId, flagPrivate = false, source = "texto", engine = "auto", origen = null, reproductor = null, deviceId = null }) {
       const motor = MOTORES.includes(engine) ? engine : "auto";
       const chatSolo = (await getModo(db, userId)) === "chat"; // el servidor decide, no el cliente
       let original = String(text ?? "");
@@ -108,7 +108,7 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
         pcI = await interpretWithModel({ router, pc, userId, text: textoOrden, isPrivate: flagPrivate || classify(original).private });
       }
       if (pcI) {
-        const out = await pc.create({ userId, action: pcI.action, params: pcI.params, source });
+        const out = await pc.create({ userId, action: pcI.action, params: pcI.params, source, conversationId: conv, deviceId });
         const reply = out.ok ? pcReply(out.item) : pcError(out.error);
         await saveMsg(userId, conv, "user", original, null, flagPrivate);
         await saveMsg(userId, conv, "assistant", reply, "pc", flagPrivate);
@@ -117,7 +117,7 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
         return { status: "pc", conversationId: conv, reply, pc: out.ok ? { id: out.item.id, status: out.item.status } : { error: out.error } };
       }
       if (pi) {
-        const out = await phone.create({ userId, action: pi.action, args: pi.args, source });
+        const out = await phone.create({ userId, action: pi.action, args: pi.args, source, conversationId: conv, deviceId });
         if (out.ok) {
           const reply = phoneReply(out.item);
           await saveMsg(userId, conv, "user", original, null, false);

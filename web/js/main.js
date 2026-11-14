@@ -56,6 +56,19 @@ async function decide(approve) {
   say("Jarvis", approve ? "Hecho, señor. Lo aprobé." : "Entendido, señor. Lo rechacé.");
 }
 
+/* ---------- resultado de una acción del PC o del iPhone ---------- */
+const resultadosVistos = new Set(); // "origen:id": no se repite si llega por WS y otra vez al reconectar
+function mostrarResultado(m) {
+  const k = String(m.origen) + ":" + String(m.id);
+  if (resultadosVistos.has(k)) return;
+  resultadosVistos.add(k);
+  if (resultadosVistos.size > 200) resultadosVistos.delete(resultadosVistos.values().next().value);
+  const txt = String(m.texto ?? "").slice(0, 400);
+  if (!txt) return;
+  say("Jarvis", txt); // say() usa textContent: nunca HTML del servidor
+  if (m.hablar && !busy && store.state === "idle") { setState("speaking"); speak(txt, afterSpeech, !!m.privado); }
+}
+
 /* ---------- mensajes del WebSocket ---------- */
 function onWs(m) {
   window.dispatchEvent(new CustomEvent("jarvis:ws", { detail: m })); // la vista móvil (movil.js) también escucha
@@ -71,6 +84,7 @@ function onWs(m) {
     case "chat.done": if (m.provider) lastUsed = m.provider; renderConn(store.status, lastUsed, false); break;
     case "task.update": case "providers.update": refreshStatus(); break;
     case "pc.status": renderPc(m); break;
+    case "accion.resultado": mostrarResultado(m); break;
     case "ws.closed": if (m.code === 4401 && getToken()) revisarSesionWs(); break;
   }
 }
