@@ -317,3 +317,9 @@ body[data-state="permiso"] { --accent: var(--amber); }
 .musica-ctl button:active { border-color: var(--accent); color: var(--accent); }
 .musica-abrir { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); font-size: 13px; }
 @media (pointer: coarse) { .chip-btn { min-height: 44px; min-width: 44px; } }
+
+/* Juegos: accesos rápidos discretos */
+.juegos { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+.juego-btn { background: var(--panel); border: 1px solid var(--line); padding: 4px 10px; font-family: var(--mono); font-size: 11px; color: var(--fg); text-decoration: none; opacity: .75; min-height: 28px; display: inline-flex; align-items: center; }
+.juego-btn:hover, .juego-btn:focus-visible { border-color: var(--accent); opacity: 1; }
+body.movil .juego-btn { min-height: 44px; padding: 0 14px; font-size: 12px; }

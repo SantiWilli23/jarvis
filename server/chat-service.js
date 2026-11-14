@@ -5,6 +5,7 @@ import { detectPedidoGemini } from "./router/pedido.js";
 import { classify } from "./router/classify.js";
 import { parsePhoneIntent, phoneReply } from "./phone/intents.js";
 import { parseMusicIntent, CONTROLES } from "./music/intents.js";
+import { parseJuegoIntent, respuestaJuego } from "./games.js";
 import { getModo } from "./settings.js";
 import { detectDestino, stripDestino, parsePcIntent, interpretWithModel, pcReply, pcError } from "./pc/intents.js";
 
@@ -66,6 +67,17 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
         bus?.emit("chat.done", { userId, text: reply, provider: "cola" });
         state(userId, "speaking");
         return { status: "tarea", conversationId: conv, reply, task: { id: task.id, seq: task.seq, sha256: task.sha256, engine: task.engine } };
+      }
+
+      // 1-bis) Atajo a un juego ("abre Futotal"): sin modelo, igual en modo Chat y en modo IA. El cliente abre la URL.
+      const ji = parseJuegoIntent(original);
+      if (ji) {
+        const out = respuestaJuego(ji);
+        await saveMsg(userId, conv, "user", original, null, false);
+        await saveMsg(userId, conv, "assistant", out.reply, "juegos", false);
+        bus?.emit("chat.done", { userId, text: out.reply, provider: "juegos" });
+        state(userId, "idle");
+        return { status: "juego", conversationId: conv, reply: out.reply, juegos: out.juegos, acciones: out.acciones };
       }
 
       // 1a) Música (YouTube Music): sin modelo y solo texto. Los controles (pausa, siguiente...) solo se atienden aquí si el

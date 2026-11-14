@@ -5,6 +5,7 @@ import { store, setState, subscribe, LABELS, VISUAL } from "./state.js";
 import { initOrb, setVisual } from "./orb.js";
 import { canRecord, startRecording, speak, stopSpeaking } from "./voice.js";
 import "./musica.js";
+import "./juegos.js";
 import { tickClock, renderMemory, renderQueue, renderConn, renderPc, showApproval } from "./panels.js";
 
 const $ = (id) => document.getElementById(id);
@@ -113,6 +114,10 @@ async function converse(text, priv) {
     if (r.status === "musica") {                 // orden musical: solo texto, sin voz
       say("Jarvis", r.reply || "");
       window.dispatchEvent(new CustomEvent("jarvis:musica", { detail: r.musica }));
+      setState("idle");
+    } else if (r.status === "juego") {            // atajo a un juego: sin IA, el cliente abre la pestaña
+      say("Jarvis", r.reply || "");
+      window.dispatchEvent(new CustomEvent("jarvis:juego", { detail: { juegos: r.juegos || [], acciones: r.acciones || [] } }));
       setState("idle");
     } else if (r.status === "sin_cuota") {
       setState("sin_cuota"); say("Jarvis", r.reply);
