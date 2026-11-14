@@ -17,6 +17,8 @@ export async function migrate(db) {
   await addColumn(db, "approvals", "pro_job_id", "INTEGER");
   await addColumn(db, "tasks", "engine", "TEXT NOT NULL DEFAULT 'claude'"); // motor del PC: claude | gemini
   await addColumn(db, "pro_threads", "resumen", "TEXT"); // resumen del hilo que mantiene el coordinador (Groq)
+  await addColumn(db, "devices", "expires_at", "INTEGER"); // caducidad: solo sesiones web (90 días); pc/phone/shortcut = NULL
+  await db.execute({ sql: "UPDATE devices SET expires_at = ? WHERE kind = 'web' AND expires_at IS NULL", args: [Date.now() + 90 * 24 * 60 * 60 * 1000] });
 }
 
 // Devuelve { fts: true|false }. Si FTS5 no está disponible, las búsquedas usan LIKE por palabras.

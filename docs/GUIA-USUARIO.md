@@ -172,7 +172,7 @@ Ponga en `GAMES_API_URL` la dirección del servidor del juego. Sin más, Jarvis 
 ### WhatsApp (API oficial de Meta, con un número aparte)
 1. https://developers.facebook.com > Crear app (tipo Empresa) > añada el producto **WhatsApp**. Use un número que no sea su WhatsApp personal.
 2. En WhatsApp > Configuración de la API: copie el **Token** (`WHATSAPP_TOKEN`; el temporal dura 24 h, cree un usuario del sistema para uno permanente) y el **Identificador del número de teléfono** (`WHATSAPP_PHONE_ID`).
-3. Invente un texto largo para `WHATSAPP_VERIFY_TOKEN`. En Configuración > Webhooks use la URL `<PUBLIC_URL>/api/whatsapp/webhook` y ese mismo texto; suscríbase a `messages`. Recomendado: ponga el "App secret" (Configuración de la app > Básica) en `WHATSAPP_APP_SECRET` para validar la firma.
+3. Invente un texto largo para `WHATSAPP_VERIFY_TOKEN`. En Configuración > Webhooks use la URL `<PUBLIC_URL>/api/whatsapp/webhook` y ese mismo texto; suscríbase a `messages`. **Obligatorio:** ponga el "App secret" (Configuración de la app > Básica) en `WHATSAPP_APP_SECRET`; sin él el conector queda apagado y el webhook rechaza todo (así nadie puede inyectar mensajes falsos).
 4. Mensajes recibidos: se guardan como privados y se le avisa por Telegram. Enviar: `whatsapp.enviar` con `{"to":"57300...","text":"..."}`, siempre con aprobación. Meta limita los mensajes a quien no le ha escrito en 24 h (solo plantillas); en el modo de prueba solo se puede escribir a números verificados en su panel.
 
 ## 15. Modo Pro (Claude y Gemini programando en su PC)
@@ -229,3 +229,33 @@ El agente Gemini del PC viene **apagado**. Mientras esté apagado: el servidor n
 6. Los archivos `.geminiignore` pueden ser ignorados por agy.
 
 **Recomendación:** si necesita aislamiento fuerte, ejecute el PC de Gemini en una cuenta de Windows o máquina virtual sin acceso a nada privado.
+
+## Qué significa "privado" (léalo una vez)
+
+- **Privado = solo Groq o Claude.** Un mensaje privado nunca se manda a Gemini, OpenRouter, Mistral ni a los demás; si Groq no puede, Jarvis dice que no hay cuota en vez de mandarlo a otro lado.
+- **NO significa "no sale de mi PC".** Groq y Claude son servicios en internet: lo privado viaja a sus servidores y se rige por sus condiciones.
+- **El audio que usted dicta siempre va a Groq** (Whisper lo pasa a texto), aunque después marque el mensaje como privado: la voz sale antes de que Jarvis sepa de qué trata.
+- **Planes gratis = pueden usar sus datos para entrenar.** Los planes gratuitos de Gemini y de OpenRouter (modelos `:free`) pueden guardar y usar lo que se les manda para mejorar sus modelos. Por eso nada privado va allí; escriba como no privado solo lo que no le importaría que se guardara.
+- Lo que Jarvis lee de Gmail, Calendario o WhatsApp se marca privado automáticamente.
+
+## Qué no puede tocar Claude en el PC
+
+En la cola normal, Claude tiene bloqueadas la lectura y escritura de `.env`, `.env.*`, `*.pem`, `*.key` y `*.p12`, y la escritura de los guardianes (`desktop/runner/danger.js`, `agy-policy.js`, `agy-args.js`, `claude-args.js`, `secret-paths.js` y `config/permissions.json`). La lista vive en `desktop/runner/secret-paths.js`. Gemini (agy) tiene la misma lista vigilada.
+
+**Límites:** son reglas por nombre de archivo; no impiden que un comando de terminal aprobado por usted lea un archivo, así que no apruebe comandos que no entienda. Y si trabaja en una carpeta que contiene a Jarvis, lo más seguro es **no** poner la carpeta de Jarvis en `carpetas_permitidas` de `config/permissions.json`: ponga una carpeta de trabajo aparte (por ejemplo `C:UsersSU_USUARIODocumentsJarvis	rabajo`). Claude se ejecuta en la primera carpeta de esa lista; si está vacía usa la carpeta desde donde arrancó la app, que conviene que NO sea la de Jarvis.
+
+## Sesiones y bloqueo de contraseña
+
+- Las sesiones web caducan a los **90 días sin usarse** (cada uso las renueva); luego pide la contraseña otra vez. Los dispositivos del PC, iPhone y Atajos no caducan, pero se revocan desde Dispositivos.
+- Tras 5 contraseñas fallidas se bloquea esa **dirección IP** 15 minutos (no la cuenta: nadie puede dejarle fuera a propósito desde otro sitio). Jarvis solo cree en la cabecera `X-Forwarded-For` si corre en Render (variable `RENDER`) o si usted pone `TRUST_PROXY=1`; en su PC sin proxy se usa la IP real de la conexión.
+
+## Checklist: rotar claves y contraseña
+
+Hágalo si perdió un equipo, compartió pantalla con el `.env` a la vista o sospecha algo.
+1. [ ] Contraseña de Jarvis: cámbiela (sección 5) y reinicie. Luego revoque todos los dispositivos viejos en la pestaña Dispositivos y entre de nuevo.
+2. [ ] Genere de nuevo y pegue en `.env` (y en las variables de Render): `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY` y las demás que use; **borre la clave vieja en cada consola** (no basta con cambiarla aquí).
+3. [ ] `CONNECTIONS_KEY` (si la cambia, los conectores hay que reconectarlos), `TELEGRAM_WEBHOOK_SECRET`, `CRON_SECRET`, `WHATSAPP_APP_SECRET`, `WHATSAPP_TOKEN` y el token del bot de Telegram (en BotFather con `/revoke`): cambie cada uno y vuelva a registrar el webhook de Telegram (`npm run telegram:setwebhook`).
+4. [ ] Conectores (Google, Spotify): revoque el acceso en la cuenta de cada servicio y vuelva a conectar.
+5. [ ] Tokens de Atajos de iPhone y del PC: revóquelos y genere nuevos; reinicie la app del PC.
+6. [ ] Actualice las variables en Render y haga un nuevo despliegue; compruebe `/api/health`.
+7. [ ] Revise el registro de auditoría (`GET /api/audit`) por entradas `login.fallido` o dispositivos que no reconozca.

@@ -23,12 +23,25 @@ import { pushRoutes } from "./routes/push.js";
 
 const WEB = fileURLToPath(new URL("../web", import.meta.url));
 
+// CSP: solo scripts propios (sin inline), fuentes de Google, WebSocket al mismo servidor, audio/blob del TTS.
+export const csp = (host = "") => [
+  "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob:", "media-src 'self' blob: data:", `connect-src 'self'${host ? ` wss://${host} ws://${host}` : ""}`,
+  "worker-src 'self'", "manifest-src 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'",
+].join("; ");
+
 export function createApp(ctx) {
   const app = express();
   app.disable("x-powered-by");
-  app.set("trust proxy", 1); // detrás de Render: la IP real viene en X-Forwarded-For
-  app.use((_req, res, next) => {
-    res.set({ "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY" });
+  // Solo se confía en X-Forwarded-For detrás de un proxy conocido (Render pone RENDER=true; o TRUST_PROXY=1). Si no, req.ip es la conexión real.
+  const tp = process.env.TRUST_PROXY ?? (process.env.RENDER ? "1" : "0");
+  app.set("trust proxy", /^\d+$/.test(tp) ? Number(tp) : tp === "true" ? 1 : false);
+  app.use((req, res, next) => {
+    const host = String(req.headers.host || "").replace(/[^\w.:\[\]-]/g, "");
+    res.set({
+      "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY",
+      "Content-Security-Policy": csp(host),
+    });
     next();
   });
   app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { req.rawBody = buf; } })); // rawBody: firma de WhatsApp
