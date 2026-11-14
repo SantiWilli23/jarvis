@@ -172,7 +172,7 @@ Ponga en `GAMES_API_URL` la dirección del servidor del juego. Sin más, Jarvis 
 ### WhatsApp (API oficial de Meta, con un número aparte)
 1. https://developers.facebook.com > Crear app (tipo Empresa) > añada el producto **WhatsApp**. Use un número que no sea su WhatsApp personal.
 2. En WhatsApp > Configuración de la API: copie el **Token** (`WHATSAPP_TOKEN`; el temporal dura 24 h, cree un usuario del sistema para uno permanente) y el **Identificador del número de teléfono** (`WHATSAPP_PHONE_ID`).
-3. Invente un texto largo para `WHATSAPP_VERIFY_TOKEN`. En Configuración > Webhooks use la URL `<PUBLIC_URL>/api/whatsapp/webhook` y ese mismo texto; suscríbase a `messages`. Recomendado: ponga el "App secret" (Configuración de la app > Básica) en `WHATSAPP_APP_SECRET` para validar la firma.
+3. Invente un texto largo para `WHATSAPP_VERIFY_TOKEN`. En Configuración > Webhooks use la URL `<PUBLIC_URL>/api/whatsapp/webhook` y ese mismo texto; suscríbase a `messages`. **Obligatorio:** ponga el "App secret" (Configuración de la app > Básica) en `WHATSAPP_APP_SECRET`; sin él el conector queda apagado y el webhook rechaza todo (así nadie puede inyectar mensajes falsos).
 4. Mensajes recibidos: se guardan como privados y se le avisa por Telegram. Enviar: `whatsapp.enviar` con `{"to":"57300...","text":"..."}`, siempre con aprobación. Meta limita los mensajes a quien no le ha escrito en 24 h (solo plantillas); en el modo de prueba solo se puede escribir a números verificados en su panel.
 
 ## 15. Modo Pro (Claude y Gemini programando en su PC)
@@ -180,7 +180,7 @@ Ponga en `GAMES_API_URL` la dirección del servidor del juego. Sin más, Jarvis 
 Jarvis tiene dos modos. **Clásico**: la cola de siempre (usted pide, Claude Code lo hace en el PC). **Pro**: un chat de tres (usted, Claude y Gemini). Uno planea, usted aprueba el plan, uno programa, **el otro verifica** comparando lo que dijo haber hecho contra lo que realmente cambió en el repo, y al aceptar Jarvis hace un commit local (nunca sube nada). Máximo 2 correcciones automáticas por decisión suya.
 
 ### Qué debe instalar
-1. **Claude Code** (ya hecho en la sección anterior; Pro usa los modelos `opus` y `sonnet`).
+1. **Claude Code** (ya hecho en la sección anterior; Pro usa los modelos exactos `claude-opus-5-5` (planea y verifica) y `claude-sonnet-5-5` (programa); si Opus no está disponible lo hace Sonnet y Jarvis se lo dice en el hilo).
 2. **Antigravity CLI (`agy`)** y entrar con la cuenta Google que tiene **AI Pro**. Es el "Gemini" de Pro (Gemini CLI ya no atiende esas cuentas). Compruebe con `agy --version`.
 3. En su cuenta Google, **desactive el uso de datos para entrenamiento** (ajustes de actividad/privacidad de Gemini y Antigravity), porque el código de sus repos pasa por ahí.
 
@@ -190,7 +190,7 @@ Jarvis tiene dos modos. **Clásico**: la cola de siempre (usted pide, Claude Cod
 3. **`agy` ya esta verificado** (flags `-p`, `--mode plan|accept-edits`, `--output-format stream-json`). Solo debe haber iniciado sesion con su cuenta Google AI Pro: ejecute `agy models`; si lista modelos, Jarvis detecta el login. Los modelos de `config/pro.json` son ids reales (`gemini-3.8-flash-high|medium|low`).
 
 ### Usarlo
-Abra la pestaña **Pro** en Jarvis, elija repo (nuevo hilo) y escriba el pedido. Pro solo se activa con el PC encendido, Claude y `agy` listos y algún repo. Si falta algo, la pestaña le dice qué. Verá el plan; pulse Aprobar, Corregir o Rechazar. Tras programar y verificar, "Aceptar" hace el commit local. Si `agy` se queda sin cuota, Jarvis se detiene y se lo dice (no baja de modelo solo); si está saturado (503) al programar, baja de Flash a un Flash anterior. Nada privado (contraseñas, etc.) entra en Pro y los secretos se tapan.
+Abra la pestaña **Pro** en Jarvis, elija repo (nuevo hilo) y escriba el pedido. Pro solo se activa con el PC encendido, Claude listo (con sus dos modelos 5.5) y algún repo; **Gemini es opcional** (sin él, Claude programa y Opus revisa a Sonnet). Si falta algo, la pestaña le dice qué; los avisos sobre Gemini no bloquean. Si un paso falla, pulse **Reintentar paso**; **Cancelar** detiene de verdad el proceso del PC. "Hacer commit" guarda solo los archivos de la ronda y se niega si usted tenía cambios en ellos. Verá el plan; pulse Aprobar, Corregir o Rechazar. Tras programar y verificar, "Aceptar" hace el commit local. Si `agy` se queda sin cuota, Jarvis se detiene y se lo dice (no baja de modelo solo); si está saturado (503) al programar, baja de Flash a un Flash anterior. Nada privado (contraseñas, etc.) entra en Pro y los secretos se tapan.
 
 ### Jarvis coordina (Groq)
 Con `GROQ_API_KEY` puesta, **Jarvis** (Groq) lee su pedido en Pro, le habla con claridad, puede preguntar en privado a Claude o a Gemini (solo lectura, máximo 3 consultas y 6 turnos seguidos sin usted) y le **propone** quién programa y quién verifica. Usted decide con el botón **Aprobar propuesta** (o cambia el motor); sin su botón no empieza nada. Su pedido original siempre se ve tal cual, y la charla entre las IAs está plegada (despliéguela si quiere). Jarvis no ejecuta nada, no hace commit y no aprueba por usted. Casilla **Jarvis coordina**: apáguela para el flujo de siempre (también se usa solo si Groq falla o no hay clave). Sin probar con Groq real.
@@ -200,3 +200,8 @@ Con `GROQ_API_KEY` puesta, **Jarvis** (Groq) lee su pedido en Pro, le habla con 
 - Si cancela una ronda, el PC puede terminar el paso en curso (su resultado se descarta).
 - Sin probar con las CLIs reales ni con Render: solo con simuladores.
 
+## 16. Estudio y Navegador de Jarvis (asistido)
+
+**Estudio** (`/estudio`, también en la vista móvil): chat de código con la API gratis de Gemini. Elija modelo (los de "sin nivel gratis" salen desactivados), copie el código con un toque y use "Abrir AI Studio" para la web de Google (no se puede incrustar). Aviso: en el plan gratis Google puede usar lo que envía para entrenar; lo privado nunca se envía. Modelos y tope diario: `estudio` en `config/providers.json`.
+
+**Navegador de Jarvis** (app de escritorio, bandeja > "Navegador de Jarvis"): una ventana con Claude Code web, ChatGPT, Perplexity y Grok, cada uno con su sesión guardada. **Usted inicia sesión** (Jarvis nunca escribe contraseñas ni resuelve captcha/2FA). APAGADO por defecto: ponga `activo: true` en `config/browser-sites.json`. Modo asistido: `POST /api/browser/tasks {site, prompt}` deja el texto en la caja del sitio **sin enviarlo**; usted pulsa Enviar y Jarvis lee la respuesta (se devuelve como dato en `datos`, nunca como orden). Si algo falla (login, captcha, aviso de cuenta, selector roto) se detiene o copia el prompt al portapapeles. Botón **Detener** siempre visible; registro en `navegador.log` (carpeta de datos de la app). Selectores por sitio sin calibrar contra los sitios reales: `desktop/browser/selectors.json`. Límites: 12 pasos, 180 s, 10 tareas/h, 6 por sitio/h, 30/día, 20 s de pausa.

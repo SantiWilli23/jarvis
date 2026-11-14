@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080b10">
+<title>Estudio · Jarvis</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="css/hud.css">
+<link rel="stylesheet" href="css/estudio.css">
+</head>
+<body data-state="idle">
+<main class="est">
+  <header class="est-top">
+    <a class="est-back" href="/">&larr; Jarvis</a>
+    <h1>Estudio</h1>
+    <a id="est-ai" class="est-ai" href="https://aistudio.google.com" target="_blank" rel="noopener noreferrer">Abrir AI Studio</a>
+  </header>
+  <p class="est-aviso" id="est-aviso" role="note">En el plan gratis de Gemini, Google puede usar lo que envía para entrenar sus modelos. Lo privado nunca se envía.</p>
+  <div class="est-msgs" id="est-msgs" role="log" aria-live="polite" tabindex="0"></div>
+  <div class="est-estado" id="est-estado" role="status"></div>
+  <form class="est-form" id="est-form">
+    <label class="sr" for="est-modelo">Modelo</label>
+    <select id="est-modelo"></select>
+    <label class="sr" for="est-in">Mensaje</label>
+    <textarea id="est-in" rows="3" placeholder="Pida código o pegue el error…" maxlength="12000"></textarea>
+    <div class="est-row">
+      <label><input type="checkbox" id="est-priv"> privado</label>
+      <button type="button" id="est-nuevo" class="mini">Nueva conversación</button>
+      <button type="submit" id="est-send">Enviar</button>
+    </div>
+  </form>
+</main>
+<script type="module" src="js/estudio.js"></script>
+</body>
+</html>

@@ -1,10 +1,13 @@
 {
-  "nota": "Modo Pro: modelos, límites y tiempos. Motor lógico \"gemini\" = Antigravity CLI (agy) con la sesión iniciada en el PC. Contrato: docs/PRO.md.",
+  "nota": "Modo Pro (funciona con SOLO Claude; Gemini es un extra opcional): modelos, límites y tiempos. Motor lógico \"gemini\" = Antigravity CLI (agy) con la sesión iniciada en el PC. Contrato: docs/PRO.md.",
   "modelos": {
     "claude": {
-      "planear": "opus",
-      "programar": "sonnet",
-      "verificar": "opus"
+      "planear": "claude-opus-5-5",
+      "programar": "claude-sonnet-5-5",
+      "verificar": "claude-opus-5-5",
+      "consultar": "claude-sonnet-5-5",
+      "fallback_planear_verificar": "claude-sonnet-5-5",
+      "nota": "ids exactos aceptados por la cuenta (comprobado con claude -p --model). Si Opus está saturado o sin cuota, planear/verificar los hace Sonnet 5.5 y se AVISA en el hilo (nunca en silencio)."
     },
     "gemini": {
       "planear": "gemini-3.8-flash-high",
@@ -38,10 +41,10 @@
     "mensaje_max_caracteres": 8000
   },
   "timeouts": {
-    "planear_s": 300,
+    "planear_s": 900,
     "programar_s": 1800,
-    "verificar_s": 300,
-    "consultar_s": 120,
+    "verificar_s": 600,
+    "consultar_s": 300,
     "job_reclamado_s": 60,
     "pc_en_linea_s": 45
   },
@@ -52,12 +55,18 @@
     "max_turnos_sin_usuario": 6,
     "turnos_dia": 40,
     "timeout_s": 20,
-    "groq": { "reasoning_effort": "low", "max_tokens": 1500, "response_format": { "type": "json_object" } }
+    "groq": {
+      "reasoning_effort": "low",
+      "max_tokens": 1500,
+      "response_format": {
+        "type": "json_object"
+      }
+    }
   },
   "requisitos": {
     "claude_modelos": [
-      "opus",
-      "sonnet"
+      "claude-opus-5-5",
+      "claude-sonnet-5-5"
     ],
     "gemini_login": null,
     "repos_git": true,

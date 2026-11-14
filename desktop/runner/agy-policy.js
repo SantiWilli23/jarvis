@@ -5,6 +5,7 @@
 // al evento; no es un confinamiento del sistema operativo y no ve lo que hace un comando ya permitido por dentro.
 import { resolve, join } from "node:path";
 import { blockedForGemini } from "./danger.js";
+import { rutaProtegida } from "./secret-paths.js";
 
 export const POLITICAS = { LECTURA: "lectura", PROGRAMAR: "programar" };
 
@@ -53,6 +54,8 @@ export function guardTool({ tool, params }, allowedDirs = [], cwd = process.cwd(
   for (const p of pathsOf(params)) {
     const raw = String(p);
     const abs = /^([a-z]:[\\/]|[\\/]{1,2})/i.test(raw) ? raw : /^[~%$]/.test(raw) ? "/__fuera__" : join(cwd, raw);
+    const prot = rutaProtegida(abs);
+    if (prot) return deny("fuera_de_carpeta", prot === "secreto" ? "Gemini no puede tocar secretos (.env, claves, certificados)" : "Gemini no puede tocar los archivos guardianes de Jarvis", `${name}: ${raw}`);
     if (!inside(abs, allowedDirs)) return deny("fuera_de_carpeta", "Tocar archivos fuera de las carpetas de Gemini", `${name}: ${raw}`);
   }
   return null;

@@ -20,6 +20,9 @@ export function createHubClient({ baseUrl, token, fetchFn = fetch }) {
     requestApproval: (id, a) => call(`/tasks/${id}/approval`, { body: a }),
     approvalStatus: (id) => call(`/approvals/${id}`, { method: "GET" }),
     finish: (id, out) => call(`/tasks/${id}/finish`, { body: out }),
+    // Navegador de Jarvis (modo asistido): el servidor decide; aquí solo se reclama y se informa el estado.
+    browserClaim: () => call("/browser/claim", { body: {} }),
+    browserStep: (id, body) => call(`/browser/tasks/${id}/step`, { body }),
     // Modo Pro (docs/PRO.md §5 y "Ampliaciones P3")
     proClaim: () => call("/pro/claim", { body: {} }),
     proEvents: (id, events) => call(`/pro/jobs/${id}/events`, { body: { events } }),

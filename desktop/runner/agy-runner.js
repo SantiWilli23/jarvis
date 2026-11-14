@@ -19,6 +19,8 @@ export function resolveAgy({ env = process.env, platform = process.platform, exi
 }
 
 // "503" (servidor saturado: permite bajar de Flash), "sin_cuota" (429/cuota: NO se baja) o null.
+// Se le pasa SOLO el error de agy (result.error + stderr), nunca la respuesta del modelo: si el modelo habla de
+// "quota" o "503" en su texto no es un error de verdad.
 export function classifyAgyError(text) {
   const t = String(text || "");
   if (/\b503\b|UNAVAILABLE|overloaded|high demand|sobrecargad/i.test(t)) return "503";
@@ -31,7 +33,7 @@ const cmdOf = (params) => { const v = params?.CommandLine ?? params?.command ?? 
 export { guardTool };
 
 // Devuelve { text, isError, errorKind, usage, commands, denials, blocked, aborted, conversationId, status, exitCode, stderr }.
-export function runAgy({ command, prefix = [], args, cwd, env = process.env, onEvents = () => {}, timeoutMs = 30 * 60_000, allowedDirs = [], policy = POLITICAS.PROGRAMAR, spawnFn = spawn }) {
+export function runAgy({ command, prefix = [], args, cwd, env = process.env, onEvents = () => {}, timeoutMs = 30 * 60_000, allowedDirs = [], policy = POLITICAS.PROGRAMAR, spawnFn = spawn, signal = null }) {
   return new Promise((resolveP) => {
     // Sin carpeta permitida, o con cwd fuera de ella, NO se ejecuta agy.
     if (!allowedDirs.length || !cwd || !inside(cwd, allowedDirs)) {
@@ -39,12 +41,15 @@ export function runAgy({ command, prefix = [], args, cwd, env = process.env, onE
     }
     const child = spawnFn(command, [...prefix, ...args], { cwd, env: { ...agyEnv(env), ...(prefix.length && process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}) }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, shell: false });
     const out = { text: "", isError: false, errorKind: null, usage: { tokens_in: 0, tokens_out: 0 }, commands: [], denials: [], blocked: null, aborted: null, conversationId: null, status: null, exitCode: null, stderr: "" };
+    if (signal?.aborted) { out.aborted = "cancelado"; return resolveP(out); }
     let buf = "", finished = false, errMsg = "", gotResult = false;
     const checked = new Set();
     const deltas = new Map(); // step_index -> texto acumulado
     const plain = [];
     const kill = (why) => { if (!out.aborted) { out.aborted = why; try { child.kill(); } catch { /* ya terminó */ } } };
     const timer = setTimeout(() => kill("tiempo"), timeoutMs);
+    const onAbort = () => kill("cancelado");
+    signal?.addEventListener?.("abort", onAbort, { once: true });
     const deny = (what, msg) => { const t = `${what}: ${String(msg).replace(/\s+/g, " ").slice(0, 160)}`; if (!out.denials.includes(t)) out.denials.push(t); };
     const usageOf = (u) => (u && typeof u === "object" ? { tokens_in: Number(u.input_tokens) || 0, tokens_out: Number(u.output_tokens) || 0 } : null);
 
@@ -75,9 +80,12 @@ export function runAgy({ command, prefix = [], args, cwd, env = process.env, onE
             if (b) { out.blocked = b; deny(b.summary, b.detail); kill("comando_bloqueado"); }
           }
           if (u.state !== "ACTIVE") {
-            const bad = /ERROR|REJECT|DENIED|CANCEL/i.test(String(u.state)) ? u.tool_info?.error || u.tool_info?.output || u.state : (u.tool_info?.error || null);
-            const why = bad || (RECHAZO.test(String(u.tool_info?.output || "")) ? u.tool_info.output : null);
-            if (why) deny(tool, typeof why === "string" ? why : JSON.stringify(why));
+            // Solo cuentan los RECHAZOS DE PERMISO. Un error normal de la herramienta (archivo inexistente, comando que
+            // falla) es parte del trabajo del modelo: no es una denegación ni hace fallar la tarea.
+            const errT = typeof u.tool_info?.error === "string" ? u.tool_info.error : u.tool_info?.error ? JSON.stringify(u.tool_info.error) : "";
+            const outT = typeof u.tool_info?.output === "string" ? u.tool_info.output : "";
+            const rechazada = /REJECT|DENIED/i.test(String(u.state)) || RECHAZO.test(errT) || RECHAZO.test(outT);
+            if (rechazada) deny(tool, errT || outT || String(u.state));
           }
         }
         return;
@@ -97,6 +105,7 @@ export function runAgy({ command, prefix = [], args, cwd, env = process.env, onE
     child.stderr.on("data", (d) => { out.stderr = (out.stderr + d.toString("utf8")).slice(-3000); });
     const done = (code, err) => {
       if (finished) return; finished = true; clearTimeout(timer);
+      signal?.removeEventListener?.("abort", onAbort);
       if (buf.trim()) handle(buf);
       out.exitCode = code;
       if (!out.text) out.text = [...deltas.values()].join("").trim() || plain.join("\n").trim();
@@ -105,7 +114,7 @@ export function runAgy({ command, prefix = [], args, cwd, env = process.env, onE
       if (!code && !err && !gotResult && !out.text) { out.isError = true; errMsg ||= "sin resultado de agy"; }
       if (RECHAZO.test(out.stderr)) deny("agy", out.stderr.split(/\r?\n/).find((l) => RECHAZO.test(l)) || out.stderr);
       if (out.denials.length) out.isError = true; // un rechazo de permiso cuenta como error (v1: sin ronda de aprobación)
-      if (out.isError) out.errorKind = classifyAgyError(`${errMsg}\n${out.stderr}\n${out.text}`) || (out.denials.length ? "permiso" : null);
+      if (out.isError) out.errorKind = classifyAgyError(`${errMsg}\n${out.stderr}`) || (out.denials.length ? "permiso" : null);
       resolveP(out);
     };
     child.on("error", (e) => done(null, e));

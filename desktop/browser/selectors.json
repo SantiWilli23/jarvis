@@ -1,0 +1,41 @@
+{
+  "nota": "Selectores CALIBRABLES por sitio (no verificados contra los sitios reales: ajústelos aquí cuando cambie la página). input = caja de texto; respuesta = mensajes del asistente; ocupado = indicador de 'generando'; bloqueo/aviso = captcha, 2FA, avisos de cuenta; login = señales de pantalla de acceso. Si un selector falla, Jarvis degrada a 'copiar el prompt y abrir el sitio'. La partición y la URL de cada sitio se fijan aquí, no las dicta el servidor.",
+  "sitios": {
+    "claude": {
+      "nombre": "Claude Code (web)", "url": "https://claude.ai/code", "particion": "persist:claude",
+      "input": ["div[contenteditable='true'][role='textbox']", "div.ProseMirror[contenteditable='true']", "textarea"],
+      "respuesta": ["[data-testid='assistant-message']", ".font-claude-response", ".font-claude-message"],
+      "ocupado": ["button[aria-label*='Stop' i]", "button[aria-label*='Detener' i]"],
+      "bloqueo": ["iframe[src*='captcha']", "iframe[src*='challenge']", "#challenge-form", ".g-recaptcha"],
+      "aviso": ["[data-testid='usage-limit-banner']"],
+      "login": ["input[type='email']", "a[href*='/login']"]
+    },
+    "chatgpt": {
+      "nombre": "ChatGPT", "url": "https://chatgpt.com/", "particion": "persist:chatgpt",
+      "input": ["#prompt-textarea", "div[contenteditable='true']", "textarea"],
+      "respuesta": ["[data-message-author-role='assistant']"],
+      "ocupado": ["button[data-testid='stop-button']", "button[aria-label*='Stop' i]"],
+      "bloqueo": ["iframe[src*='captcha']", "iframe[src*='challenge']", "#challenge-form"],
+      "aviso": [],
+      "login": ["[data-testid='login-button']", "a[href*='/auth/login']"]
+    },
+    "perplexity": {
+      "nombre": "Perplexity", "url": "https://www.perplexity.ai/", "particion": "persist:perplexity",
+      "input": ["textarea", "div[contenteditable='true']"],
+      "respuesta": ["[id^='markdown-content']", ".prose"],
+      "ocupado": ["button[aria-label*='Stop' i]"],
+      "bloqueo": ["iframe[src*='captcha']", "iframe[src*='challenge']", "#challenge-form"],
+      "aviso": [],
+      "login": ["button[data-testid='login']", "a[href*='/login']"]
+    },
+    "grok": {
+      "nombre": "Grok", "url": "https://grok.com/", "particion": "persist:grok",
+      "input": ["textarea", "div[contenteditable='true']"],
+      "respuesta": [".message-bubble", "[data-testid='assistant-message']"],
+      "ocupado": ["button[aria-label*='Stop' i]"],
+      "bloqueo": ["iframe[src*='captcha']", "iframe[src*='challenge']", "#challenge-form"],
+      "aviso": [],
+      "login": ["a[href*='sign-in']", "a[href*='login']"]
+    }
+  }
+}

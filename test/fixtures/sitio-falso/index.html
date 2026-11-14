@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Sitio falso de chat</title></head>
+<body>
+<!-- Sitio local de pruebas: imita una caja de chat. NUNCA se prueba contra los sitios reales. -->
+<main id="chat"></main>
+<textarea id="caja" aria-label="Mensaje"></textarea>
+<div id="editable" contenteditable="true" role="textbox"></div>
+<button id="enviar" type="button">Enviar</button>
+<button id="stop" type="button" hidden>Stop</button>
+<script>
+  window.__enviados = 0;
+  document.getElementById("enviar").addEventListener("click", () => {
+    window.__enviados++;
+    const texto = document.getElementById("caja").value;
+    document.getElementById("stop").hidden = false;
+    setTimeout(() => {
+      const r = document.createElement("div");
+      r.className = "resp";
+      r.textContent = "Respuesta a: " + texto;
+      document.getElementById("chat").append(r);
+      document.getElementById("stop").hidden = true;
+    }, 800);
+  });
+</script>
+</body></html>

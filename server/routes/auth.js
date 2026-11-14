@@ -8,7 +8,7 @@ export function authRoutes(ctx) {
   r.post("/login", async (req, res, next) => {
     try {
       const password = String(req.body?.password ?? "");
-      const keys = ["u:owner", `ip:${req.ip}`];
+      const keys = [`ip:${req.ip}`]; // por IP (no por cuenta): nadie puede bloquear al dueño a propósito desde otra IP
       const lock = await ctx.limiter.check(keys);
       if (lock.locked) {
         res.set("Retry-After", String(Math.ceil(lock.retryAfterMs / 1000)));

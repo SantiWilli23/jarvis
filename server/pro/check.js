@@ -17,6 +17,16 @@ export function parseChanged(diff) {
   return [...set].filter(Boolean);
 }
 
+// Todas las rutas que toca un diff, incluido el ORIGEN de los renombrados (para commitear solo lo de la ronda).
+export function commitPathsOf(diff) {
+  const set = new Set(parseChanged(diff));
+  for (const line of String(diff || "").split(/\r?\n/)) {
+    const m = line.match(/^[RC]\d*\t(.+?)\t(.+)$/);
+    if (m) set.add(norm(m[1]));
+  }
+  return [...set].filter(Boolean);
+}
+
 const same = (a, b) => a === b || a.endsWith("/" + b) || b.endsWith("/" + a);
 const AJENO = (p) => isSensitivePath(p) || /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/.test(p) || /^\.github\//.test(p);
 

@@ -10,6 +10,8 @@
 //   --max-turns                     tope de vueltas del agente
 //   --resume <session_id>           continuar la misma sesión tras una aprobación
 
+import { SECRETOS, DENEGADAS_CLAUDE } from "./secret-paths.js";
+
 export const SOLO_LEER = ["Read", "Glob", "Grep"];
 export const LEER_ESCRIBIR = [...SOLO_LEER, "Edit", "Write", "MultiEdit"];
 
@@ -23,6 +25,7 @@ export function buildArgs({ task, folders = [], approved = [], resume = null, ma
   const allowed = [...(canWrite ? LEER_ESCRIBIR : SOLO_LEER), ...approved];
   args.push("--allowedTools", allowed.join(","));
   for (const f of folders.slice(1)) args.push("--add-dir", f);
+  args.push("--disallowedTools", DENEGADAS_CLAUDE.join(",")); // secretos y guardianes: nunca (ver secret-paths.js)
   args.push("--max-turns", String(maxTurns));
   if (model) args.push("--model", model);
   if (task?.header?.dictated_at && !resume) {
@@ -34,10 +37,11 @@ export function buildArgs({ task, folders = [], approved = [], resume = null, ma
 // --- Modo Pro (docs/PRO.md §2): planear = opus solo lectura; programar = sonnet con acceptEdits;
 // verificar = opus solo lectura. Nunca se pueden leer .env, claves ni certificados. `npm test`/Bash no
 // van en la lista permitida: salen como "denegados" y piden aprobación (worker de Pro).
-export const PRO_MODELOS = { planear: "opus", programar: "sonnet", verificar: "opus" };
-export const PRIVADOS_CLAUDE = ["Read(**/.env)", "Read(**/.env.*)", "Read(**/*.pem)", "Read(**/*.key)", "Edit(**/.env*)", "Write(**/.env*)"];
+// Ids EXACTOS (config/pro.json modelos.claude manda: el servidor los pone en cada job). Aquí solo el valor por defecto.
+export const PRO_MODELOS = { planear: "claude-opus-5-5", programar: "claude-sonnet-5-5", verificar: "claude-opus-5-5", consultar: "claude-sonnet-5-5" };
+export const PRIVADOS_CLAUDE = [...SECRETOS.map((p) => `Read(${p})`), "Edit(**/.env*)", "Write(**/.env*)"];
 
-export function buildProArgs({ role, model = null, repo, approved = [], resume = null, maxTurns = 40 }) {
+export function buildProArgs({ role, model = null, repo, approved = [], resume = null, maxTurns = 40, fallbackModel = null }) {
   const escribe = role === "programar";
   const args = ["-p", "--output-format", "stream-json", "--verbose"];
   if (resume) args.push("--resume", resume);
@@ -46,7 +50,8 @@ export function buildProArgs({ role, model = null, repo, approved = [], resume =
   const bloqueadas = [...PRIVADOS_CLAUDE, ...(escribe ? [] : ["Edit", "Write", "MultiEdit", "Bash", "PowerShell"])];
   args.push("--disallowedTools", bloqueadas.join(","));
   args.push("--max-turns", String(maxTurns));
-  args.push("--model", model || PRO_MODELOS[role] || "sonnet");
+  args.push("--model", model || PRO_MODELOS[role] || PRO_MODELOS.programar);
+  if (fallbackModel && fallbackModel !== (model || PRO_MODELOS[role])) args.push("--fallback-model", fallbackModel); // saturación (overloaded): el cambio se registra y se avisa en el hilo
   return args; // el cwd del proceso es el repo (no se usa --add-dir)
 }
 

@@ -39,7 +39,8 @@ test("GET /m responde 200 con la vista móvil; / sigue siendo el HUD de escritor
   const d = await (await fetch(base + "/")).text();
   assert.match(d, /css\/hud\.css/);
   assert.ok(!/css\/movil\.css/.test(d));
-  assert.match(d, /location\.replace\("\/m"\)/); // la regla de redirección solo para teléfonos
+  assert.match(d, /js\/vista\.js/); // la redirección a /m (solo teléfonos) vive en un archivo propio por la CSP
+  assert.match(await (await fetch(base + "/js/vista.js")).text(), /location\.replace\("\/m"\)/);
   assert.equal((await fetch(base + "/apple-touch-icon.png")).headers.get("content-type"), "image/png");
 });
 

@@ -57,7 +57,26 @@ export async function diffBetween(repo, a, b, max = 200000) {
   return { files, text };
 }
 
-// Commit local de todo el trabajo (git add -A && git commit). NUNCA push. Devuelve { commit, vacio }.
+// Commit local SOLO de los archivos de la ronda (git add + git commit -- rutas). NUNCA push. Rechaza (error con .code
+// "cambios_ajenos") si esos archivos ya tenían cambios sin commit antes de la ronda (se mezclarían con los del usuario)
+// o si cambiaron después de que terminó la ronda. Lo demás del repo (cambios del usuario en otros archivos) no se toca.
+export async function commitPaths(repo, message, paths, { expectedTree = null, baseTree = null } = {}) {
+  const lista = [...new Set((paths || []).filter(Boolean))];
+  if (!lista.length) return { commit: null, vacio: true };
+  const fallo = (msg) => Object.assign(new Error(msg), { code: "cambios_ajenos" });
+  let hasHead = true;
+  try { await git(repo, ["rev-parse", "--verify", "-q", "HEAD"]); } catch { hasHead = false; }
+  const tocados = async (a, b) => (await git(repo, ["diff", "--name-only", a, b, "--", ...lista])).split(/\r?\n/).filter(Boolean);
+  if (baseTree && hasHead) { const x = await tocados("HEAD", baseTree); if (x.length) throw fallo(`ya tenían cambios sin commit antes de la ronda: ${x.slice(0, 5).join(", ")}`); }
+  if (expectedTree) { const cur = await snapshot(repo); if (cur !== expectedTree) { const x = await tocados(expectedTree, cur); if (x.length) throw fallo(`cambiaron después de la ronda: ${x.slice(0, 5).join(", ")}`); } }
+  await git(repo, ["add", "-A", "--", ...lista]);
+  const staged = (await git(repo, ["diff", "--cached", "--name-only", "--", ...lista])).trim();
+  if (!staged) return { commit: null, vacio: true };
+  await git(repo, ["commit", "-q", "-m", String(message).slice(0, 500), "--", ...lista]);
+  return { commit: (await git(repo, ["rev-parse", "HEAD"])).trim(), vacio: false, archivos: staged.split(/\r?\n/) };
+}
+
+// Commit local de todo el trabajo (git add -A && git commit). Solo para jobs antiguos sin lista de archivos. NUNCA push.
 export async function commitAll(repo, message) {
   await git(repo, ["add", "-A"]);
   const pend = (await git(repo, ["status", "--porcelain"])).trim();

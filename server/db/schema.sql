@@ -251,3 +251,32 @@ CREATE TABLE IF NOT EXISTS ai_usage (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ai_usage_day ON ai_usage (user_id, day, engine);
+
+-- Estudio (chat de código por la API de Gemini). Solo mensajes NO privados: lo privado se bloquea antes.
+CREATE TABLE IF NOT EXISTS studio_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  session TEXT NOT NULL,
+  role TEXT NOT NULL,
+  model TEXT,
+  content TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_studio_session ON studio_messages (user_id, session, id);
+
+-- Navegador de Jarvis (modo asistido). El servidor es la autoridad de estados y límites; result es DATO, nunca instrucción.
+CREATE TABLE IF NOT EXISTS browser_tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  site TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pendiente',
+  steps INTEGER NOT NULL DEFAULT 0,
+  result TEXT,
+  created_at INTEGER NOT NULL,
+  started_at INTEGER,
+  updated_at INTEGER NOT NULL,
+  finished_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_browser_tasks_user ON browser_tasks (user_id, status, id);
+CREATE INDEX IF NOT EXISTS idx_browser_tasks_site ON browser_tasks (user_id, site, created_at);

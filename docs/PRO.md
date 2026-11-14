@@ -7,7 +7,7 @@ Chat de tres (usuario, Claude, Gemini). Jarvis orquesta: enruta por tipo de tare
 1. Máximo 2 correcciones por decisión del usuario (`limites.correcciones_max`). Al agotarlas la ronda pasa a `necesita_usuario`.
 2. Nada privado entra en Pro: los mensajes marcados privados por `server/router/privacy.js` se rechazan (`422 privado`) y nunca viajan a Claude ni a Gemini CLI.
 3. Redacción de secretos: antes de guardar o emitir prompts, informes, diffs y logs se enmascaran claves (`sk-`, `AIza`, `ghp_`, `Bearer ...`, líneas de `.env`, tokens largos). Los archivos `.env*`, `*.pem`, `*.key` nunca se incluyen en prompts ni en el diff guardado (solo aparecen por nombre en `archivos_tocados`).
-4. Pro está habilitado solo si: PC en línea + Claude ok (modelos `opus` y `sonnet`) + Gemini CLI con login Google + al menos un repo git. `status.pro = { habilitado, motivos[] }`; motivos: `pc_apagado`, `claude_no_listo`, `gemini_sin_login`, `sin_repos_git`.
+4. Pro está habilitado solo si: PC en línea + Claude listo (cada id de `requisitos.claude_modelos` verificado con una llamada real: `claude-opus-5-5` y `claude-sonnet-5-5`) + al menos un repo git. **Pro funciona con SOLO Claude**: Gemini (`agy`) es opcional. `status.pro = { habilitado, motivos[], avisos[], gemini:{activo,listo} }`. Motivos (bloquean): `pc_apagado`, `claude_no_listo`, `claude_sin_login`, `claude_modelo_no_disponible`, `sin_repos_git`. Avisos (no bloquean, explican por qué no hay Gemini): `gemini_apagado`, `gemini_sin_login`, `gemini_modelos_faltan`, `gemini_fuera_de_carpetas`. Sin Gemini usable, programa Claude (Sonnet) y verifica Claude (Opus); con Gemini, verifica el otro motor.
 5. El repo se elige por hilo (`pro_threads.repo`) y debe estar dentro de `permissions.carpetas_permitidas` y ser repo git. Fuera de esas carpetas el job se rechaza (`repo_invalido`).
 6. Acciones de `permissions.requiere_aprobacion` (git_push, borrar, terminal_libre, desplegar) siguen pidiendo aprobación; `approvals.pro_job_id` enlaza la aprobación con el job.
 
@@ -15,9 +15,9 @@ Chat de tres (usuario, Claude, Gemini). Jarvis orquesta: enruta por tipo de tare
 
 | Rol | Claude (CLI) | Gemini (agy) |
 |---|---|---|
-| Planear | `opus`, solo lectura | `gemini-3.8-flash-high`, `--mode plan` (solo lectura real) |
-| Programar | `sonnet`, `acceptEdits` | `gemini-3.8-flash-medium`, `--mode accept-edits`; solo ante 503: `gemini-3.8-flash-low` |
-| Verificar | `opus` | `gemini-3.8-flash-high`, `--mode plan` |
+| Planear | `claude-opus-5-5`, solo lectura | `gemini-3.8-flash-high`, `--mode plan` (solo lectura real) |
+| Programar | `claude-sonnet-5-5`, `acceptEdits` | `gemini-3.8-flash-medium`, `--mode accept-edits`; solo ante 503: `gemini-3.8-flash-low` |
+| Verificar | `claude-opus-5-5` | `gemini-3.8-flash-high`, `--mode plan` |
 
 - Si Gemini no tiene cuota al planear o verificar NO se baja de modelo en silencio: el job falla con `error: "sin_cuota"` y se avisa al usuario.
 - Bajar de Flash solo por HTTP 503; un 429 no baja.
@@ -64,7 +64,7 @@ Solo `GET /api/pro/status` existe en la base; el resto lo implementa P2.
 Job entregado al PC:
 
 ```json
-{ "id": 12, "round_id": 5, "role": "programar", "engine": "claude", "model": "sonnet",
+{ "id": 12, "round_id": 5, "role": "programar", "engine": "claude", "model": "claude-sonnet-5-5",
   "repo": "C:\\Users\\x\\proyecto", "mode": "editar", "prompt": "...", "timeout_s": 1800 }
 ```
 
@@ -116,7 +116,7 @@ Hacia la web (el bus lleva `userId`; el mensaje WS no):
 Capacidades que el PC manda en `hello` y `heartbeat`:
 
 ```json
-{ "capabilities": { "claude": {"ok": true, "modelos": ["opus","sonnet"]},
+{ "capabilities": { "claude": {"ok": true, "modelos": ["claude-opus-5-5","claude-sonnet-5-5"]},
                     "agy": {"ok": true, "login": "google"},
                     "repos": ["C:\\Users\\x\\proyecto"] } }
 ```
@@ -165,3 +165,17 @@ Desajustes servidor (P2) / runner (P3) hallados con `test/pro-e2e.test.js` y su 
 2. **Informe de `planear`**: el servidor espera texto (string); el worker mandaba un objeto `{dijo_hizo,...}` y el plan salía como JSON. Ahora manda el texto del plan tal cual. `verificar` manda el JSON de verificación (campos propios) y `programar` el informe del punto 6.
 3. Comprobados sin cambios: rutas, `claim`/`again`, aprobaciones (`/pro/jobs/:id/approval`, estado por `/api/agent/approvals/:id`), capacidades `agy`, `sin_cuota` / `gemini_503`, duplicado (`report` 200 `duplicado`, `fail` repetido 200) y reenvío del buzón.
 4. Límite conocido: el worker no aborta el motor si `events` devuelve `cancelado`; termina el paso y el servidor ignora el `report`.
+
+## Estabilidad y modelos 5.5 (rama pro-estabilidad)
+- **Ids exactos** (config/pro.json `modelos.claude`): planear y verificar `claude-opus-5-5`; programar y consultar `claude-sonnet-5-5`. Ya no se usan los alias `opus`/`sonnet`. Comprobado con `claude -p --model <id>`: ambos responden en la cuenta; un id inexistente devuelve `is_error: true` (404) aunque el proceso salga bien, por eso el doctor mira `is_error`.
+- **Doctor**: hace una sonda real y barata (~1,6k tokens: `--tools "" --strict-mcp-config --disable-slash-commands`) por cada id; éxito en caché 30 min, fallo 2 min. `capabilities.claude = { ok, modelos (verificados), faltan, error: sin_login|modelo_no_disponible|…, version }`. El hello devuelve `pro.modelos_claude` (los ids a verificar). Se ejecuta sin `ANTHROPIC_API_KEY` ni proveedores alternativos: solo la sesión (suscripción) del PC.
+- **Reserva de Opus**: si Opus está saturado, sin cuota o la cuenta no lo tiene, planear/verificar se rehacen con `claude-sonnet-5-5` (`job.fallback_models`, además de `--fallback-model`). El PC informa `modelo_real` y `fallback`; el servidor lo guarda en `pro_jobs.model_real` y **avisa en el hilo** (mensaje de sistema, `meta.aviso = "modelo_cambiado"`). Nunca en silencio.
+- **Errores con causa**: `sin_cuota` y `sin_login` dejan la ronda en `necesita_usuario`; `modelo_no_disponible`, `error_max_turns`, `respuesta_vacia`, `timeout`, `tiempo_excedido`, `pc_reinicio` y `cambios_ajenos` la dejan en `fallida` con un mensaje claro. Un error normal de una herramienta de `agy` ya no cuenta como permiso denegado.
+- **Tiempos** (config `timeouts`): planear 900 s, programar 1800 s, verificar 600 s, consultar 300 s, más `margen_s` 120 antes de dar un job por perdido (barrido en cada claim/hilo). Un `hello` del PC (reinicio) marca como `fallido` (`pc_reinicio`) todo job reclamado o en curso.
+- **Cancelar** detiene el proceso del PC: el PC sondea `POST /api/agent/pro/jobs/:id/events` (cuerpo vacío) cada ~5 s y, si la respuesta trae `cancelado: true`, mata el proceso sin enviar report ni fail.
+- **Reintentar paso**: `POST /api/pro/rounds/:id/reintentar` vuelve a encolar el último paso fallido (mismo motor e instrucciones). Errores 409: `job_en_curso`, `nada_que_reintentar`, `ronda_activa`.
+- **Envío atómico**: la ronda se crea con un solo INSERT condicional; dos envíos simultáneos dan un 201 y un 409 `ronda_activa`. `necesita_usuario` y `conversando` cuentan como ronda activa.
+- **Plan editado**: si al aprobar el texto difiere del plan, se guarda como mensaje del usuario (`kind: plan`, `meta.editado`) y ese es el plan que recibe quien programa.
+- **Commit solo de la ronda**: el claim de commit trae `expected_tree` (árbol al terminar de programar), `base_tree` (al empezar) y `commit_paths` (archivos de los diffs, con el origen de los renombrados). El PC hace `git add -A -- <rutas>` y `git commit -- <rutas>`; si esos archivos ya tenían cambios sin commit antes de la ronda o cambiaron después, falla con `cambios_ajenos` y no toca nada. Los cambios del usuario en otros archivos no se mezclan. Jobs viejos sin `commit_paths` siguen usando `git add -A`.
+- **Redacción**: los tokens largos solo se tapan si parecen secretos (letras y números mezclados, entropía alta); los sha de git y los nombres de código largos se respetan. Un texto recortado lo dice (`[... recortado: el texto original tenía N caracteres]`).
+- **Coordinador Groq**: sin Gemini usable no propone Gemini (se mapea a Claude).

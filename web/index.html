@@ -7,15 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Jarvis</title>
-<script>
-// Teléfonos (lado corto de la pantalla < 600 px) van a la vista móvil /m, salvo que se haya elegido "vista escritorio". iPad y Electron se quedan aquí.
-(function () {
-  try {
-    var s = Math.min(screen.width, screen.height);
-    if (s < 600 && !/Electron/i.test(navigator.userAgent) && localStorage.getItem("jarvis_vista") !== "escritorio") location.replace("/m");
-  } catch (e) { /* sin redirección */ }
-})();
-</script>
+<script src="js/vista.js"></script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -49,6 +41,7 @@
   <div class="tabs" id="tablist" role="tablist" aria-label="Vista de Jarvis">
     <button type="button" role="tab" id="tab-clasico" aria-selected="true" aria-controls="vista-clasico">Clásico</button>
     <button type="button" role="tab" id="tab-pro" aria-selected="false" aria-controls="vista-pro" aria-disabled="true" tabindex="-1">Pro</button>
+    <a class="tab-link" href="/estudio" style="display:inline-flex;align-items:center;color:var(--fg);padding:0 14px;min-height:44px;border:1px solid var(--line);text-decoration:none;font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase">Estudio</a>
   </div>
   <div class="pro-motivos" id="pro-motivos" role="status" hidden></div>
 
@@ -148,6 +141,5 @@
 
 <script type="module" src="js/main.js"></script>
 <script type="module" src="js/pro.js"></script>
-<script>document.getElementById("tomovil").addEventListener("click", function () { try { localStorage.removeItem("jarvis_vista"); } catch (e) {} });</script>
 </body>
 </html>

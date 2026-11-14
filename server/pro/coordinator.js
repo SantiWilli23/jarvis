@@ -13,25 +13,30 @@ function parseJson(x) {
 }
 
 // Acción cruda -> acción limpia, o null si no es válida (se descarta).
-function norm(a) {
+function norm(a, soloClaude = false) {
   if (!a || typeof a !== "object" || !TIPOS.includes(a.tipo)) return null;
+  if (soloClaude) { // Gemini no está disponible: todo es Claude (programa Sonnet, revisa Opus)
+    a = { ...a };
+    if (a.a === "gemini") a.a = "claude";
+    if (a.tipo === "proponer") { a.programador = "claude"; a.verificador = "claude"; }
+  }
   if (a.tipo === "hablar") { const t = txt(a.texto, 2000); return t ? { tipo: "hablar", texto: t } : null; }
   if (a.tipo === "consultar") {
     const p = txt(a.pregunta, 1500);
     return MOTORES.includes(a.a) && p ? { tipo: "consultar", a: a.a, pregunta: p } : null;
   }
   if (a.tipo === "proponer") {
-    if (!MOTORES.includes(a.programador) || !MOTORES.includes(a.verificador) || a.programador === a.verificador) return null;
+    if (!MOTORES.includes(a.programador) || !MOTORES.includes(a.verificador) || (a.programador === a.verificador && !soloClaude)) return null;
     return { tipo: "proponer", programador: a.programador, verificador: a.verificador, texto: txt(a.texto, 1500), nota: txt(a.nota, 1000) };
   }
   return { tipo: a.tipo };
 }
 
 // Texto de Groq -> { acciones, resumen } o null (JSON inválido o sin ninguna acción válida).
-export function parseAcciones(raw) {
+export function parseAcciones(raw, { soloClaude = false } = {}) {
   const o = parseJson(raw);
   if (!o || !Array.isArray(o.acciones)) return null;
-  const acciones = o.acciones.map(norm).filter(Boolean);
+  const acciones = o.acciones.map((a) => norm(a, soloClaude)).filter(Boolean);
   if (!acciones.length) return null;
   return { acciones, resumen: txt(o.resumen, 1500) };
 }

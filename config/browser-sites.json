@@ -1,0 +1,12 @@
+{
+  "nota": "Navegador de Jarvis (modo ASISTIDO). activo:false por defecto: nada se encola ni se sondea hasta ponerlo en true. Jarvis solo PREPARA el texto en la caja de entrada; el señor pulsa Enviar y Jarvis lee la respuesta. Nunca se automatiza el envío, ni CAPTCHA, ni inicio de sesión, ni 2FA, ni contraseñas. Lo privado nunca va a estos sitios.",
+  "activo": false,
+  "limites": { "max_pasos": 12, "max_segundos": 180, "tareas_hora": 10, "envios_sitio_hora": 6, "envios_dia": 30, "pausa_seg": 20 },
+  "sondeo_seg": 3,
+  "sitios": {
+    "claude": { "nombre": "Claude Code (web)", "url": "https://claude.ai/code", "particion": "persist:claude" },
+    "chatgpt": { "nombre": "ChatGPT", "url": "https://chatgpt.com/", "particion": "persist:chatgpt" },
+    "perplexity": { "nombre": "Perplexity", "url": "https://www.perplexity.ai/", "particion": "persist:perplexity" },
+    "grok": { "nombre": "Grok", "url": "https://grok.com/", "particion": "persist:grok" }
+  }
+}

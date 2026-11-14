@@ -11,6 +11,10 @@ import { createWorker } from "./runner/worker.js";
 import { createProWorker } from "./runner/pro-worker.js";
 import { createOutbox } from "./runner/outbox.js";
 import { runDoctor, resolveAgy } from "./runner/doctor.js";
+import { createBrowserWindow } from "./browser/window.js";
+import { createBrowserWorker } from "./browser/worker.js";
+import selectors from "./browser/selectors.json" with { type: "json" };
+import { appendFileSync } from "node:fs";
 
 const smoke = process.argv.includes("--smoke-test") || process.env.JARVIS_SMOKE === "1";
 if (smoke) app.setPath("userData", mkdtempSync(join(tmpdir(), "jarvis-smoke-")));
@@ -18,6 +22,7 @@ const dataDir = app.getPath("userData");
 
 const gotLock = smoke || app.requestSingleInstanceLock(); // instancia única
 if (!gotLock) app.quit();
+let browserWin = null, browserWorker = null;
 let win = null, tray = null, worker = null, cfg = null, quitting = false, lastStatus = {};
 
 const origin = () => new URL(cfg.hubUrl).origin;
@@ -78,8 +83,18 @@ function startWorker() {
   // Modo Pro: carpetas permitidas = las de config.json carpetas_permitidas.
   let caps = null;
   const folders = () => (cfg.carpetas_permitidas || []).filter(Boolean);
-  const refreshCaps = () => runDoctor({ folders: folders(), claudePath: cfg.claudePath, agyPath: cfg.agyPath || cfg.geminiPath }).then((c) => { caps = c; }).catch(() => {});
-  refreshCaps(); setInterval(refreshCaps, 5 * 60_000).unref();
+  // El doctor usa lo que el servidor dijo en el hello (Gemini activo, ids de Claude a verificar), así que corre DESPUÉS
+  // de crear el worker y otra vez cuando eso cambie (chequeo corto cada 20 s; la sonda de Claude va en caché).
+  let doctorKey = null, doctorBusy = false;
+  const refreshCaps = async (force = false) => {
+    const key = JSON.stringify([!!worker?.geminiActive?.(), worker?.claudeIds?.() || []]);
+    if (doctorBusy || (!force && key === doctorKey)) return;
+    doctorBusy = true; doctorKey = key;
+    try { caps = await runDoctor({ folders: folders(), claudePath: cfg.claudePath, agyPath: cfg.agyPath || cfg.geminiPath, geminiActivo: !!worker?.geminiActive?.(), claudeModelos: worker?.claudeIds?.() || null }); }
+    catch { /* se reintenta */ } finally { doctorBusy = false; }
+  };
+  setInterval(() => refreshCaps(false), 20_000).unref();
+  setInterval(() => refreshCaps(true), 5 * 60_000).unref();
   const pro = createProWorker({
     hub, outbox: createOutbox(join(dataDir, "pro-outbox"), { log: (m) => console.log("[jarvis]", m) }),
     allowedFolders: folders, log: (m) => console.log("[jarvis]", m),
@@ -96,7 +111,17 @@ function startWorker() {
     log: (m) => console.log("[jarvis]", m),
     onStatus: (s) => { lastStatus = { ...lastStatus, ...s }; updateTray(); },
   });
+  refreshCaps(true);
+  // Navegador de Jarvis (asistido): sondea cada 3 s; el servidor lo mantiene apagado (activo:false) hasta que se encienda.
+  const blog = (m) => { console.log("[jarvis:navegador]", m); try { appendFileSync(join(dataDir, "navegador.log"), `${new Date().toISOString()} ${m}\n`); } catch { /* sin registro */ } };
+  browserWorker = createBrowserWorker({ hub, win: ensureBrowserWin(), selectors, log: blog });
+  browserWorker.start();
   worker.start(); // al encender Windows la cola empieza de inmediato y el hub recibe pc_online
+}
+
+// Ventana del Navegador de Jarvis: se crea la primera vez que hace falta (no antes).
+function ensureBrowserWin() {
+  return (browserWin ||= createBrowserWindow({ log: (m) => console.log("[jarvis:navegador]", m), onDetener: () => browserWorker?.detener(), onLeer: () => browserWorker?.leerAhora() }));
 }
 
 function show(withMic) {
@@ -115,6 +140,7 @@ function updateTray() {
     { label: "Abrir Jarvis", click: () => show(false) },
     { label: worker?.isPaused() ? "Reanudar cola" : "Pausar cola", enabled: !!worker, click: () => { worker.pause(!worker.isPaused()); updateTray(); } },
     { label: "Siempre visible", type: "checkbox", checked: !!cfg.alwaysOnTop, click: (i) => { cfg.alwaysOnTop = i.checked; win?.setAlwaysOnTop(i.checked); saveConfig(dataDir, cfg); } },
+    { label: "Navegador de Jarvis", click: () => ensureBrowserWin().abrir() },
     { label: "Abrir archivo de configuración", click: () => shell.openPath(configPath(dataDir)) },
     { type: "separator" },
     { label: `Estado: ${estado}`, enabled: false },
