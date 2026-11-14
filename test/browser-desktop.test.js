@@ -196,3 +196,36 @@ test("selectors.json y window.js: cuatro sitios con partición propia, sin prelo
   assert.match(win, /nodeIntegration: false/);
   assert.match(win, /executeJavaScriptInIsolatedWorld/);
 });
+
+test("solo_preparar: deja el texto, NO envía, no lee y termina en prompt_listo", async () => {
+  const s = sitioFalso(), hub = hubFalso(); let listo = 0, durmio = 0;
+  const out = await runAssist({ task: { id: 20, site: "claude", prompt: "plan", solo_preparar: true }, selectors: SEL, page: { exec: async (c) => ejecutar(s.doc, c) }, hub, sleep: async () => { durmio++; }, now: reloj(), onPromptReady: () => { listo++; } });
+  assert.equal(out.fin, "prompt_listo");
+  assert.deepEqual(hub.pasos, [{ estado: "sesion_ok" }, { estado: "prompt_listo" }]);
+  assert.equal(s.caja.value, "plan");
+  assert.equal(s.enviados, 0);
+  assert.equal(s.enviar.clicks, 0);
+  assert.equal(durmio, 0);
+  assert.equal(listo, 1);
+});
+
+test("solo_preparar: si falla el selector copia al portapapeles y reporta prompt_listo con aviso copiado", async () => {
+  const rota = new Caja({ id: "caja" }); Object.defineProperty(rota, "value", { get: () => "", set: () => {} });
+  for (const doc of [pagina({ texto: "página cambiada" }), pagina({ els: [rota] })]) {
+    const hub = hubFalso(), copias = [];
+    const out = await runAssist({ task: { id: 21, prompt: "hola", solo_preparar: true }, selectors: SEL, page: { exec: async (c) => ejecutar(doc, c) }, hub, degrade: async (t) => copias.push(t.prompt), sleep: async () => {}, now: reloj() });
+    assert.equal(out.fin, "prompt_listo");
+    assert.deepEqual(copias, ["hola"]);
+    assert.deepEqual(hub.pasos.at(-1), { estado: "prompt_listo", aviso: "copiado" });
+  }
+});
+
+test("solo_preparar: login o captcha paran igual y no copian ni escriben", async () => {
+  for (const [els, esperado] of [[[new El("input", { type: "password" })], "necesita_login"], [[new El("iframe", { src: "a/captcha" })], "bloqueado"]]) {
+    const hub = hubFalso(), copias = [];
+    const out = await runAssist({ task: { id: 22, prompt: "x", solo_preparar: true }, selectors: SEL, page: { exec: async (c) => ejecutar(pagina({ els }), c) }, hub, degrade: async (t) => copias.push(t), sleep: async () => {}, now: reloj() });
+    assert.equal(out.fin, esperado);
+    assert.deepEqual(hub.pasos.map((p) => p.estado), [esperado]);
+    assert.deepEqual(copias, []);
+  }
+});
