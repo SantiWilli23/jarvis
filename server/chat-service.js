@@ -1,6 +1,7 @@
 // Lógica de una conversación: la comparten /api/chat y /api/shortcut.
 import { all, get, run } from "./db/client.js";
 import { detectDirect } from "./queue/direct.js";
+import { detectPedidoGemini } from "./router/pedido.js";
 import { classify } from "./router/classify.js";
 import { parsePhoneIntent, phoneReply } from "./phone/intents.js";
 import { getModo } from "./settings.js";
@@ -8,9 +9,9 @@ import { getModo } from "./settings.js";
 // Modo Chat: solo conversar. Sin búsqueda web, sin acciones ni tareas para el PC o el teléfono.
 const PROMPT_MODO_CHAT = "\n\nMODO CHAT: el señor eligió que solo converse. Responda únicamente con texto: no busque en la web, no use herramientas ni ofrezca acciones (correo, calendario, Spotify, WhatsApp, teléfono) y no prepare ni encole tareas para el PC. Si le piden algo así, explique con amabilidad que está en modo Chat y que puede cambiarlo a IA en Configuración.";
 
-const MSG_SIN_CUOTA = "Mis proveedores gratuitos llegaron a su límite por ahora, señor. Lo reintento en cuanto se reinicien.";
+const MSG_SIN_CUOTA = "Mis proveedores gratuitos llegaron a su límite por ahora, señor. Lo reintento en cuanto se reinicien. Si quiere, puede pedírselo a Gemini con /gemini.";
 
-const MOTORES = ["auto", "flash", "claude"]; // lista cerrada del selector del chat
+const MOTORES = ["auto", "flash", "gemini", "claude"]; // lista cerrada del selector del chat
 
 export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, persona = "", webSearch = null, agent = null, now = () => Date.now() }) {
   async function ensureConversation(userId, id, firstText) {
@@ -48,6 +49,11 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       if (d.direct && d.engine === "gemini") {
         if (!d.text.trim()) { state(userId, "idle"); return { status: "vacio", conversationId: conv, reply: "¿Qué quiere preguntarle a Gemini, señor?" }; }
         original = d.text; prefer = "gemini"; d = { direct: false };
+      }
+      if (!d.direct) {
+        const pg = detectPedidoGemini(original);
+        if (pg.pedido) { original = pg.text; prefer = "gemini"; }
+        else if (motor === "gemini") prefer = "gemini";
       }
       if (d.direct) {
         if (!d.text.length) { state(userId, "idle"); return { status: "vacio", conversationId: conv, reply: "¿Qué quiere que le diga a Claude, señor?" }; }

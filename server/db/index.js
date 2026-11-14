@@ -18,6 +18,10 @@ export async function migrate(db) {
   await addColumn(db, "tasks", "engine", "TEXT NOT NULL DEFAULT 'claude'"); // motor del PC: claude | gemini
   await addColumn(db, "pro_jobs", "model_real", "TEXT"); // modelo que de verdad atendió el job (puede ser el de reserva)
   await addColumn(db, "pro_threads", "resumen", "TEXT"); // resumen del hilo que mantiene el coordinador (Groq)
+  await addColumn(db, "pro_threads", "modo", "TEXT NOT NULL DEFAULT 'local'"); // local | web
+  await addColumn(db, "pro_threads", "gh_repo", "TEXT");
+  await addColumn(db, "pro_threads", "gh_rama", "TEXT");
+  await addColumn(db, "browser_tasks", "pro_round_id", "INTEGER"); // tarea ligada a una ronda Pro web (solo preparar)
   await addColumn(db, "devices", "expires_at", "INTEGER"); // caducidad: solo sesiones web (90 días); pc/phone/shortcut = NULL
   await db.execute({ sql: "UPDATE devices SET expires_at = ? WHERE kind = 'web' AND expires_at IS NULL", args: [Date.now() + 90 * 24 * 60 * 60 * 1000] });
 }

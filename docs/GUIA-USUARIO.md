@@ -169,6 +169,24 @@ Herramientas: `spotify.escuchando`, `spotify.recientes`, `spotify.control` (play
 ### Juego de fútbol (solo lectura)
 Ponga en `GAMES_API_URL` la dirección del servidor del juego. Sin más, Jarvis consulta estado y funciones activas (`/api/health`, `/api/public/features`, herramienta `games.estado`). El juego protege el resto (ranking, progreso) con un token de sesión de 30 días: si quiere `games.ranking` y `games.progreso`, inicie sesión en el juego (`POST /api/auth/login`) y pegue el token en `GAMES_API_TOKEN`; deberá renovarlo cada 30 días. El juego no ofrece hoy un endpoint "mis puntos" ni una clave de servicio; si quiere algo más estable habría que añadirle allí un token de solo lectura (Jarvis no modifica ese proyecto).
 
+### Conectar GitHub (solo lectura)
+Jarvis solo lee; no escribe nada en GitHub. Cree una llave por cuenta u organización y no la escriba en el chat.
+1. GitHub > Settings > Developer settings > Personal access tokens > **Fine-grained tokens** > Generate new token. (Los tokens clásicos `ghp_` se rechazan.)
+2. **Resource owner**: la cuenta u organización. **Repository access**: All repositories.
+3. Permisos en **lectura** (Read-only): Metadata, Contents, Pull requests, Commit statuses y Checks. Si es una organización, puede requerir la aprobación de un administrador.
+4. Copie el token (`github_pat_...`) y péguelo en `.env` como `GITHUB_TOKEN` y en Render > Environment. Para varias cuentas, use `GITHUB_TOKENS` con los tokens separados por comas.
+5. Reinicie: el panel mostrará GitHub y `/api/github/status` las cuentas y el número de repos.
+
+### Pro web paso a paso (programar con Claude Code web o Jules)
+1. **Llave de GitHub**: siga «Conectar GitHub» (arriba). Sin llave, la pestaña Pro explica qué falta.
+2. **Inicie sesión usted** en claude.ai/code y/o en jules.google.com en su navegador. Jarvis no entra por usted.
+3. En Pro (en el móvil: Más > Pro web) cree un hilo: elija repositorio y rama, y cuente qué quiere. Jarvis le propone un prompt; puede editarlo.
+4. Pulse **Preparar para Claude Code** (o Jules) y luego **Copiar y abrir**: se copia el prompt y se abre la página; péguelo allí y envíelo. Después pulse «Ya lo envié».
+5. Cuando la herramienta termine, pulse **Buscar resultado** y, en la lista, **Es este** en la rama o el PR correcto. Verá un resumen, los archivos tocados, avisos y las comprobaciones de GitHub.
+6. Si quiere otra opinión, **Revisión cruzada** la hace la otra herramienta. Cuando esté conforme, fusione usted el PR en GitHub y marque la ronda como hecha.
+
+**Si algo falla**: «falta la llave de GitHub» o «llave rechazada», cree otra (fine-grained, solo lectura); «Copiar y abrir» no copió, seleccione el texto del cuadro y cópielo a mano; el sitio no se abrió, use «Abrir de nuevo»; «Buscar resultado» no ve nada, espere unos minutos o vincule la rama a mano; «ronda en marcha», cancele la anterior; «PR de un fork», solo se aceptan ramas del mismo repositorio.
+
 ### WhatsApp (API oficial de Meta, con un número aparte)
 1. https://developers.facebook.com > Crear app (tipo Empresa) > añada el producto **WhatsApp**. Use un número que no sea su WhatsApp personal.
 2. En WhatsApp > Configuración de la API: copie el **Token** (`WHATSAPP_TOKEN`; el temporal dura 24 h, cree un usuario del sistema para uno permanente) y el **Identificador del número de teléfono** (`WHATSAPP_PHONE_ID`).

@@ -55,7 +55,7 @@ test("status: conexiones {id,nombre,ok,usa}, Claude (PC), conn.using y status.pr
   const pc = s.connections.find((c) => c.id === "claude_pc");
   assert.deepEqual([pc.nombre, pc.ok, pc.usa], ["Claude (PC)", false, false]);
   for (const c of s.connections) assert.ok(c.id && c.nombre && typeof c.ok === "boolean" && typeof c.usa === "boolean");
-  assert.deepEqual(s.pro, { habilitado: false, motivos: ["pc_apagado", "claude_no_listo", "sin_repos_git"], avisos: ["gemini_apagado"], gemini: { activo: false, listo: false } });
+  const { web: webPro, local_visible: lv, ...proBase } = s.pro; assert.equal(lv, false); assert.equal(webPro.habilitado, false); assert.deepEqual(proBase, { habilitado: false, motivos: ["pc_apagado", "claude_no_listo", "sin_repos_git"], avisos: ["gemini_apagado"], gemini: { activo: false, listo: false } });
   await ctx.router.route({ userId: ctx.ownerId, messages: [{ role: "user", content: "hola" }] });
   assert.equal(evs.length, 1);
   assert.equal(evs[0].userId, ctx.ownerId);
@@ -63,7 +63,7 @@ test("status: conexiones {id,nombre,ok,usa}, Claude (PC), conn.using y status.pr
   assert.ok((await ctx.status(ctx.ownerId)).connections.every((c) => !c.usa));
   ctx.bus.emit("pc.using", { userId: ctx.ownerId });
   assert.equal((await ctx.status(ctx.ownerId)).connections.find((c) => c.id === "claude_pc").usa, true);
-  ctx.config.motores_pc.gemini.activo = true; // encendido a mano
+  ctx.config.motores_pc.gemini.activo = true; ctx.pro.config.local_visible = true; // encendido a mano
   await ctx.agent.hello(ctx.ownerId, { capabilities: { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, gemini_cli: { ok: true, login: "google" }, repos: ["C:/r"] } });
   s = await ctx.status(ctx.ownerId);
   assert.equal(s.pro.habilitado, true);
@@ -72,7 +72,7 @@ test("status: conexiones {id,nombre,ok,usa}, Claude (PC), conn.using y status.pr
 
 test("usageToday incluye ai_usage; rutas /api/pro y /api/agent/pro montadas", async () => {
   const db = createDb({ url: ":memory:" });
-  const ctx = await buildContext({ db, env: { OWNER_PASSWORD: "x" } }); ctx.config.motores_pc.gemini.activo = true;
+  const ctx = await buildContext({ db, env: { OWNER_PASSWORD: "x" } }); ctx.config.motores_pc.gemini.activo = true; ctx.pro.config.local_visible = true;
   await db.execute({ sql: "INSERT INTO ai_usage (user_id, day, engine, model, tokens_in, tokens_out, created_at) VALUES (?,?,?,?,?,?,?)", args: [ctx.ownerId, new Date().toISOString().slice(0, 10), "gemini", "m", 3, 4, Date.now()] });
   assert.deepEqual((await ctx.agent.usageToday(ctx.ownerId)).ai, { gemini: { tokens: 7, llamadas: 1 } });
   const server = createServer(createApp(ctx));

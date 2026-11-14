@@ -197,3 +197,26 @@ body.movil .login button { min-height: 48px; }
   body.movil .perm { max-height: 92dvh; }
 }
 @media (prefers-reduced-motion: reduce) { body.movil .sheet, body.movil .say-form, body.movil .scrim { transition: none; } }
+
+/* ---------- Pro web (hoja) ---------- */
+body.movil .mpro-hilos { display: grid; gap: 6px; }
+body.movil .mpro-hilos .hilo { display: grid; text-align: left; gap: 2px; min-height: 44px; padding: 8px 12px; background: var(--panel); color: var(--fg); border: 1px solid var(--line); }
+body.movil .mpro-hilos .hilo.sel { border-color: var(--accent); }
+body.movil .mpro-hilos small { color: var(--dim); overflow-wrap: anywhere; }
+body.movil .mpro-new, body.movil #mpro-round .round, body.movil #mpro-round .webrama { display: grid; gap: 8px; }
+body.movil .mpro-msgs { display: grid; gap: 8px; max-height: 30dvh; overflow-y: auto; }
+body.movil .pm { padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); font-size: 14px; overflow-wrap: anywhere; white-space: pre-wrap; }
+body.movil .pm b { font-size: 11px; color: var(--dim); letter-spacing: .08em; text-transform: uppercase; display: block; }
+body.movil .pro select, body.movil .pro input[type="text"], body.movil .pro textarea { width: 100%; font: inherit; font-size: 16px; padding: 8px 10px; color: var(--fg); background: var(--input-bg, var(--panel)); border: 1px solid var(--line); }
+body.movil .pro textarea { font-family: var(--mono); resize: vertical; }
+body.movil #mpro-round .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+body.movil #mpro-round .btns button, body.movil #mpro-round .cand button, body.movil #mpro-round .extras button, body.movil .mpro-say button { min-height: 44px; padding: 8px 12px; background: var(--panel); color: var(--fg); border: 1px solid var(--line); }
+body.movil #mpro-round .btns button.yes, body.movil #mpro-round .cand button { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--panel)); }
+body.movil #mpro-round .envio, body.movil #mpro-round .cand { padding: 8px 10px; border: 1px solid var(--line); background: var(--panel); display: grid; gap: 6px; }
+body.movil #mpro-round .cands { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+body.movil #mpro-round .lbl { margin: 0; font-size: 12px; color: var(--dim); }
+body.movil #mpro-round .lbl.warn { color: var(--amber); }
+body.movil #mpro-round a { color: var(--accent); }
+body.movil #mpro-round .ck-failure { color: var(--used); }
+body.movil .mpro-say { display: flex; gap: 8px; }
+body.movil .mpro-say input { flex: 1; min-width: 0; }

@@ -179,3 +179,21 @@ Desajustes servidor (P2) / runner (P3) hallados con `test/pro-e2e.test.js` y su 
 - **Commit solo de la ronda**: el claim de commit trae `expected_tree` (árbol al terminar de programar), `base_tree` (al empezar) y `commit_paths` (archivos de los diffs, con el origen de los renombrados). El PC hace `git add -A -- <rutas>` y `git commit -- <rutas>`; si esos archivos ya tenían cambios sin commit antes de la ronda o cambiaron después, falla con `cambios_ajenos` y no toca nada. Los cambios del usuario en otros archivos no se mezclan. Jobs viejos sin `commit_paths` siguen usando `git add -A`.
 - **Redacción**: los tokens largos solo se tapan si parecen secretos (letras y números mezclados, entropía alta); los sha de git y los nombres de código largos se respetan. Un texto recortado lo dice (`[... recortado: el texto original tenía N caracteres]`).
 - **Coordinador Groq**: sin Gemini usable no propone Gemini (se mapea a Claude).
+
+## Modo web (interfaz: rama pro-web-ui)
+
+Pro web no usa el PC: Jarvis (Groq) traduce el pedido a un prompt, usted lo lleva a **Claude Code web** o **Jules** y el resultado se lee de GitHub (solo lectura). Jarvis nunca escribe ni fusiona en GitHub, ni envía nada solo.
+
+**Flujo** (pestaña Pro en escritorio; hoja «Pro web» en `/m`, desde Más):
+1. Nuevo hilo: desplegables de repositorio y rama (salen de `GET /api/github/repos` y `.../branches`; no hay campo libre). `POST /api/pro/threads {modo:"web", gh_repo, gh_rama, title}`; la rama se cambia con `PATCH /api/pro/threads/:id {gh_rama}`. El modo local solo aparece si `/api/pro/status` trae `local_visible: true`; la pestaña se activa con `pro.habilitado || pro.web.habilitado`.
+2. Usted escribe; la ronda pasa por `traduciendo`, `conversando` (Jarvis pregunta) y `prompt_listo`. El prompt sale en un cuadro editable (si lo cambia se manda `prompt_editado`).
+3. «Preparar para Claude Code / Jules» (`POST /rounds/:id/enviar`, modo `copiar`) crea el envío y deja el prompt ya escrito en pantalla (estado `en_curso_web`). Después el botón **Copiar y abrir** copia y abre el sitio en el mismo clic, de forma síncrona (sin `await` antes: `execCommand('copy')`, `clipboard.writeText` y `window.open(url,'_blank','noopener')`), que es lo que exigen iOS y Electron. Luego marca el envío con `/ya-enviado`. «Dejar en el navegador de Jarvis» (modo `asistido`) solo sale si `web.destinos.claude_web.asistido`.
+4. «Buscar resultado» (`/sondear`, mínimo 30 s entre sondeos; también se sondea al abrir el hilo) lista candidatos (PR o rama; los de prefijo `claude/`, `jules/`… van primero). «Es este» (`/vincular`) muestra resumen, archivos tocados/mencionados sin tocar/sensibles/ajenos, checks de GitHub y el enlace al PR.
+5. `resultado_listo`: revisión cruzada con la OTRA herramienta (`/revisar`), pedir corrección (`/correccion`), marcar hecha o rechazar. Cancelar siempre disponible.
+6. «Consultar a…» (ChatGPT, Grok, Perplexity) existe aparte y solo por clic explícito; nunca automático.
+
+**Estados de ronda**: `traduciendo`, `conversando`, `prompt_listo`, `en_curso_web`, `resultado_listo`, `necesita_usuario`, `hecha`, `cancelada`, `fallida`. **Estados de envío**: `preparado`, `preparando`, `prompt_listo`, `tarea_<estado>`, `copiado`, `enviado`, `vinculado`, `respondido`.
+
+**Seguridad de la interfaz**: todo texto de GitHub, PR, commits, archivos o servidor se escapa (`esc`) y nunca entra por `innerHTML` sin escapar; los enlaces son solo `https://github.com/{repo del hilo}/…` con `rel="noopener noreferrer"`; la URL de apertura del destino debe ser https y del host de esa herramienta, si no se usa la fija. Los códigos de error del servidor (`ronda_activa`, `tope_dia`, `fork_no_permitido`…) se traducen a español en `web/js/pro-web.js`.
+
+**Qué NO es automático**: iniciar sesión en claude.ai o Jules, pegar y pulsar enviar en esos sitios, fusionar el PR, y toda consulta a ChatGPT/Grok/Perplexity. El código está en `web/js/pro-web.js` (render puro y controlador) con `test/pro-web-ui.test.js`; sin navegador real, iPhone ni GitHub real no se ha probado de punta a punta.

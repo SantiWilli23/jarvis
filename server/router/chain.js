@@ -3,11 +3,11 @@
 // Lo privado pasa siempre por privacy (lista blanca) y jamás se degrada a otro proveedor.
 import { ProviderError } from "../providers/base.js";
 
-export function createRouter({ providers, chain, orderByKind = {}, quota, privacy, onUse = () => {} }) {
+export function createRouter({ providers, chain, orderByKind = {}, quota, privacy, onUse = () => {}, soloBajoPedido = [] }) {
   // prefer: proveedor que va primero si se pide (p. ej. "/gemini"); lo privado sigue pasando por privacy.filter.
   function candidates(kind, isPrivate, prefer = null) {
     const pref = orderByKind[kind] || [];
-    const ids = [...new Set([...(prefer ? [prefer] : []), ...pref, ...chain])].filter((id) => providers[id]);
+    const ids = [...new Set([...(prefer ? [prefer] : []), ...pref, ...chain])].filter((id) => providers[id] && (!soloBajoPedido.includes(id) || prefer === id));
     return privacy.filter(ids, isPrivate);
   }
 

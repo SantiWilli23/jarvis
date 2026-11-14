@@ -75,3 +75,44 @@ test("el motor 'gemini' de tareas ya no existe", async () => {
   assert.equal(r.status, 400);
   assert.equal((await call("/api/tasks/1/pass-to-claude", { method: "POST", body: {} })).status, 404);
 });
+
+// ---- Groq primero: Gemini solo bajo pedido ----
+test("frases naturales de pedido a Gemini lo activan; en mitad de frase no", async () => {
+  const { detectPedidoGemini } = await import("../server/router/pedido.js");
+  assert.deepEqual(detectPedidoGemini("Jarvis, pregúntale a Gemini: qué hora es en Tokio"), { pedido: true, text: "qué hora es en Tokio" });
+  assert.equal(detectPedidoGemini("dile a Google que resuma esto").pedido, true);
+  assert.deepEqual(detectPedidoGemini("resume este texto con Gemini."), { pedido: true, text: "resume este texto" });
+  assert.equal(detectPedidoGemini("qué es Google Maps").pedido, false);
+  assert.equal(detectPedidoGemini("dile a Gemini").pedido, false);
+  assert.equal(detectPedidoGemini("usa Gemini para esto y luego sigue").pedido, false);
+});
+
+test("'pregúntale a Gemini' y el motor gemini usan Gemini; el chat normal nunca", async () => {
+  gem.calls = 0; groq.calls = 0;
+  let r = await chat({ text: "pregúntale a Gemini, cuánto es 2+2" });
+  assert.equal(r.provider, "gemini");
+  r = await chat({ text: "cuánto es 3+3", engine: "gemini" });
+  assert.equal(r.provider, "gemini");
+  const g = gem.calls;
+  r = await chat({ text: "cuánto es 4+4" });
+  assert.equal(r.provider, "groq");
+  assert.equal(gem.calls, g);
+});
+
+test("privado con 'pregúntale a Gemini' lo contesta Groq", async () => {
+  const g = gem.calls;
+  const r = await chat({ text: "pregúntale a Gemini mi contraseña del banco es 1234", private: true });
+  assert.equal(r.provider, "groq");
+  assert.equal(gem.calls, g);
+});
+
+test("sin pedido, si Groq falla nunca se llama a Gemini", async () => {
+  const g = gem.calls, oldFail = groq.fail;
+  groq.fail = Object.assign(new Error("boom"), { status: 500 });
+  try {
+    const r = await chat({ text: "dime un dato curioso" });
+    assert.notEqual(r.provider, "gemini");
+    assert.equal(gem.calls, g);
+    if (r.status === "sin_cuota") assert.match(r.reply, /\/gemini/);
+  } finally { groq.fail = oldFail; }
+});

@@ -64,8 +64,8 @@
   <form class="say-form" id="sayform">
     <label class="sr" for="sayin">Escribir a Jarvis</label>
     <input type="text" id="sayin" placeholder="Escriba a Jarvis…" autocomplete="off" enterkeyhint="send" maxlength="4000">
-    <select id="saymotor" class="motor" aria-label="Motor de Jarvis" title="Motor: Auto, Flash (nube) o Claude (PC)">
-        <option value="auto">Auto</option><option value="flash">Flash</option><option value="claude">Claude</option>
+    <select id="saymotor" class="motor" aria-label="Motor de Jarvis" title="Motor: Auto, Nube, Gemini o Claude (PC)">
+        <option value="auto">Auto</option><option value="flash">Nube</option><option value="gemini">Gemini</option><option value="claude">Claude</option>
       </select>
       <label class="priv"><input type="checkbox" id="saypriv"> privado</label>
     <button type="submit">Enviar</button>
@@ -161,6 +161,7 @@
       <button type="button" id="mnotif">Activar notificaciones</button>
       <p class="hint" id="mpushmsg" hidden></p>
       <p class="hint" id="mdesp">Despertador del Atajo: comprobando…</p>
+      <button type="button" id="mpro">Pro web (programar con GitHub)</button>
       <button type="button" id="mdesk">Vista escritorio</button>
       <a href="/estudio" style="display:inline-flex;align-items:center;min-height:44px;color:var(--fg)">Estudio</a>
       <button type="button" id="mdev">Dispositivos</button>
@@ -171,6 +172,34 @@
       <div id="devlist"></div>
       <button type="button" class="wide" id="devnew">Crear token para el Atajo del iPhone</button>
       <div class="token" id="devtoken" hidden></div>
+    </div>
+  </div>
+</section>
+
+<!-- Hoja: Pro web -->
+<section class="sheet" id="sh-pro" role="dialog" aria-label="Pro web" hidden>
+  <div class="grip" aria-hidden="true"></div>
+  <div class="body">
+    <div class="panel pro">
+      <h2>Pro web <em>Claude Code y Jules</em></h2>
+      <p class="note" id="mpro-aviso" role="alert" hidden></p>
+      <div id="mpro-hilos" class="mpro-hilos"></div>
+      <form id="mpro-newform" class="mpro-new" hidden>
+        <label for="mpro-repo">Repositorio de GitHub</label>
+        <select id="mpro-repo"></select>
+        <label for="mpro-rama">Rama</label>
+        <select id="mpro-rama"></select>
+        <label for="mpro-title">Título (opcional)</label>
+        <input type="text" id="mpro-title" maxlength="120" autocomplete="off">
+        <button type="submit" class="wide">Nuevo hilo</button>
+      </form>
+      <div id="mpro-msgs" class="mpro-msgs" role="log" aria-live="polite"></div>
+      <div id="mpro-round"></div>
+      <form id="mpro-form" class="mpro-say">
+        <label class="sr" for="mpro-in">Mensaje para Jarvis</label>
+        <input type="text" id="mpro-in" placeholder="Cuente qué quiere hacer…" autocomplete="off" maxlength="4000" enterkeyhint="send" disabled>
+        <button type="submit" id="mpro-send" disabled>Enviar</button>
+      </form>
     </div>
   </div>
 </section>

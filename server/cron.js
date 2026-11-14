@@ -4,7 +4,7 @@
 //  3) Resumen diario de cuota (una vez al día, a partir de CRON_SUMMARY_HOUR_UTC, 12 por defecto).
 import { all, get, run } from "./db/client.js";
 
-export function createCron({ db, notify, state, status, ownerId, env = process.env, now = () => Date.now(), bus }) {
+export function createCron({ db, notify, state, status, ownerId, env = process.env, now = () => Date.now(), bus, proWeb = null }) {
   const setting = async (k) => (await get(db, "SELECT value FROM settings WHERE user_id=? AND key=?", [ownerId, k]))?.value ?? null;
   const setSetting = (k, v) => run(db, `INSERT INTO settings (user_id, key, value, created_at) VALUES (?,?,?,?) ON CONFLICT(user_id, key) DO UPDATE SET value=excluded.value`, [ownerId, k, String(v), now()]);
 
@@ -18,6 +18,7 @@ export function createCron({ db, notify, state, status, ownerId, env = process.e
         if (await notify(`Recordatorio: ${r.text}`)) { await run(db, "UPDATE reminders SET done=1 WHERE id=?", [r.id]); out.recordatorios++; }
       }
 
+      try { out.pro_web = proWeb ? await proWeb.tick() : 0; } catch { out.pro_web = 0; } // busca resultados de rondas Pro web en GitHub
       const now_ = state.pc?.online ? "pc_online" : "pc_offline";
       const last = await setting("pc_avisado");
       if (last == null) await setSetting("pc_avisado", now_); // primera vez: se anota sin avisar

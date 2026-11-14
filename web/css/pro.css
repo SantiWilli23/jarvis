@@ -84,3 +84,24 @@
   .pro-chat { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (prefers-reduced-motion: reduce) { .who.working { animation: none; } }
+
+/* Pro web: prompt, envíos, candidatos y resultado */
+.round.web { display: grid; gap: 8px; }
+.round.web .webprompt { min-height: 120px; }
+.round.web .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.round.web .extras { display: grid; gap: 6px; padding-top: 6px; border-top: 1px dashed var(--pro-line); }
+.round.web .envio { border: 1px solid var(--pro-line); background: var(--pro-panel-2); padding: 8px 10px; display: grid; gap: 6px; }
+.round.web .lbl { margin: 0; font-size: 12px; color: var(--dim); }
+.round.web .lbl.warn { color: var(--amber); }
+.round.web a { color: var(--cyan); }
+.cands { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cand { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--pro-line); background: var(--pro-panel-2); font-size: 13px; overflow-wrap: anywhere; }
+.cand.prio { border-color: var(--accent); }
+.cand button { flex: none; min-height: 44px; padding: 8px 12px; background: var(--cyan-deep); color: var(--fg); border: 1px solid var(--cyan); cursor: pointer; }
+.rep.resultado ul { margin: 2px 0; padding-left: 18px; }
+.rep.resultado .ck-failure, .rep.resultado .ck-timed_out { color: var(--used); }
+.rep.resultado .ck-success { color: var(--fg); }
+.webrama { display: grid; gap: 4px; }
+.webrama small { color: var(--dim); font-family: var(--mono); font-size: 11px; }
+#pro-modo-box[hidden], #pro-gh-box[hidden], #pro-local-box[hidden] { display: none; }
+@media (max-width: 760px) { .pro { grid-template-columns: minmax(0, 1fr); } }

@@ -22,7 +22,7 @@ const CONSULTA = { tipo: "consultar", a: "claude", pregunta: "¿Qué archivo toc
 const PROPONER = { tipo: "proponer", programador: "claude", verificador: "gemini", texto: "Plan simple", nota: "ojo con X" };
 
 before(async () => {
-  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.config.motores_pc.gemini.activo = true;
+  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.config.motores_pc.gemini.activo = true; ctx.pro.config.local_visible = true;
   ctx.permissions.carpetas_permitidas = ["C:\\dev"]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
   groqCalls = [];
   ctx.providers.groq = { enabled: true, chat: async (req) => { groqCalls.push(req); const t = groqOut.shift(); if (t instanceof Error) throw t; return { text: t, tokens: 1, headers: {} }; } };

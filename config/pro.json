@@ -1,5 +1,49 @@
 {
   "nota": "Modo Pro (funciona con SOLO Claude; Gemini es un extra opcional): modelos, límites y tiempos. Motor lógico \"gemini\" = Antigravity CLI (agy) con la sesión iniciada en el PC. Contrato: docs/PRO.md.",
+  "local_visible": false,
+  "web": {
+    "nota": "Pro web: Groq traduce el pedido a un prompt tecnico; el usuario lo envia a Claude Code web o Jules. El resultado se lee por la API de GitHub (solo lectura). Jarvis nunca fusiona ni escribe en GitHub.",
+    "envios_dia": 20,
+    "sondeo_min_segundos": 30,
+    "horas_max": 24,
+    "diff_max_caracteres": 6000,
+    "prompt_max_caracteres": 7000,
+    "destinos": {
+      "claude_web": {
+        "nombre": "Claude Code (web)",
+        "url": "https://claude.ai/code",
+        "sitio": "claude"
+      },
+      "jules": {
+        "nombre": "Jules",
+        "url": "https://jules.google.com"
+      },
+      "chatgpt": {
+        "nombre": "ChatGPT",
+        "url": "https://chatgpt.com/",
+        "sitio": "chatgpt",
+        "extra": true
+      },
+      "grok": {
+        "nombre": "Grok",
+        "url": "https://grok.com/",
+        "sitio": "grok",
+        "extra": true
+      },
+      "perplexity": {
+        "nombre": "Perplexity",
+        "url": "https://www.perplexity.ai/",
+        "sitio": "perplexity",
+        "extra": true
+      }
+    },
+    "prefijos_rama": [
+      "claude/",
+      "jules/",
+      "google-labs-jules/",
+      "codex/"
+    ]
+  },
   "modelos": {
     "claude": {
       "planear": "claude-opus-5-5",

@@ -29,6 +29,7 @@ import { createWebSearch } from "./tools/websearch.js";
 import { createPro, claudeIds, loadProConfig } from "./pro/index.js";
 import { buildExtensions } from "./extensions.js";
 import { createDespertador } from "./phone/despertador.js";
+import { createGitHub } from "./connectors/github.js";
 import { createPush, loadWebPush } from "./push.js";
 
 const cfgPath = (f) => fileURLToPath(new URL(`../config/${f}`, import.meta.url));
@@ -59,7 +60,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const markUsing = (id, userId) => { usingAt.set(id, now()); bus.emit("conn.using", { userId, id }); };
   const isUsing = (id) => now() - (usingAt.get(id) ?? -Infinity) < USING_MS;
   bus.on("pc.using", ({ userId, id = "claude_pc" }) => markUsing(id, userId)); // el orquestador Pro/PC avisa por aquí
-  const router = createRouter({ providers, chain, orderByKind: config.orden_por_tipo, quota, privacy, onUse: (id, { userId } = {}) => markUsing(id, userId) });
+  const router = createRouter({ providers, chain, orderByKind: config.orden_por_tipo, soloBajoPedido: config.solo_bajo_pedido || [], quota, privacy, onUse: (id, { userId } = {}) => markUsing(id, userId) });
   const notes = createNotes({ db, fts, now });
   const search = createSearch({ db, fts });
   const inbox = createInbox({ notes });
@@ -70,7 +71,8 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const approvals = createApprovals({ db, bus, audit, now });
   const phone = createPhoneQueue({ db, bus, approvals, audit, config: loadJson("phone-actions.json"), now });
   const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, motores: config.motores_pc, proModelos: () => claudeIds(loadProConfig()), now });
-  const pro = createPro({ db, bus, agent, approvals, audit, permissions, now, quota, groq: () => providers.groq });
+  const github = createGitHub({ env, fetch: f, now });
+  const pro = createPro({ github: () => github, browser: () => browser, chat: () => chat, db, bus, agent, approvals, audit, permissions, now, quota, groq: () => providers.groq });
   const sessions = createSessions({ db, now });
   const limiter = createLoginLimiter({ db, now });
   const stt = createStt({ apiKey: env.GROQ_API_KEY, fetch: f });
@@ -119,7 +121,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
       connections: [conn("groq", "Groq", providers.groq?.enabled), conn("gemini", "Gemini", providers.gemini?.enabled), conn("openrouter", "OpenRouter", providers.openrouter?.enabled),
         conn("claude_pc", "Claude (PC)", agent.view().online), conn("telegram", "Telegram", !!env.TELEGRAM_BOT_TOKEN),
         conn("turso", "Turso", !!env.DATABASE_URL), conn("render", "Render", !!env.RENDER), conn("gmail", "Gmail", await ext?.google.connected(userId)), conn("calendar", "Calendar", await ext?.google.connected(userId)), conn("spotify", "Spotify", await ext?.spotify.connected(userId)),
-        conn("juegos", "Juegos", ext?.games.enabled), conn("whatsapp", "WhatsApp", ext?.whatsapp.enabled)],
+        conn("juegos", "Juegos", ext?.games.enabled), conn("whatsapp", "WhatsApp", ext?.whatsapp.enabled), conn("github", "GitHub", github.enabled)],
       pro: await pro.status(userId),
       pendientes_aprobacion: (await approvals.pending(userId)).length,
       voz: await tts.status(userId),
@@ -127,7 +129,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   }
 
   const base = { db, env, config, permissions, persona, ownerId, providers, chain, keyless, privacy, quota, bus, state, router,
-    notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, agent, pro, sessions, limiter, stt, tts, studio, browser, chat, websearch, status, now, fts };
+    notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, agent, pro, github, sessions, limiter, stt, tts, studio, browser, chat, websearch, status, now, fts };
   ext = buildExtensions(base, { fetch: f });
   const despertador = createDespertador({ env, bus, audit, getGoogle: () => ext?.google, now });
   const push = createPush({ db, env, bus, audit, ownerId, webpush: webpushOverride === undefined ? await loadWebPush() : webpushOverride, now });

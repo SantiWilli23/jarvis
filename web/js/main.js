@@ -73,8 +73,8 @@ function onWs(m) {
   }
 }
 
-/* ---------- motor (Auto / Flash / Claude) ---------- */
-const MOTORES = ["auto", "flash", "claude"];
+/* ---------- motor (Auto / Nube / Gemini / Claude) ---------- */
+const MOTORES = ["auto", "flash", "gemini", "claude"];
 const motorGuardado = () => { try { const v = localStorage.getItem("jarvis_motor"); return MOTORES.includes(v) ? v : "auto"; } catch { return "auto"; } };
 const motorEfectivo = () => $("saymotor")?.value || motorGuardado();
 function aplicarMotor() {

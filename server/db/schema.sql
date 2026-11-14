@@ -280,3 +280,25 @@ CREATE TABLE IF NOT EXISTS browser_tasks (
 );
 CREATE INDEX IF NOT EXISTS idx_browser_tasks_user ON browser_tasks (user_id, status, id);
 CREATE INDEX IF NOT EXISTS idx_browser_tasks_site ON browser_tasks (user_id, site, created_at);
+
+CREATE TABLE IF NOT EXISTS pro_web_envios (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  round_id INTEGER NOT NULL,
+  thread_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  destino TEXT NOT NULL,
+  rol TEXT NOT NULL DEFAULT 'programar',
+  prompt TEXT NOT NULL,
+  browser_task_id INTEGER,
+  ramas_antes TEXT,
+  prs_antes TEXT,
+  status TEXT NOT NULL DEFAULT 'preparado',
+  resultado TEXT,
+  candidatos TEXT,
+  created_at INTEGER NOT NULL,
+  sent_at INTEGER,
+  linked_at INTEGER,
+  finished_at INTEGER,
+  last_poll_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_pro_web_envios_round ON pro_web_envios (round_id, id);

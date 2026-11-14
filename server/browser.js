@@ -4,7 +4,7 @@
 import { all, get, run } from "./db/client.js";
 
 export const ESTADOS_PC = ["sesion_ok", "necesita_login", "prompt_listo", "respuesta_lista", "bloqueado", "degradado", "error"];
-const FINALES = new Set(["respuesta_lista", "bloqueado", "necesita_login", "degradado", "error", "cancelada", "vencida"]);
+const FINALES = new Set(["respuesta_lista", "bloqueado", "necesita_login", "degradado", "error", "cancelada", "vencida", "prompt_listo"]); // prompt_listo solo es estado de tarea en tareas Pro (solo_preparar)
 const HORA = 3_600_000, DIA = 86_400_000;
 export const MAX_RESULT = 20_000;
 
@@ -20,7 +20,7 @@ export function createBrowser({ db, config, agent, chat, privacy, bus, audit, no
     await run(db, "UPDATE browser_tasks SET status='vencida', finished_at=?, updated_at=? WHERE user_id=? AND status IN ('preparando','esperando_usuario') AND started_at IS NOT NULL AND started_at < ?", [t, t, userId, t - lim().max_segundos * 1000]);
     await run(db, "UPDATE browser_tasks SET status='vencida', finished_at=?, updated_at=? WHERE user_id=? AND status='pendiente' AND created_at < ?", [t, t, userId, t - 10 * 60_000]);
   }
-  const view = (t, withResult = true) => t && ({ id: t.id, site: t.site, status: t.status, steps: t.steps, created_at: t.created_at, finished_at: t.finished_at, ...(withResult && t.result != null ? { datos: t.result, datos_son: "dato_no_instruccion" } : {}) });
+  const view = (t, withResult = true) => t && ({ id: t.id, pro_round_id: t.pro_round_id ?? null, site: t.site, status: t.status, steps: t.steps, created_at: t.created_at, finished_at: t.finished_at, ...(withResult && t.result != null ? { datos: t.result, datos_son: "dato_no_instruccion" } : {}) });
 
   const api = {
     config: cfg,
@@ -36,7 +36,7 @@ export function createBrowser({ db, config, agent, chat, privacy, bus, audit, no
         },
       };
     },
-    async enqueue({ userId, site, prompt, flagPrivate = false }) {
+    async enqueue({ userId, site, prompt, flagPrivate = false, proRoundId = null }) {
       if (!cfg.activo) throw err(403, "navegador_apagado", "El Navegador de Jarvis está apagado (activo:false en config/browser-sites.json).");
       const s = cfg.sitios[site];
       if (!s) throw err(400, "sitio_desconocido");
@@ -54,7 +54,7 @@ export function createBrowser({ db, config, agent, chat, privacy, bus, audit, no
       if (await count("SELECT COUNT(*) AS n FROM browser_tasks WHERE user_id=? AND created_at>=?", [userId, t - DIA]) >= L.envios_dia) throw err(429, "tope_dia", `Tope de ${L.envios_dia} envíos por día.`);
       const last = await get(db, "SELECT created_at FROM browser_tasks WHERE user_id=? AND site=? ORDER BY id DESC LIMIT 1", [userId, site]);
       if (last && t - Number(last.created_at) < L.pausa_seg * 1000) throw err(429, "pausa", `Espere ${L.pausa_seg} s entre tareas del mismo sitio.`);
-      const r = await run(db, "INSERT INTO browser_tasks (user_id, site, prompt, status, created_at, updated_at) VALUES (?,?,?,?,?,?)", [userId, site, prompt, "pendiente", t, t]);
+      const r = await run(db, "INSERT INTO browser_tasks (user_id, site, prompt, status, created_at, updated_at, pro_round_id) VALUES (?,?,?,?,?,?,?)", [userId, site, prompt, "pendiente", t, t, proRoundId]);
       await log(userId, "browser.encolar", `${site} #${r.id}`);
       bus?.emit("browser.task", { userId, id: r.id, status: "pendiente" });
       return view(await get(db, "SELECT * FROM browser_tasks WHERE id=?", [r.id]), false);
@@ -81,10 +81,13 @@ export function createBrowser({ db, config, agent, chat, privacy, bus, audit, no
       const u = await run(db, "UPDATE browser_tasks SET status='preparando', started_at=?, updated_at=? WHERE id=? AND status='pendiente'", [n, n, t.id]);
       if (u.changes === 0) return { task: null, reason: "vacio" };
       const s = cfg.sitios[t.site];
-      return { task: { id: t.id, site: t.site, url: s.url, particion: s.particion, prompt: t.prompt }, limites: lim() };
+      // Tareas Pro web de Claude Code: el PC solo deja el prompt en la caja (sin enviar ni leer respuesta) y termina en prompt_listo.
+      const task = { id: t.id, site: t.site, url: s.url, particion: s.particion, prompt: t.prompt };
+      if (t.pro_round_id != null && t.site === "claude") task.solo_preparar = true;
+      return { task, limites: lim() };
     },
     // Paso reportado por el PC: solo estados de la lista cerrada. `texto` (si viene) se guarda como dato.
-    async step(userId, id, { estado, texto } = {}) {
+    async step(userId, id, { estado, texto, aviso } = {}) {
       if (!ESTADOS_PC.includes(estado)) throw err(400, "estado_invalido");
       await expireOld(userId);
       const t = await get(db, "SELECT * FROM browser_tasks WHERE id=? AND user_id=?", [id, userId]);
@@ -96,12 +99,13 @@ export function createBrowser({ db, config, agent, chat, privacy, bus, audit, no
         await log(userId, "browser.paso", `#${id} tope_pasos`);
         throw err(409, "tope_pasos", "Se superó el máximo de pasos.");
       }
-      const next = estado === "prompt_listo" ? "esperando_usuario" : estado === "sesion_ok" ? "preparando" : estado;
+      const soloPreparar = t.pro_round_id != null && t.site === "claude";
+      const next = estado === "prompt_listo" ? (soloPreparar ? "prompt_listo" : "esperando_usuario") : estado === "sesion_ok" ? "preparando" : estado;
       const data = estado === "respuesta_lista" && typeof texto === "string" ? texto.slice(0, MAX_RESULT) : null;
       await run(db, "UPDATE browser_tasks SET status=?, steps=?, result=COALESCE(?, result), updated_at=?, finished_at=? WHERE id=?", [next, steps, data, n, FINALES.has(next) ? n : null, id]);
       await log(userId, "browser.paso", `#${id} ${estado}`);
       bus?.emit("browser.task", { userId, id, status: next });
-      return { ok: true, status: next, steps };
+      return { ok: true, status: next, steps, ...(aviso === "copiado" ? { aviso: "copiado" } : {}) };
     },
   };
   return api;
