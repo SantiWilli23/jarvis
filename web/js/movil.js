@@ -1,6 +1,6 @@
 // Vista móvil: hojas inferiores, teclado, aprobaciones, pestaña Teléfono y utilidades del iPhone.
 // Convive con main.js (que maneja orbe, voz y paneles). Todo texto del servidor se inserta con textContent.
-import { api, getToken } from "./api.js";
+import { api, getToken, getConnect, runTool, googleStart } from "./api.js";
 import { store, setState } from "./state.js";
 import { showApproval } from "./panels.js";
 import { proAbrir, proCerrar } from "./movil-pro.js";
@@ -12,7 +12,7 @@ const safe = (fn) => { try { return fn(); } catch { /* API no disponible */ } };
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 
 /* ---------- hojas inferiores (una sola abierta) ---------- */
-const sheets = { cola: $("sh-cola"), tel: $("sh-tel"), estado: $("sh-estado"), mas: $("sh-mas"), pro: $("sh-pro") };
+const sheets = { cola: $("sh-cola"), tel: $("sh-tel"), musica: $("sh-musica"), estado: $("sh-estado"), mas: $("sh-mas"), pro: $("sh-pro") };
 let current = null;
 
 function closeSheet() {
@@ -38,6 +38,7 @@ function openSheet(name) {
   if (name === "tel") loadPhone();
   if (name === "cola") { loadPhone(); }
   if (name === "mas") renderMas();
+  if (name === "musica") abrirMusica();
   if (name === "pro") proAbrir();
 }
 
@@ -139,6 +140,7 @@ setTimeout(refreshApprovals, 1500);
 
 /* ---------- Más: notificaciones, vista escritorio, dispositivos ---------- */
 function renderMas() {
+  renderGoogle();
   renderDespertador();
   const supported = "Notification" in window;
   const b = $("mnotif");
@@ -280,3 +282,66 @@ $("phsay").addEventListener("submit", (e) => {
 });
 
 syncColaBadge();
+
+/* ---------- Música: buscador, playlists y conexión con Google ---------- */
+let yt = { disponible: false, permiso: false, unidades_hoy: 0, tope: 0 };
+const primeraLista = (o) => (o && (["items", "resultados", "videos", "playlists", "listas"].map((k) => o[k]).find(Array.isArray) || Object.values(o).find(Array.isArray))) || [];
+const musMsg = (t) => { $("musmsg").textContent = t || ""; };
+async function cargarConnect() {
+  try { const c = await getConnect(); yt = c.youtube || yt; } catch { /* sin red */ }
+  $("muscuota").textContent = yt.tope ? `${yt.unidades_hoy} / ${yt.tope} unidades hoy` : "";
+  return yt;
+}
+function filaMusica(titulo, sub, fn) {
+  const b = el("button", "", titulo); b.type = "button";
+  if (sub) b.append(el("small", "", sub));
+  b.onclick = fn; return b;
+}
+function reproducir(items, index, titulo) {
+  const v = items.map((x) => ({ id: x.id || x.videoId, titulo: x.titulo || x.title || "", canal: x.canal || x.channel || "" }));
+  window.jarvisMusica?.reproducir(v, index, titulo);
+  closeSheet();
+}
+async function abrirMusica() {
+  await cargarConnect();
+  if (!yt.disponible) { musMsg("YouTube no está disponible en el servidor."); return; }
+  if (!yt.permiso) { musMsg("Reconecte Google para dar permiso de YouTube (en Más)."); return; }
+  musMsg("");
+  const box = $("muslistas"); box.replaceChildren();
+  try {
+    const ls = primeraLista(await runTool("youtube.mis_playlists"));
+    if (!ls.length) box.append(el("div", "empty", "Sin playlists."));
+    for (const p of ls) {
+      const nombre = p.titulo || p.title || p.nombre || "Playlist";
+      box.append(filaMusica(nombre, p.total != null ? p.total + " vídeos" : "", async () => {
+        musMsg("Cargando…");
+        try { const r = primeraLista(await runTool("youtube.playlist", { id: p.id })); if (!r.length) return musMsg("Playlist vacía."); reproducir(r, 0, nombre); }
+        catch (e) { musMsg("No se pudo: " + (e.data?.error || e.message)); }
+      }));
+    }
+  } catch { box.append(el("div", "empty", "No pude cargar las playlists.")); }
+}
+$("musform").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const q = $("musin").value.trim(); if (!q) return;
+  const box = $("musres"); box.replaceChildren(); musMsg("Buscando…");
+  try {
+    const r = primeraLista(await runTool("youtube.buscar", { q, max: 10 }));
+    musMsg(r.length ? "" : "Sin resultados.");
+    r.forEach((x, i) => box.append(filaMusica(x.titulo || x.title || "", x.canal || x.channel || "", () => reproducir(r, i, "Búsqueda: " + q))));
+    cargarConnect();
+  } catch (err) { musMsg("No se pudo buscar: " + (err.data?.error || err.message)); }
+});
+window.addEventListener("jarvis:musica-hoja", () => { if (current !== "musica") openSheet("musica"); });
+
+async function renderGoogle() {
+  const m = $("mgmsg"); m.hidden = true;
+  const c = await cargarConnect();
+  if (c.disponible && !c.permiso) { m.textContent = "Reconecte Google para dar permiso de YouTube"; m.hidden = false; }
+}
+// location.href directo: iOS bloquea window.open después de un await.
+$("mgoogle").addEventListener("click", async () => {
+  const m = $("mgmsg");
+  try { const { url } = await googleStart(); if (url) location.href = url; }
+  catch (e) { m.textContent = "No se pudo conectar: " + (e.data?.error || e.message); m.hidden = false; }
+});
