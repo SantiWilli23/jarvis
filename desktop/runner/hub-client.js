@@ -23,6 +23,9 @@ export function createHubClient({ baseUrl, token, fetchFn = fetch }) {
     // Navegador de Jarvis (modo asistido): el servidor decide; aquí solo se reclama y se informa el estado.
     browserClaim: () => call("/browser/claim", { body: {} }),
     browserStep: (id, body) => call(`/browser/tasks/${id}/step`, { body }),
+    // Cola de acciones del PC (Ola 0): reclamar la siguiente y devolver el resultado
+    pcNext: () => call("/pc/next", { body: {} }),
+    pcResult: (id, out) => call(`/pc/${id}/result`, { body: out }),
     // Modo Pro (docs/PRO.md §5 y "Ampliaciones P3")
     proClaim: () => call("/pro/claim", { body: {} }),
     proEvents: (id, events) => call(`/pro/jobs/${id}/events`, { body: { events } }),

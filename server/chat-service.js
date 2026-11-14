@@ -5,6 +5,7 @@ import { detectPedidoGemini } from "./router/pedido.js";
 import { classify } from "./router/classify.js";
 import { parsePhoneIntent, phoneReply } from "./phone/intents.js";
 import { getModo } from "./settings.js";
+import { detectDestino, stripDestino, parsePcIntent, interpretWithModel, pcReply, pcError } from "./pc/intents.js";
 
 // Modo Chat: solo conversar. Sin búsqueda web, sin acciones ni tareas para el PC o el teléfono.
 const PROMPT_MODO_CHAT = "\n\nMODO CHAT: el señor eligió que solo converse. Responda únicamente con texto: no busque en la web, no use herramientas ni ofrezca acciones (correo, calendario, Spotify, WhatsApp, teléfono) y no prepare ni encole tareas para el PC. Si le piden algo así, explique con amabilidad que está en modo Chat y que puede cambiarlo a IA en Configuración.";
@@ -13,7 +14,7 @@ const MSG_SIN_CUOTA = "Mis proveedores gratuitos llegaron a su límite por ahora
 
 const MOTORES = ["auto", "flash", "gemini", "claude"]; // lista cerrada del selector del chat
 
-export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, persona = "", webSearch = null, agent = null, now = () => Date.now() }) {
+export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, pc = null, persona = "", webSearch = null, agent = null, now = () => Date.now() }) {
   async function ensureConversation(userId, id, firstText) {
     if (id) {
       const c = await get(db, "SELECT id FROM conversations WHERE id=? AND user_id=?", [id, userId]);
@@ -34,7 +35,7 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       const found = await search.search({ userId, query: String(text ?? ""), k: 4, tokenBudget: 600, includePrivate: true });
       return privacy.isPrivateMessage({ flag: flagPrivate, classification: cls, notes: found.notes });
     },
-    async handle({ userId, text, conversationId, flagPrivate = false, source = "texto", engine = "auto" }) {
+    async handle({ userId, text, conversationId, flagPrivate = false, source = "texto", engine = "auto", origen = null }) {
       const motor = MOTORES.includes(engine) ? engine : "auto";
       const chatSolo = (await getModo(db, userId)) === "chat"; // el servidor decide, no el cliente
       let original = String(text ?? "");
@@ -67,7 +68,26 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       }
 
       // 1b) Orden fija para el teléfono ("enciende la linterna", "brillo al 30"): sin modelo
-      const pi = !chatSolo && phone && !flagPrivate ? parsePhoneIntent(original, phone.config) : null;
+      // Las órdenes del PC compiten con las del teléfono: si la frase nombra un dispositivo gana ese; si es ambigua
+      // ("sube el volumen"), gana el dispositivo desde el que habla el señor (origen). Sin modelo salvo el respaldo tipado.
+      const destino = !chatSolo ? detectDestino(original) : null;
+      const textoOrden = destino ? stripDestino(original) : original;
+      let pcI = !chatSolo && pc && destino !== "telefono" ? parsePcIntent(textoOrden, { apps: pc.config.apps || [], destino }) : null;
+      let pi = !chatSolo && phone && !flagPrivate && destino !== "pc" ? parsePhoneIntent(textoOrden, phone.config) : null;
+      if (pcI && pi) { if (origen === "pc") pi = null; else pcI = null; }
+      if (!pcI && !pi && !chatSolo && pc && destino === "pc" && textoOrden.length <= 140) {
+        // Respaldo: el modelo (Groq primero) elige de la lista cerrada; lo privado solo a proveedores permitidos.
+        pcI = await interpretWithModel({ router, pc, userId, text: textoOrden, isPrivate: flagPrivate || classify(original).private });
+      }
+      if (pcI) {
+        const out = await pc.create({ userId, action: pcI.action, params: pcI.params, source });
+        const reply = out.ok ? pcReply(out.item) : pcError(out.error);
+        await saveMsg(userId, conv, "user", original, null, flagPrivate);
+        await saveMsg(userId, conv, "assistant", reply, "pc", flagPrivate);
+        bus?.emit("chat.done", { userId, text: reply, provider: "pc" });
+        state(userId, "speaking");
+        return { status: "pc", conversationId: conv, reply, pc: out.ok ? { id: out.item.id, status: out.item.status } : { error: out.error } };
+      }
       if (pi) {
         const out = await phone.create({ userId, action: pi.action, args: pi.args, source });
         if (out.ok) {

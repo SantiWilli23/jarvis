@@ -1,0 +1,22 @@
+{
+  "nota": "Lista blanca de acciones del PC (cola propia, separada de las tareas de Claude). nivel: automatico = se ejecuta sin preguntar; aprobacion = antes hay que aprobarla (tarjeta de aprobaciones). El PC valida OTRA VEZ con desktop/runner/pc-spec.js y esto debe coincidir (lo comprueba test/pc-actions.test.js). Las aplicaciones: aquí solo los NOMBRES permitidos; el comando fijo de cada una vive en el PC (desktop config.json -> pc_apps, o los de pc-spec.js).",
+  "caducidad_minutos": 5,
+  "caducidad_aprobacion_minutos": 30,
+  "apps": ["calculadora", "bloc de notas", "explorador", "paint", "administrador de tareas", "configuracion", "spotify"],
+  "acciones": {
+    "multimedia": { "descripcion": "Tecla multimedia: reproducir/pausar, siguiente, anterior", "nivel": "automatico", "params": { "valor": { "tipo": "enum", "valores": ["play_pausa", "siguiente", "anterior"] } } },
+    "volumen": { "descripcion": "Volumen: subir, bajar, silencio o fijar a un nivel 0-100", "nivel": "automatico", "params": {
+      "accion": { "tipo": "enum", "valores": ["subir", "bajar", "silencio", "fijar"] },
+      "nivel": { "tipo": "rango", "min": 0, "max": 100, "opcional": true },
+      "pasos": { "tipo": "rango", "min": 1, "max": 10, "opcional": true } } },
+    "bloquear": { "descripcion": "Bloquear la pantalla", "nivel": "automatico", "params": {} },
+    "temporizador": { "descripcion": "Aviso en el PC dentro de N minutos", "nivel": "automatico", "params": { "minutos": { "tipo": "rango", "min": 1, "max": 720 }, "texto": { "tipo": "texto", "max": 80, "opcional": true } } },
+    "abrir_app": { "descripcion": "Abrir una aplicación de la lista", "nivel": "automatico", "params": { "app": { "tipo": "app" } } },
+    "estado_sistema": { "descripcion": "Batería, CPU, RAM y disco (solo lectura)", "nivel": "automatico", "params": {} },
+    "portapapeles_escribir": { "descripcion": "Escribir texto en el portapapeles", "nivel": "automatico", "params": { "texto": { "tipo": "texto", "max": 2000 } } },
+    "portapapeles_leer": { "descripcion": "Leer el portapapeles (privado)", "nivel": "aprobacion", "privado": true, "params": {} },
+    "suspender": { "descripcion": "Suspender el PC", "nivel": "automatico", "params": {} },
+    "apagar": { "descripcion": "Apagar el PC (30 s de margen)", "nivel": "aprobacion", "params": {} },
+    "reiniciar": { "descripcion": "Reiniciar el PC (30 s de margen)", "nivel": "aprobacion", "params": {} }
+  }
+}
