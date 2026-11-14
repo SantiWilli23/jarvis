@@ -99,7 +99,7 @@ test("CSP: cabecera presente, sin script en línea, sin 'unsafe-eval', ws al mis
     const r = await fetch(s.base + "/m");
     const h = r.headers.get("content-security-policy");
     assert.equal(h, csp(new URL(s.base).host));
-    assert.match(h, /script-src 'self';/); assert.doesNotMatch(h, /unsafe-eval/);
+    assert.match(h, /script-src 'self'( https:\/\/(www\.youtube\.com|s\.ytimg\.com))*;/); assert.match(h, /frame-src https:\/\/www\.youtube-nocookie\.com/); assert.doesNotMatch(h, /unsafe-eval/);
     assert.match(h, /frame-ancestors 'none'/);
     assert.equal(r.headers.get("x-content-type-options"), "nosniff");
     assert.equal(r.headers.get("referrer-policy"), "no-referrer");

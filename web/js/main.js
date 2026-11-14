@@ -4,6 +4,7 @@ import { connectWs, closeWs } from "./ws.js";
 import { store, setState, subscribe, LABELS, VISUAL } from "./state.js";
 import { initOrb, setVisual } from "./orb.js";
 import { canRecord, startRecording, speak, stopSpeaking } from "./voice.js";
+import "./musica.js";
 import { tickClock, renderMemory, renderQueue, renderConn, renderPc, showApproval } from "./panels.js";
 
 const $ = (id) => document.getElementById(id);
@@ -101,7 +102,11 @@ async function converse(text, priv) {
     activeProvider = r.provider || null;
     if (r.status === "ok" && r.provider) lastUsed = r.provider;
     $("memread").textContent = r.notes_read ?? 0;
-    if (r.status === "sin_cuota") {
+    if (r.status === "musica") {                 // orden musical: solo texto, sin voz
+      say("Jarvis", r.reply || "");
+      window.dispatchEvent(new CustomEvent("jarvis:musica", { detail: r.musica }));
+      setState("idle");
+    } else if (r.status === "sin_cuota") {
       setState("sin_cuota"); say("Jarvis", r.reply);
       speak(r.reply, () => setTimeout(() => { if (store.state === "sin_cuota") setState("idle"); }, 4000), r.private);
     } else {

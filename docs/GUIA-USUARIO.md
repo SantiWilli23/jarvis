@@ -223,3 +223,24 @@ Con `GROQ_API_KEY` puesta, **Jarvis** (Groq) lee su pedido en Pro, le habla con 
 **Estudio** (`/estudio`, también en la vista móvil): chat de código con la API gratis de Gemini. Elija modelo (los de "sin nivel gratis" salen desactivados), copie el código con un toque y use "Abrir AI Studio" para la web de Google (no se puede incrustar). Aviso: en el plan gratis Google puede usar lo que envía para entrenar; lo privado nunca se envía. Modelos y tope diario: `estudio` en `config/providers.json`.
 
 **Navegador de Jarvis** (app de escritorio, bandeja > "Navegador de Jarvis"): una ventana con Claude Code web, ChatGPT, Perplexity y Grok, cada uno con su sesión guardada. **Usted inicia sesión** (Jarvis nunca escribe contraseñas ni resuelve captcha/2FA). APAGADO por defecto: ponga `activo: true` en `config/browser-sites.json`. Modo asistido: `POST /api/browser/tasks {site, prompt}` deja el texto en la caja del sitio **sin enviarlo**; usted pulsa Enviar y Jarvis lee la respuesta (se devuelve como dato en `datos`, nunca como orden). Si algo falla (login, captcha, aviso de cuenta, selector roto) se detiene o copia el prompt al portapapeles. Botón **Detener** siempre visible; registro en `navegador.log` (carpeta de datos de la app). Selectores por sitio sin calibrar contra los sitios reales: `desktop/browser/selectors.json`. Límites: 12 pasos, 180 s, 10 tareas/h, 6 por sitio/h, 30/día, 20 s de pausa.
+
+## 17. Música (YouTube Music)
+Jarvis lee sus playlists de YouTube (solo lectura, no crea ni edita nada) y las reproduce en la web del iPhone. Costo cero.
+
+### Activarlo
+1. En Google Cloud, en el mismo proyecto del conector de Google, active **YouTube Data API v3** (Biblioteca de APIs).
+2. En la pantalla de consentimiento añada el alcance `.../auth/youtube.readonly`.
+3. En Jarvis, **vuelva a conectar Google** (el permiso es nuevo): Google mostrará «app no verificada»; pulse Avanzado y continúe, y marque la casilla de YouTube. Si falta, Jarvis se lo dirá.
+4. Mientras la app esté en modo **Prueba**, el permiso caduca a los 7 días: hay que reconectar. Publicarla en producción (sin verificar) evita la caducidad.
+
+### Frases
+«ponme mi playlist gym», «pon la canción Despacito de Luis Fonsi», «reproduce Soda Stereo», «ponme algo de Shakira», «qué playlists tengo», «pon música» (retoma la última), «pausa», «sigue», «siguiente», «anterior», «para la música», «aleatorio», «qué suena». Solo responde por texto, no por voz.
+
+### Límites del iPhone
+Hace falta un primer toque en ▶; la música se pausa al bloquear la pantalla; el volumen es solo con los botones del teléfono; puede haber anuncios; no hay mixes automáticos. Los controles solo los atiende el reproductor de la web: sin reproductor activo, «pausa» sigue yendo a la cola del teléfono.
+
+### Cuota
+YouTube da 10.000 unidades al día (se reinician a medianoche del Pacífico); buscar cuesta 100 y leer 1. Jarvis se limita a 8.000 unidades y 50 búsquedas al día (`config/providers.json`, `youtube`), cachea playlists 12 h, pistas 6 h y búsquedas 7 días, y busca primero en sus playlists. Sin cuota le abre la búsqueda en YouTube Music. Vea el uso con la herramienta `youtube.cuota`.
+
+### Privacidad
+Nombres de playlists y pistas son privados: se guardan cifrados, los mensajes de música se guardan como privados y ningún modelo los ve. Al desconectar Google se borra esa caché.

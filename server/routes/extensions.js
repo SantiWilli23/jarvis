@@ -45,7 +45,10 @@ export function extensionRoutes(ctx, auth) {
   const redirect = (req, p) => `${(ctx.env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`).replace(/\/+$/, "")}/api/connect/${p}/callback`;
   const conn = { google: ctx.google, spotify: ctx.spotify };
   r.get("/connect", auth, async (req, res, next) => {
-    try { res.json({ google: { disponible: ctx.google.enabled, conectado: await ctx.google.connected(req.user.id) }, spotify: { disponible: ctx.spotify.enabled, conectado: await ctx.spotify.connected(req.user.id) } }); } catch (e) { next(e); }
+    try {
+      const yt = await ctx.youtube.ready(req.user.id), u = await ctx.youtube.usage(req.user.id);
+      res.json({ google: { disponible: ctx.google.enabled, conectado: await ctx.google.connected(req.user.id) }, youtube: { disponible: ctx.youtube.enabled, permiso: yt.permiso, unidades_hoy: u.unidades, tope: u.tope }, spotify: { disponible: ctx.spotify.enabled, conectado: await ctx.spotify.connected(req.user.id) } });
+    } catch (e) { next(e); }
   });
   r.all("/connect/:p/start", auth, async (req, res, next) => {
     try {
@@ -65,16 +68,20 @@ export function extensionRoutes(ctx, auth) {
     if (!st || st.provider !== req.params.p) return page(res, 400, "Enlace caducado o inválido. Empiece de nuevo desde Jarvis.");
     if (req.query.error || !req.query.code) return page(res, 400, "No se autorizó la conexión.");
     try {
-      await c.completeAuth(st.userId, String(req.query.code), st.redirectUri, st.verifier);
+      const out = await c.completeAuth(st.userId, String(req.query.code), st.redirectUri, st.verifier);
       await ctx.audit.log({ userId: st.userId, action: "conector.conectado", detail: req.params.p });
-      page(res, 200, "Conectado. Ya puede cerrar esta pestaña y volver a Jarvis.");
+      const volver = ' <a style="color:#7cf" href="/m">Volver a Jarvis</a>';
+      if (req.params.p === "google" && out?.faltan?.some((x) => x.includes("youtube"))) page(res, 200, "Conectado, pero falta el permiso de YouTube: sin él no puedo poner su música. Vuelva a conectar Google y marque la casilla de YouTube." + volver);
+      else page(res, 200, "Conectado. Ya puede cerrar esta pestaña y volver a Jarvis." + volver);
     } catch (e) { console.error("[oauth]", req.params.p, e.message); page(res, 502, "No se pudo completar la conexión."); }
   });
   r.delete("/connect/:p", auth, async (req, res, next) => {
     try {
       const c = conn[req.params.p];
       if (!c) return res.status(404).json({ error: "conector_desconocido" });
-      res.json({ ok: await c.disconnect(req.user.id) });
+      const ok = await c.disconnect(req.user.id);
+      if (req.params.p === "google") await ctx.youtube.purge(req.user.id); // la caché de música no sobrevive a la desconexión
+      res.json({ ok });
     } catch (e) { next(e); }
   });
 

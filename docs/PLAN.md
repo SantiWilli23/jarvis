@@ -82,3 +82,9 @@ Push o deploy sin permiso, `--dangerously-skip-permissions`, claves en git o en 
 - Flash: cadena de nube (Gemini `gemini-3.8-flash`), siempre disponible.
 - La cola de tareas del PC es solo de Claude. El Gemini del PC (cola de tareas) se eliminó; lo que queda del motor "gemini" es solo del Modo Pro (apagado por defecto: `motores_pc.gemini.activo`).
 - `/gemini ...`, `díselo a Gemini:` y `directo a Gemini:` ya no encolan: se quita el prefijo y el texto se contesta por la API con el proveedor `gemini` primero y luego el resto de la cadena gratis (lo privado lo contesta Groq).
+
+## Música con YouTube (rama youtube-musica, lado servidor)
+- Solo LECTURA de YouTube Data API v3 con el OAuth de Google (alcance nuevo `youtube.readonly`, `include_granted_scopes`). `server/connectors/youtube.js`: playlists (+ "Me gusta"), pistas (descarta borrados, privados y no incrustables), búsqueda (100 unidades), caché cifrada en `settings` (`yt:*`), cuota propia en `provider_usage` ('youtube', día del Pacífico) y pausa por `quotaExceeded`.
+- `server/music/` (intents, match, service): órdenes en español sin modelo. `POST /api/chat` acepta `reproductor:{activo}` y responde `{status:"musica", musica:{op,items,index,titulo,fuente,abrir}}`; todo se guarda con private=1. Los controles solo se atienden con el reproductor activo; si no, siguen a la cola del teléfono. En modo Chat no hay música.
+- Herramientas `youtube.buscar|mis_playlists|playlist|cuota`; `GET /api/connect` trae `youtube`; desconectar Google purga la caché. CSP ampliada para el reproductor (youtube.com, s.ytimg.com, youtube-nocookie, i.ytimg.com).
+- Pendiente: probar con Google/YouTube reales; la web (reproductor) va en otra rama.

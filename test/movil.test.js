@@ -46,11 +46,23 @@ test("GET /m responde 200 con la vista móvil; / sigue siendo el HUD de escritor
 
 test("service worker y manifiesto al día", () => {
   const sw = web("sw.js");
-  assert.match(sw, /jarvis-shell-v10/);
-  for (const p of ['"/m"', '"/css/movil.css"', '"/js/movil.js"']) assert.ok(sw.includes(p), p);
+  assert.match(sw, /jarvis-shell-v11/);
+  for (const p of ['"/m"', '"/css/movil.css"', '"/js/movil.js"', '"/js/musica.js"']) assert.ok(sw.includes(p), p);
   const mf = JSON.parse(web("manifest.webmanifest"));
   assert.equal(mf.id, "/"); assert.equal(mf.scope, "/"); assert.equal(mf.theme_color, "#080b10"); assert.equal(mf.background_color, "#080b10");
   assert.ok(mf.icons.some((i) => i.sizes === "180x180" && i.type === "image/png"));
   const png = readFileSync(new URL("../web/apple-touch-icon.png", import.meta.url));
   assert.equal(png.readUInt32BE(16), 180); assert.equal(png.readUInt32BE(20), 180);
+});
+
+test("música: tarjeta en m.html e index.html y musica.js seguro (sin innerHTML, embed con referrer)", () => {
+  assert.match(web("m.html"), /id="musica"/); assert.match(web("index.html"), /id="musica"/);
+  assert.match(web("m.html"), /id="sh-musica"/);
+  const js = web("js/musica.js");
+  assert.ok(!/innerHTML/.test(js), "musica.js no debe usar innerHTML");
+  assert.ok(js.includes("strict-origin-when-cross-origin"));
+  assert.ok(js.includes("youtube-nocookie.com/embed/"));
+  assert.ok(js.includes("playsinline=1"));
+  assert.match(web("js/main.js"), /jarvis:musica/);
+  assert.match(web("js/api.js"), /reproductor/);
 });

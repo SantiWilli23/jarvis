@@ -6,7 +6,9 @@ export const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/gmail.send",
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/drive.metadata.readonly",
+  "https://www.googleapis.com/auth/youtube.readonly", // música: solo LECTURA de playlists y videos
 ];
+export const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
 const NAME = "google";
 const clean = (s) => String(s ?? "").replace(/[\r\n]+/g, " ").trim(); // evita inyectar cabeceras
 
@@ -38,13 +40,21 @@ export function createGoogle({ env = process.env, fetch: f = globalThis.fetch, c
     enabled, name: NAME,
     connected: (userId) => (enabled ? connections.connected(userId, NAME) : false),
     authUrl({ state, redirectUri }) {
-      const p = new URLSearchParams({ client_id: id, redirect_uri: redirectUri, response_type: "code", scope: GOOGLE_SCOPES.join(" "), access_type: "offline", prompt: "consent", state });
+      const p = new URLSearchParams({ client_id: id, redirect_uri: redirectUri, response_type: "code", scope: GOOGLE_SCOPES.join(" "), access_type: "offline", prompt: "consent", include_granted_scopes: "true", state });
       return `https://accounts.google.com/o/oauth2/v2/auth?${p}`;
     },
     async completeAuth(userId, code, redirectUri) {
       const t = await token({ grant_type: "authorization_code", code, redirect_uri: redirectUri });
       if (!t.refresh_token) throw new Error("Google no devolvió refresh_token");
       await connections.save(userId, NAME, { access_token: t.access_token, refresh_token: t.refresh_token, expires_at: now() + (t.expires_in || 3600) * 1000, scope: t.scope });
+      const concedidos = String(t.scope || "").split(/\s+/).filter(Boolean);
+      return { concedidos, faltan: GOOGLE_SCOPES.filter((x) => !concedidos.includes(x)) };
+    },
+    accessToken,
+    // Alcances concedidos en el token guardado (null si no hay conexión).
+    async grantedScopes(userId) {
+      const c = await connections.load(userId, NAME);
+      return c ? String(c.scope || "").split(/\s+/).filter(Boolean) : null;
     },
     disconnect: (userId) => connections.remove(userId, NAME),
     // --- lectura (automática) ---
