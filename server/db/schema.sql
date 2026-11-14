@@ -251,3 +251,15 @@ CREATE TABLE IF NOT EXISTS ai_usage (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ai_usage_day ON ai_usage (user_id, day, engine);
+
+-- Estudio (chat de código por la API de Gemini). Solo mensajes NO privados: lo privado se bloquea antes.
+CREATE TABLE IF NOT EXISTS studio_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  session TEXT NOT NULL,
+  role TEXT NOT NULL,
+  model TEXT,
+  content TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_studio_session ON studio_messages (user_id, session, id);

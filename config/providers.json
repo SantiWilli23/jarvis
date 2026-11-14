@@ -22,6 +22,49 @@
     "nota": "Búsqueda web: Perplexity si hay PERPLEXITY_API_KEY; si no, Gemini con Google Search (GEMINI_API_KEY); si no, respuestas instantáneas de DuckDuckGo (sin clave). Nunca se busca con texto privado.",
     "gemini_modelo": "gemini-3.5-flash"
   },
+  "estudio": {
+    "nota": "Estudio de Jarvis: chat de código por la API oficial de Gemini (nivel gratis). Los modelos con gratis:false no tienen nivel gratis y el servidor los rechaza. Lo privado nunca se envía. El nivel gratis de Gemini puede usar lo que se envía para entrenar los modelos de Google.",
+    "modelo_por_defecto": "gemini-3.8-flash",
+    "tope_dia": 100,
+    "max_caracteres": 12000,
+    "modelos": [
+      {
+        "id": "gemini-4-hydrogen",
+        "nombre": "Gemini 4 Hydrogen",
+        "gratis": true
+      },
+      {
+        "id": "gemini-3.8-flash",
+        "nombre": "Gemini 3.8 Flash",
+        "gratis": true
+      },
+      {
+        "id": "gemini-3.6-flash",
+        "nombre": "Gemini 3.6 Flash",
+        "gratis": true
+      },
+      {
+        "id": "gemini-3.5-flash-lite",
+        "nombre": "Gemini 3.5 Flash-Lite",
+        "gratis": true
+      },
+      {
+        "id": "gemini-4-carbon",
+        "nombre": "Gemini 4 Carbon",
+        "gratis": false
+      },
+      {
+        "id": "gemini-4-argon",
+        "nombre": "Gemini 4 Argon",
+        "gratis": false
+      },
+      {
+        "id": "gemini-3.1-pro",
+        "nombre": "Gemini 3.1 Pro",
+        "gratis": false
+      }
+    ]
+  },
   "cadena_gratis": ["gemini", "groq", "openrouter", "cloudflare", "ollama"],
   "proveedores": {
     "gemini":     { "nombre": "Gemini Flash", "rol": "Fotos · preguntas medias", "env": "GEMINI_API_KEY", "modelo": "gemini-3.8-flash", "limites": { "rpm": null, "rpd": null, "nota": "verificar en la consola" } },
