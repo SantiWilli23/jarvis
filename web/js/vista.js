@@ -10,4 +10,9 @@
 document.addEventListener("DOMContentLoaded", function () {
   var a = document.getElementById("tomovil");
   if (a) a.addEventListener("click", function () { try { localStorage.removeItem("jarvis_vista"); } catch (e) {} });
+  var b = document.getElementById("tomovil-btn");
+  if (b) b.addEventListener("click", function () {
+    try { localStorage.removeItem("jarvis_vista"); } catch (e) {}
+    try { location.href = "/m"; } catch (e) { location.assign("/m"); }
+  });
 });

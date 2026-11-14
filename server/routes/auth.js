@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { get } from "../db/client.js";
 import { verifyPassword } from "../auth/password.js";
-import { bearer, requireAuth } from "../auth/middleware.js";
+import { sessionCookie, clearCookie, cookieToken, tieneCabeceraCliente, requireAuth } from "../auth/middleware.js";
 
 export function authRoutes(ctx) {
   const r = Router();
@@ -23,12 +23,23 @@ export function authRoutes(ctx) {
       }
       const { token, deviceId } = await ctx.sessions.create(Number(owner.id), { name: String(req.body?.deviceName || "Navegador").slice(0, 60), kind: "web" });
       await ctx.audit.log({ userId: Number(owner.id), action: "login.ok", detail: `dispositivo ${deviceId}` });
+      res.append("Set-Cookie", sessionCookie(req, token));
       res.json({ token, user: { name: owner.name } });
     } catch (e) { next(e); }
   });
   r.post("/logout", requireAuth(ctx.sessions), async (req, res, next) => {
-    try { await ctx.sessions.revokeByToken(bearer(req)); ctx.hub?.dropDevice(req.device.id); res.json({ ok: true }); } catch (e) { next(e); }
+    try { await ctx.sessions.revokeByToken(req.sessionToken); ctx.hub?.dropDevice(req.device.id); res.append("Set-Cookie", clearCookie(req)); res.json({ ok: true }); } catch (e) { next(e); }
   });
   r.get("/me", requireAuth(ctx.sessions), (req, res) => res.json({ user: { name: req.user.name }, device: req.device }));
+  // Si el navegador perdió localStorage pero la cookie sigue viva: devuelve el token para guardarlo otra vez (solo cookie válida + cabecera propia).
+  r.post("/restore", async (req, res, next) => {
+    try {
+      if (!tieneCabeceraCliente(req)) return res.status(403).json({ error: "falta_cabecera" });
+      const token = cookieToken(req);
+      const s = token ? await ctx.sessions.verify(token) : null;
+      if (!s || s.device.kind !== "web") return res.status(401).json({ error: "no_autorizado" });
+      res.json({ token, user: { name: s.user.name }, device: s.device });
+    } catch (e) { next(e); }
+  });
   return r;
 }

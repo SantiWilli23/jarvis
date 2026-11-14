@@ -1,4 +1,5 @@
-// Cliente REST. El token vive en localStorage y viaja solo en la cabecera Authorization.
+// Cliente REST. El token vive en localStorage y viaja en la cabecera Authorization (el servidor guarda además una cookie HttpOnly de respaldo).
+import { confirmarSesion } from "./sesion.js";
 const KEY = "jarvis_token";
 let onUnauthorized = () => {};
 
@@ -6,15 +7,40 @@ export const getToken = () => { try { return localStorage.getItem(KEY) || ""; } 
 export const setToken = (t) => { try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch { /* modo privado */ } };
 export const onAuthLost = (fn) => { onUnauthorized = fn; };
 
+// Recupera el token desde la cookie del servidor si el navegador perdió localStorage.
+export async function restaurarSesion() {
+  try {
+    const r = await fetch("/api/auth/restore", { method: "POST", headers: { "x-requested-with": "jarvis" }, cache: "no-store" });
+    if (!r.ok) return false;
+    const { token } = await r.json();
+    if (!token) return false;
+    setToken(token); return true;
+  } catch { return false; }
+}
+
+// Un 401 no cierra la sesión: se confirma con /auth/me (2 veces). Red caída o servidor dormido => se conserva el token.
+let confirmando = null;
+function sesionCaida() {
+  if (!getToken()) { onUnauthorized(); return Promise.resolve("caida"); }
+  if (!confirmando) {
+    confirmando = (async () => {
+      const r = await confirmarSesion(async () => (await fetch("/api/auth/me", { headers: { authorization: `Bearer ${getToken()}`, "x-requested-with": "jarvis" }, cache: "no-store" })).status);
+      if (r === "caida") { if (await restaurarSesion()) return "valida"; setToken(""); onUnauthorized(); }
+      return r;
+    })().finally(() => { confirmando = null; });
+  }
+  return confirmando;
+}
+
 export async function api(path, { method = "GET", body, raw, headers = {}, auth = true } = {}) {
-  const h = { ...headers };
+  const h = { "x-requested-with": "jarvis", ...headers };
   if (auth && getToken()) h.authorization = `Bearer ${getToken()}`;
   let payload = raw;
   if (body !== undefined) { h["content-type"] = "application/json"; payload = JSON.stringify(body); }
   const res = await fetch(`/api${path}`, { method, headers: h, body: payload });
   let data = null;
   try { data = await res.json(); } catch { /* sin cuerpo */ }
-  if (res.status === 401 && auth && path !== "/auth/login") { setToken(""); onUnauthorized(); }
+  if (res.status === 401 && auth && path !== "/auth/login" && path !== "/auth/logout") await sesionCaida();
   if (!res.ok) throw Object.assign(new Error(data?.error || `HTTP ${res.status}`), { status: res.status, data });
   return data;
 }

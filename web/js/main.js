@@ -1,5 +1,5 @@
 // Punto de entrada: pantalla de contraseña, WebSocket, orbe, voz y paneles.
-import { getSettings, putSettings, api, login, getToken, setToken, onAuthLost, getStatus, sendChat, transcribe, decideApproval, pendingApprovals, deleteTask, approveReview, logout, waitForServer } from "./api.js";
+import { getSettings, putSettings, api, login, getToken, setToken, onAuthLost, getStatus, sendChat, transcribe, decideApproval, pendingApprovals, deleteTask, approveReview, logout, waitForServer, restaurarSesion } from "./api.js";
 import { connectWs, closeWs } from "./ws.js";
 import { store, setState, subscribe, LABELS, VISUAL } from "./state.js";
 import { initOrb, setVisual } from "./orb.js";
@@ -70,8 +70,16 @@ function onWs(m) {
     case "chat.done": if (m.provider) lastUsed = m.provider; renderConn(store.status, lastUsed, false); break;
     case "task.update": case "providers.update": refreshStatus(); break;
     case "pc.status": renderPc(m); break;
-    case "ws.closed": if (m.code === 4401 && getToken()) { setToken(""); showLogin(); } break;
+    case "ws.closed": if (m.code === 4401 && getToken()) revisarSesionWs(); break;
   }
+}
+
+// El ws se cerró por 4401: no se borra el token sin confirmar (api() lo confirma con /auth/me y solo entonces muestra el login).
+let wsRevisado = 0;
+async function revisarSesionWs() {
+  if (Date.now() - wsRevisado < 30000) return; // evita bucles si el servidor insiste
+  wsRevisado = Date.now();
+  try { await api("/auth/me"); if (getToken()) connectWs(onWs); } catch { /* 401 confirmado: onAuthLost ya mostró el login; red: se conserva el token */ }
 }
 
 /* ---------- motor (Auto / Nube / Gemini / Claude) ---------- */
@@ -226,8 +234,14 @@ window.addEventListener("jarvis:mic", () => { store.greeted = true; if (!recorde
 setState("idle");
 
 await waitForServer(() => { $("wake").hidden = false; }, () => { $("wake").hidden = true; });
+if (!getToken()) await restaurarSesion(); // el navegador perdió localStorage pero la cookie sigue viva
 if (getToken()) {
-  try { await api("/auth/me"); await enter(); } catch { showLogin(); }
+  let hecho = false;
+  for (let i = 0; i < 4 && !hecho; i++) {
+    try { await api("/auth/me"); await enter(); hecho = true; }
+    catch (e) { if (e.status === 401) { hecho = true; showLogin(); } else await new Promise((r) => setTimeout(r, 1500)); } // red/5xx: se conserva el token
+  }
+  if (!hecho) showLogin(); // sin respuesta tras varios intentos: login, pero el token sigue guardado
 } else showLogin();
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

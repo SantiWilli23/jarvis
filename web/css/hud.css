@@ -316,3 +316,4 @@ body[data-state="permiso"] { --accent: var(--amber); }
 .musica-ctl button { min-height: 44px; background: var(--input-bg); border: 1px solid var(--line); color: var(--fg); font-size: 18px; cursor: pointer; }
 .musica-ctl button:active { border-color: var(--accent); color: var(--accent); }
 .musica-abrir { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); font-size: 13px; }
+@media (pointer: coarse) { .chip-btn { min-height: 44px; min-width: 44px; } }

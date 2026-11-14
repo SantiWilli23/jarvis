@@ -2,6 +2,7 @@
 // Eventos hacia el cliente: state, chat.delta, chat.done, task.update, approval.request,
 // approval.resolved, providers.update, pc.status, phone.update, pro.status, pro.message, pro.delta, pro.round, conn.using. Solo dispositivos "web" (lista blanca).
 import { WebSocketServer } from "ws";
+import { cookieValue } from "./auth/middleware.js";
 
 const EVENTOS = ["state", "chat.delta", "chat.done", "task.update", "approval.request", "approval.resolved", "providers.update", "pc.status", "task.progress", "phone.update", "pro.status", "pro.message", "pro.delta", "pro.round", "conn.using"];
 const AUTH_TIMEOUT_MS = 5000;
@@ -15,14 +16,15 @@ export function createHub({ server, sessions, bus, initial = async () => [] }) {
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
   });
 
-  wss.on("connection", (ws) => {
+  wss.on("connection", (ws, req) => {
+    const cookieTok = cookieValue(req?.headers?.cookie); // respaldo si el cliente no manda token
     const c = { ws, userId: null, deviceId: null };
     const timer = setTimeout(() => { if (!c.userId) ws.close(4401, "auth_timeout"); }, AUTH_TIMEOUT_MS);
     ws.on("message", async (raw) => {
       if (c.userId) return; // el cliente no manda nada más en Fase 1
       try {
         const m = JSON.parse(String(raw));
-        const s = m?.type === "auth" ? await sessions.verify(m.token) : null;
+        const s = m?.type === "auth" ? await sessions.verify(m.token || cookieTok) : null;
         if (!s || s.device.kind !== "web") return ws.close(4401, "no_autorizado");
         c.userId = Number(s.user.id); c.deviceId = s.device.id;
         clients.add(c); clearTimeout(timer);
