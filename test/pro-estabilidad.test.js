@@ -15,7 +15,7 @@ import { modelChain } from "../desktop/runner/agy-args.js";
 import { classifyAgyError } from "../desktop/runner/agy-runner.js";
 import { redact } from "../server/pro/redact.js";
 import { commitPathsOf } from "../server/pro/check.js";
-import { proReasons, proNotices } from "../server/pro/reasons.js";
+import { proReasons } from "../server/pro/reasons.js";
 
 const fx = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 const CLAUDE = { command: process.execPath, prefix: [join(fx, "fake-claude.mjs")] };
@@ -81,11 +81,10 @@ test("redact: secretos largos sí; hashes y nombres de código no", () => {
   assert.ok(redact("clave Xk9fQ2mL8zP4vB7nR3tY6wH1sD5gJ0cA").includes("[SECRETO]"));
 });
 
-test("reasons: Pro funciona con solo Claude; Gemini va como aviso", () => {
+test("reasons: Pro funciona con solo Claude", () => {
   const cfg = { requisitos: { claude_modelos: [OPUS, SONNET] } };
   const caps = { claude: { ok: true, modelos: [OPUS, SONNET] }, repos: ["C:/r"] };
   assert.deepEqual(proReasons({ pcOnline: true, caps, cfg }), []);
-  assert.ok(proNotices({ caps, geminiActivo: false, geminiFolders: [] }).includes("gemini_apagado"));
   assert.deepEqual(proReasons({ pcOnline: true, caps: { ...caps, claude: { ok: false, error: "modelo_no_disponible", faltan: [OPUS], modelos: [SONNET] } }, cfg }), ["claude_modelo_no_disponible"]);
 });
 

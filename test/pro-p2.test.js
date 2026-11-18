@@ -11,7 +11,7 @@ import { classifyTask } from "../server/pro/classify.js";
 let server, base, ctx, web, pc, thread, events;
 const call = (path, { method = "GET", body, tk = web } = {}) =>
   fetch(base + path, { method, headers: { ...(body ? { "content-type": "application/json" } : {}), authorization: `Bearer ${tk}` }, body: body ? JSON.stringify(body) : undefined }).then(async (r) => ({ status: r.status, ...(await r.json()) }));
-const CAPS = { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, agy: { ok: true, login: "google" }, repos: ["C:\\dev\\app"] };
+const CAPS = { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, repos: ["C:\\dev\\app"] };
 const hello = (capabilities = CAPS) => call("/api/agent/hello", { method: "POST", tk: pc, body: { host: "pc", capabilities } });
 const claim = async (body = {}) => (await call("/api/agent/pro/claim", { method: "POST", tk: pc, body })).job;
 const report = (id, b) => call(`/api/agent/pro/jobs/${id}/report`, { method: "POST", tk: pc, body: b });
@@ -24,7 +24,7 @@ const round = async (id) => (await call(`/api/pro/threads/${thread}`)).rounds.fi
 const decide = (rid, body) => call(`/api/pro/rounds/${rid}/decision`, { method: "POST", body });
 
 before(async () => {
-  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.config.motores_pc.gemini.activo = true; ctx.pro.config.local_visible = true;
+  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.pro.config.local_visible = true;
   ctx.permissions.carpetas_permitidas = ["C:\\dev"]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
   server = createServer(createApp(ctx));
   await new Promise((r) => server.listen(0, r));
@@ -35,14 +35,14 @@ before(async () => {
 });
 after(() => server.close());
 
-test("Pro deshabilitado: motivos y 409; habilitado con agy", async () => {
+test("Pro deshabilitado: motivos y 409; habilitado solo con Claude", async () => {
   const s = await call("/api/pro/status");
   assert.equal(s.habilitado, false);
   assert.ok(s.motivos.includes("pc_apagado"));
-  // Pro funciona con SOLO Claude: Gemini sin sesión es un aviso, no un bloqueo.
-  await hello({ ...CAPS, agy: { ok: false } });
+  // Pro funciona con SOLO Claude.
+  await hello(CAPS);
   const sg = await call("/api/pro/status");
-  assert.equal(sg.habilitado, true); assert.deepEqual(sg.motivos, []); assert.ok(sg.avisos.includes("gemini_sin_login"));
+  assert.equal(sg.habilitado, true); assert.deepEqual(sg.motivos, []);
   await hello({ ...CAPS, claude: { ok: false } });
   assert.deepEqual((await call("/api/pro/status")).motivos, ["claude_no_listo"]);
   const t = await call("/api/pro/threads", { method: "POST", body: { repo: "C:\\dev\\app" } }); // repo no declarado aun? si esta declarado
@@ -86,7 +86,7 @@ test("ronda feliz: plan, aprobar, programar, verificar con el otro motor, acepta
   assert.ok((await report(prog.id, { informe: INF(["server/a.js"]), tree_before: "a", tree_after: "b", diff: NS("server/a.js") })).ok);
   assert.equal((await report(prog.id, { informe: INF(["server/a.js"]), diff: NS("server/a.js") })).duplicado, true);
   const ver = await claim();
-  assert.equal(ver.role, "verificar"); assert.equal(ver.engine, "gemini"); assert.ok(ver.prompt.includes("server/a.js"));
+  assert.equal(ver.role, "verificar"); assert.equal(ver.engine, "claude"); assert.ok(ver.prompt.includes("server/a.js"));
   await report(ver.id, { informe: JSON.stringify(VER()) });
   assert.equal((await round(rid)).status, "esperando_aprobacion");
   await decide(rid, { accion: "aprobar" });
@@ -122,11 +122,11 @@ test("mentira detectada (dijo_no_hizo) y tope de 2 correcciones", async () => {
   assert.equal(await claim(), null);
 });
 
-test("Gemini sin cuota al planear: no baja de modelo y avisa", async () => {
+test("Claude sin cuota al planear: no baja de modelo y avisa", async () => {
   const r = await say("mejora el css de la pantalla y los colores");
-  assert.equal(r.round.programmer, "gemini");
+  assert.equal(r.round.programmer, "claude");
   const j = await claim();
-  assert.equal(j.model, "gemini-3.8-flash-high");
+  assert.equal(j.model, "claude-opus-5-5");
   await fail(j.id, "sin_cuota");
   assert.equal((await round(r.round.id)).status, "necesita_usuario");
   assert.ok((await call(`/api/pro/threads/${thread}`)).messages.at(-1).text.includes("No cambio de modelo"));
@@ -155,5 +155,5 @@ test("unidades: redact, cleanDiff, check, classify", async () => {
   const c = check({ informe: INF(["a.js"]), diff: "M\tb.js\nM\t.env\n" });
   assert.equal(c.dijo_no_hizo.length, 1); assert.equal(c.hizo_no_dijo.length, 1); assert.equal(c.cambios_ajenos.length, 1);
   assert.equal((await classifyTask("haz algo")).programmer, "claude");
-  assert.equal((await classifyTask("arregla el bug en la pantalla css", { textProvider: async () => "gemini" })).programmer, "gemini");
+  assert.equal((await classifyTask("arregla el bug en la pantalla css")).verifier, "claude");
 });

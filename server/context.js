@@ -71,7 +71,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const prepare = createPrepare({ router, tasks });
   const approvals = createApprovals({ db, bus, audit, now });
   const phone = createPhoneQueue({ db, bus, approvals, audit, config: loadJson("phone-actions.json"), now });
-  const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, motores: config.motores_pc, proModelos: () => claudeIds(loadProConfig()), now });
+  const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, proModelos: () => claudeIds(loadProConfig()), now });
   const pc = createPcQueue({ db, bus, approvals, audit, agent, config: loadJson("pc-actions.json"), now });
   const github = createGitHub({ env, fetch: f, now });
   const pro = createPro({ github: () => github, browser: () => browser, chat: () => chat, db, bus, agent, approvals, audit, permissions, now, quota, groq: () => providers.groq });

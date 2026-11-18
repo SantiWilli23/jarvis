@@ -2,7 +2,7 @@
 // según el estado de la ronda y es quien ejecuta. Groq nunca ejecuta, commitea ni aprueba por el usuario.
 import { filtrar, cita } from "./prompts.js";
 
-export const MOTORES = ["claude", "gemini"];
+export const MOTORES = ["claude"];
 export const TIPOS = ["hablar", "consultar", "proponer", "iniciar_ronda", "parar"];
 const txt = (x, max) => (typeof x === "string" ? x.trim().slice(0, max) : "");
 
@@ -13,30 +13,27 @@ function parseJson(x) {
 }
 
 // Acción cruda -> acción limpia, o null si no es válida (se descarta).
-function norm(a, soloClaude = false) {
+function norm(a) {
   if (!a || typeof a !== "object" || !TIPOS.includes(a.tipo)) return null;
-  if (soloClaude) { // Gemini no está disponible: todo es Claude (programa Sonnet, revisa Opus)
-    a = { ...a };
-    if (a.a === "gemini") a.a = "claude";
-    if (a.tipo === "proponer") { a.programador = "claude"; a.verificador = "claude"; }
-  }
+  // Solo hay Claude (programa Sonnet, revisa Opus): una propuesta siempre es claude/claude, diga lo que diga el modelo.
+  if (a.tipo === "proponer") a = { ...a, programador: "claude", verificador: "claude" };
   if (a.tipo === "hablar") { const t = txt(a.texto, 2000); return t ? { tipo: "hablar", texto: t } : null; }
   if (a.tipo === "consultar") {
     const p = txt(a.pregunta, 1500);
     return MOTORES.includes(a.a) && p ? { tipo: "consultar", a: a.a, pregunta: p } : null;
   }
   if (a.tipo === "proponer") {
-    if (!MOTORES.includes(a.programador) || !MOTORES.includes(a.verificador) || (a.programador === a.verificador && !soloClaude)) return null;
+    if (!MOTORES.includes(a.programador) || !MOTORES.includes(a.verificador)) return null;
     return { tipo: "proponer", programador: a.programador, verificador: a.verificador, texto: txt(a.texto, 1500), nota: txt(a.nota, 1000) };
   }
   return { tipo: a.tipo };
 }
 
 // Texto de Groq -> { acciones, resumen } o null (JSON inválido o sin ninguna acción válida).
-export function parseAcciones(raw, { soloClaude = false } = {}) {
+export function parseAcciones(raw) {
   const o = parseJson(raw);
   if (!o || !Array.isArray(o.acciones)) return null;
-  const acciones = o.acciones.map((a) => norm(a, soloClaude)).filter(Boolean);
+  const acciones = o.acciones.map((a) => norm(a)).filter(Boolean);
   if (!acciones.length) return null;
   return { acciones, resumen: txt(o.resumen, 1500) };
 }
@@ -60,7 +57,7 @@ export function validar(acciones, { limite = false, aprobado = false } = {}) {
 // Turnos de Groq ya dados en la ronda (cada turno deja un mensaje "coordinador").
 export const contarTurnos = (msgs, roundId) => msgs.filter((m) => m.round_id === roundId && m.kind === "coordinador").length;
 
-const nom = { claude: "Claude", gemini: "Gemini", jarvis: "Jarvis", usuario: "Usuario" };
+const nom = { claude: "Claude", jarvis: "Jarvis", usuario: "Usuario" };
 // Lo único que ve Groq: texto de la conversación, planes, NOMBRES de archivo y resultados ya redactados. Sin diffs.
 export function contextoGroq({ thread, msgs, roundId }) {
   const linea = (m) => {

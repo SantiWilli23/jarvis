@@ -32,18 +32,16 @@ test("onUse recibe el id del proveedor y el usuario", async () => {
 test("config/pro.json: correcciones máx 2 y sin modelos prohibidos", () => {
   const c = loadProConfig();
   assert.equal(c.limites.correcciones_max, 2);
-  assert.ok(!/lite|2\.5-pro|argon|carbon|3.1-pro/.test(JSON.stringify(c.modelos.gemini)));
+  assert.equal(c.modelos.gemini, undefined); // Pro usa solo Claude
 });
 
 test("proReasons: motivos de no habilitado", () => {
   const cfg = loadProConfig();
   assert.deepEqual(proReasons({ pcOnline: false, caps: null, cfg }), ["pc_apagado", "claude_no_listo", "sin_repos_git"]);
-  const caps = { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, gemini_cli: { ok: true, login: "google" }, repos: ["C:/r"] };
+  const caps = { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, repos: ["C:/r"] };
   assert.deepEqual(proReasons({ pcOnline: true, caps, cfg }), []);
   assert.deepEqual(proReasons({ pcOnline: true, caps: { ...caps, claude: { ok: true, modelos: ["claude-opus-5-5"] } }, cfg }), ["claude_modelo_no_disponible"]);
   assert.deepEqual(proReasons({ pcOnline: true, caps: { ...caps, claude: { ok: false, error: "sin_login", modelos: [] } }, cfg }), ["claude_sin_login"]);
-  // Solo Claude: sin Gemini no hay ningún motivo de bloqueo
-  assert.deepEqual(proReasons({ pcOnline: true, caps: { ...caps, gemini_cli: { ok: false }, agy: { ok: false } }, cfg }), []);
 });
 
 test("status: conexiones {id,nombre,ok,usa}, Claude (PC), conn.using y status.pro", async () => {
@@ -55,7 +53,7 @@ test("status: conexiones {id,nombre,ok,usa}, Claude (PC), conn.using y status.pr
   const pc = s.connections.find((c) => c.id === "claude_pc");
   assert.deepEqual([pc.nombre, pc.ok, pc.usa], ["Claude (PC)", false, false]);
   for (const c of s.connections) assert.ok(c.id && c.nombre && typeof c.ok === "boolean" && typeof c.usa === "boolean");
-  const { web: webPro, local_visible: lv, ...proBase } = s.pro; assert.equal(lv, false); assert.equal(webPro.habilitado, false); assert.deepEqual(proBase, { habilitado: false, motivos: ["pc_apagado", "claude_no_listo", "sin_repos_git"], avisos: ["gemini_apagado"], gemini: { activo: false, listo: false } });
+  const { web: webPro, local_visible: lv, ...proBase } = s.pro; assert.equal(lv, false); assert.equal(webPro.habilitado, false); assert.deepEqual(proBase, { habilitado: false, motivos: ["pc_apagado", "claude_no_listo", "sin_repos_git"] });
   await ctx.router.route({ userId: ctx.ownerId, messages: [{ role: "user", content: "hola" }] });
   assert.equal(evs.length, 1);
   assert.equal(evs[0].userId, ctx.ownerId);
@@ -63,8 +61,8 @@ test("status: conexiones {id,nombre,ok,usa}, Claude (PC), conn.using y status.pr
   assert.ok((await ctx.status(ctx.ownerId)).connections.every((c) => !c.usa));
   ctx.bus.emit("pc.using", { userId: ctx.ownerId });
   assert.equal((await ctx.status(ctx.ownerId)).connections.find((c) => c.id === "claude_pc").usa, true);
-  ctx.config.motores_pc.gemini.activo = true; ctx.pro.config.local_visible = true; // encendido a mano
-  await ctx.agent.hello(ctx.ownerId, { capabilities: { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, gemini_cli: { ok: true, login: "google" }, repos: ["C:/r"] } });
+  ctx.pro.config.local_visible = true; // encendido a mano
+  await ctx.agent.hello(ctx.ownerId, { capabilities: { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, repos: ["C:/r"] } });
   s = await ctx.status(ctx.ownerId);
   assert.equal(s.pro.habilitado, true);
   assert.equal(s.connections.find((c) => c.id === "claude_pc").ok, true);
@@ -72,7 +70,7 @@ test("status: conexiones {id,nombre,ok,usa}, Claude (PC), conn.using y status.pr
 
 test("usageToday incluye ai_usage; rutas /api/pro y /api/agent/pro montadas", async () => {
   const db = createDb({ url: ":memory:" });
-  const ctx = await buildContext({ db, env: { OWNER_PASSWORD: "x" } }); ctx.config.motores_pc.gemini.activo = true; ctx.pro.config.local_visible = true;
+  const ctx = await buildContext({ db, env: { OWNER_PASSWORD: "x" } }); ctx.pro.config.local_visible = true;
   await db.execute({ sql: "INSERT INTO ai_usage (user_id, day, engine, model, tokens_in, tokens_out, created_at) VALUES (?,?,?,?,?,?,?)", args: [ctx.ownerId, new Date().toISOString().slice(0, 10), "gemini", "m", 3, 4, Date.now()] });
   assert.deepEqual((await ctx.agent.usageToday(ctx.ownerId)).ai, { gemini: { tokens: 7, llamadas: 1 } });
   const server = createServer(createApp(ctx));

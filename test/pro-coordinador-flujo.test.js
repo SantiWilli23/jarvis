@@ -9,7 +9,7 @@ import { createApp } from "../server/app.js";
 let server, base, ctx, web, pc, thread, groqOut, groqCalls;
 const call = (path, { method = "GET", body, tk = web } = {}) =>
   fetch(base + path, { method, headers: { ...(body ? { "content-type": "application/json" } : {}), authorization: `Bearer ${tk}` }, body: body ? JSON.stringify(body) : undefined }).then(async (r) => ({ status: r.status, ...(await r.json()) }));
-const CAPS = { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, agy: { ok: true, login: "google" }, repos: ["C:\\dev\\app"] };
+const CAPS = { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, repos: ["C:\\dev\\app"] };
 const claim = async () => (await call("/api/agent/pro/claim", { method: "POST", tk: pc, body: {} })).job;
 const report = (id, b) => call(`/api/agent/pro/jobs/${id}/report`, { method: "POST", tk: pc, body: b });
 const say = (text) => call(`/api/pro/threads/${thread}/messages`, { method: "POST", body: { text } });
@@ -19,10 +19,10 @@ const acc = (...a) => JSON.stringify({ acciones: a, resumen: "resumen del hilo" 
 const groqReplies = (...r) => { groqOut = [...r]; groqCalls.length = 0; };
 const HABLAR = { tipo: "hablar", texto: "Entendido" };
 const CONSULTA = { tipo: "consultar", a: "claude", pregunta: "¿Qué archivo tocar?" };
-const PROPONER = { tipo: "proponer", programador: "claude", verificador: "gemini", texto: "Plan simple", nota: "ojo con X" };
+const PROPONER = { tipo: "proponer", programador: "claude", verificador: "claude", texto: "Plan simple", nota: "ojo con X" };
 
 before(async () => {
-  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.config.motores_pc.gemini.activo = true; ctx.pro.config.local_visible = true;
+  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.pro.config.local_visible = true;
   ctx.permissions.carpetas_permitidas = ["C:\\dev"]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
   groqCalls = [];
   ctx.providers.groq = { enabled: true, chat: async (req) => { groqCalls.push(req); const t = groqOut.shift(); if (t instanceof Error) throw t; return { text: t, tokens: 1, headers: {} }; } };
@@ -74,7 +74,7 @@ test("consultar: job de solo lectura, la respuesta vuelve a Groq y se pliega com
 });
 
 test("límite de 3 consultas: la 4ª se descarta y Groq debe resumir; iniciar_ronda de Groq no arranca nada", async () => {
-  groqReplies(acc(CONSULTA), acc({ tipo: "consultar", a: "gemini", pregunta: "otra" }), acc(CONSULTA), acc({ tipo: "iniciar_ronda" }, { tipo: "hablar", texto: "Resumen final" }));
+  groqReplies(acc(CONSULTA), acc({ tipo: "consultar", a: "claude", pregunta: "otra" }), acc(CONSULTA), acc({ tipo: "iniciar_ronda" }, { tipo: "hablar", texto: "Resumen final" }));
   const r = await say("tarea grande");
   for (let i = 0; i < 3; i++) { const j = await claim(); assert.equal(j.role, "consultar"); await report(j.id, { informe: "opinión " + i }); }
   const v = await view();
