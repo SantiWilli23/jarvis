@@ -8,6 +8,8 @@ import { validateParams, DEFAULT_APPS, PC_ACTIONS } from "./pc-spec.js";
 const VK = { play_pausa: 0xb3, siguiente: 0xb0, anterior: 0xb1, silencio: 0xad, bajar: 0xae, subir: 0xaf };
 const PS_HEAD = "Add-Type -Namespace J -Name K -MemberDefinition '[DllImport(\"user32.dll\")] public static extern void keybd_event(byte b, byte s, uint f, UIntPtr e);'; ";
 const PS_BATERIA = "$b = Get-CimInstance Win32_Battery | Select-Object -First 1 EstimatedChargeRemaining, BatteryStatus; if ($b) { $b | ConvertTo-Json -Compress } else { '{}' }";
+// Suspender DE VERDAD (no hibernar): SetSuspendState(Suspend, force=false, disableWakeEvent=false).
+export const PS_SUSPENDER = "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Application]::SetSuspendState('Suspend',$false,$false)";
 const PS_ARGS = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand"];
 const enc = (s) => Buffer.from(s, "utf16le").toString("base64");
 const int = (n, min, max) => { if (!Number.isInteger(n) || n < min || n > max) throw new Error("entero_fuera_de_rango"); return n; };
@@ -33,7 +35,7 @@ export function sanitizeApps(extra) {
 // deps (todo inyectable para probar sin ejecutar nada real):
 //  execFile(cmd, args) -> Promise<{stdout}>, spawn(cmd, args, opts) -> proceso con eventos, clipboard {readText, writeText},
 //  notify(titulo, texto), os, statfs(ruta), platform, now, setTimer/clearTimer.
-export function createPcExecutor({ execFile, spawn, clipboard, notify = () => {}, os, statfs = null, platform = process.platform, apps = null, now = () => new Date(), setTimer = setTimeout, clearTimer = clearTimeout, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
+export function createPcExecutor({ files = null, capture = null, execFile, spawn, clipboard, notify = () => {}, os, statfs = null, platform = process.platform, apps = null, now = () => new Date(), setTimer = setTimeout, clearTimer = clearTimeout, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
   const appMap = sanitizeApps(apps);
   const timers = new Set();
   const win = () => { if (platform !== "win32") throw new Error("Esta acción solo existe en Windows."); };
@@ -71,7 +73,11 @@ export function createPcExecutor({ execFile, spawn, clipboard, notify = () => {}
       return { texto: `Volumen ${accion === "subir" ? "subido" : "bajado"} ${n * 2}%.` };
     },
     async bloquear() { win(); await execFile("rundll32.exe", ["user32.dll,LockWorkStation"]); return { texto: "Pantalla bloqueada." }; },
-    async suspender() { win(); await execFile("rundll32.exe", ["powrprof.dll,SetSuspendState", "0,1,0"]); return { texto: "Suspendiendo el PC." }; },
+    async suspender() { await ps(PS_SUSPENDER); return { texto: "Suspendiendo el PC." }; },
+    async cancelar_apagado() { win(); await execFile("shutdown.exe", ["/a"]); return { texto: "Apagado cancelado." }; },
+    async archivos_listar({ raiz, ruta }) { if (!files) throw new Error("Archivos no configurados en este PC (pc_carpetas)."); return files.listar(raiz, ruta); },
+    async archivos_leer({ raiz, ruta }) { if (!files) throw new Error("Archivos no configurados en este PC (pc_carpetas)."); return { ...(await files.leer(raiz, ruta)), privado: true }; },
+    async captura() { if (!capture) throw new Error("La captura no está disponible en este PC."); return { ...(await capture.capturar()), privado: true }; },
     async apagar() { win(); await execFile("shutdown.exe", ["/s", "/t", "30", "/c", "Jarvis: apagado pedido por el señor"]); return { texto: "Apagando en 30 segundos." }; },
     async reiniciar() { win(); await execFile("shutdown.exe", ["/r", "/t", "30", "/c", "Jarvis: reinicio pedido por el señor"]); return { texto: "Reiniciando en 30 segundos." }; },
     async temporizador({ minutos, texto }) {

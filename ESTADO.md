@@ -1,8 +1,7 @@
 <!-- estado-proyecto -->
-# Estado de Jarvis (14-nov-2026) - rama juegos-atajos (desde main 9c9d6a4)
-**Pedido:** "abre <juego>" abre el juego sin gastar IA + botones de acceso rápido.
-**Hecho:** `server/games.js` (lista Futotal y Ski Beta, `parseJuegoIntent`, `respuestaJuego`); paso 1-bis en `chat-service` antes de música/PC/IA, igual en modo Chat e IA: `status:"juego"`, `juegos:[{id,nombre,url}]`, `acciones:[{tipo:"abrir_url",url,nuevaPestana}]`.
-**Web:** `web/js/juegos.js` (botones discretos `#juegos` en index.html y m.html + `window.open` noopener al llegar `jarvis:juego`; los botones sirven de respaldo si el navegador bloquea la pestaña); `sw.js` v13.
-**Pruebas:** `test/juegos.test.js`. Alquimia y Draft Europeo no están en la lista a propósito.
-**Queda:** probar en navegador real/iPhone (bloqueo de pestañas, estilo de botones). Sin push ni deploy.
+# Estado de Jarvis (18-nov-2026) - rama control-pc-ola2 (desde main c669f63)
+**Pedido:** Ola D1 lado PC: archivos, captura, suspender/apagar seguros.
+**Hecho:** apagar/reiniciar/suspender SIEMPRE con aprobación (forzado en `validateParams`); suspender real por PowerShell; `cancelar_apagado`; `archivos_listar`/`archivos_leer` (`pc-files.js`, raíces `pc_carpetas`, realpath, 100 entradas, 1 MB, 2000 car.); `captura` (`pc-capture.js`, Claude local sin herramientas, JPEG 1568 px, borrado siempre); GUARDIANES y SECRETOS ampliados; intents en español.
+**Pruebas:** `test/pc-ola2.test.js`; `npm test` 323 verdes.
+**Queda:** probar en Windows/Electron real (OneDrive, suspender, captura, flags de Claude `--tools ""` + entrada stream-json con imagen). Tope diario/registro de capturas: ola D2 (servidor). Sin push ni deploy.
 **Verificar:** `npm test`.

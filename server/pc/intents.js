@@ -40,6 +40,24 @@ export function parsePcIntent(text, { apps = [], destino = null } = {}) {
   if (destino === "pc" && /^(?:apaga|apagar|apagame)$/.test(t)) return r("apagar");
   if (destino === "pc" && /^(?:reinicia|reiniciar|reiniciame)$/.test(t)) return r("reiniciar");
 
+  // Cancelar un apagado/reinicio en curso (automática)
+  if (/^(?:cancela|cancelar|anula|anular|deten|detener|para) (?:el )?(?:apagado|reinicio)(?: del pc)?$/.test(t)) return r("cancelar_apagado");
+
+  // Captura de pantalla (la describe Claude en el PC; automática con aviso)
+  if (destino !== "telefono" && /^(?:que (?:hay|se ve|tengo|estoy viendo) en (?:mi |la )?pantalla|describe (?:mi |la )?pantalla|(?:haz(?:me)? )?(?:una )?captura(?: de(?: mi| la)? pantalla)?|captura de pantalla|saca(?:me)? una captura)$/.test(t) && (destino === "pc" || /pantalla/.test(t))) return r("captura");
+
+  // Archivos (solo con "pc": raíz por nombre + ruta relativa; el PC decide qué raíces existen)
+  if (destino === "pc") {
+    // Para nombres de archivo se conservan los puntos ("notas.txt"); t los convierte en espacios.
+    const td = norm(orig).replace(/[¿?¡!,;]/g, " ").replace(/\s+/g, " ").trim().replace(/\.+$/, "").replace(/^jarvis /, "");
+    const partes = (g) => { const p = g.split("/").map((x) => x.trim()).filter(Boolean); return p.length ? { raiz: p[0], ...(p.length > 1 ? { ruta: p.slice(1).join("/") } : {}) } : null; };
+    if ((m = /^(?:lista|listame|muestrame|ensename) (?:los )?(?:archivos|ficheros|contenido) (?:de|en) (?:la )?(?:carpeta )?(?:de )?(.+)$/.exec(t)) || (m = /^que (?:archivos|ficheros) hay (?:en|de) (?:la )?(?:carpeta )?(?:de )?(.+)$/.exec(t)) || (m = /^lista(?:me)? (?:la )?carpeta (?:de )?(.+)$/.exec(t))) {
+      const p = partes(m[1]); if (p) return r("archivos_listar", p);
+    }
+    if ((m = /^(?:lee|leeme|muestrame) (?:el )?(?:archivo|fichero) (.+?) (?:de|en) (?:la )?(?:carpeta )?(?:de )?([^/]+)$/.exec(td))) return r("archivos_leer", { raiz: m[2].trim(), ruta: m[1].trim() });
+    if ((m = /^(?:lee|leeme|muestrame) (?:el )?(?:archivo|fichero) ([^/]+\/.+)$/.exec(td))) { const p = partes(m[1]); if (p?.ruta) return r("archivos_leer", p); }
+  }
+
   // Multimedia
   if (/^(?:pausa|pausar|pon pausa|para|deten|reanuda|continua|play|reproduce|dale play)(?:\s+(?:a\s+)?(?:la\s+|el\s+)?(?:musica|cancion|reproduccion|video))?$/.test(t)) return r("multimedia", { valor: "play_pausa" });
   if (/^(?:siguiente|salta|pasa|pon la siguiente|pasa a la siguiente)(?:\s+(?:a\s+la\s+)?(?:siguiente\s+)?(?:cancion|tema))?$/.test(t)) return r("multimedia", { valor: "siguiente" });
