@@ -109,7 +109,7 @@ export function createProWeb({ store, say, setRound, llamarGroq, groq, github, b
     const t = String(text || "").trim();
     if (!t || t.length > 8000) throw new ProError(400, "texto_invalido");
     await exigirHabilitado();
-    if (privado || classifyText(t, { flagPrivate: privado }).private || (await chat().checkPrivate({ userId, text: t, flagPrivate: privado })).private) throw new ProError(422, "privado");
+    if (privado || classifyText(t, { flagPrivate: privado }).private || (await chat().checkPrivate({ userId, text: t, flagPrivate: privado }))) throw new ProError(422, "privado");
     const safe = redact(t);
     let round = await store.activeRound(thread.id);
     if (round && !["conversando", "prompt_listo"].includes(round.status)) throw new ProError(409, "ronda_activa");
@@ -150,7 +150,7 @@ export function createProWeb({ store, say, setRound, llamarGroq, groq, github, b
     await exigirHabilitado();
     const prompt = texto.slice(0, cw.prompt_max_caracteres ?? 7000);
     const priv = await chat().checkPrivate({ userId, text: prompt });
-    if (priv.private) throw new ProError(422, "privado");
+    if (priv) throw new ProError(422, "privado");
     if ((await store.enviosHoy(userId)) >= (cw.envios_dia ?? 20)) throw new ProError(429, "tope_dia");
     if (modo === "asistido" && (!d.sitio || !browser?.().activo?.() || !agent.view().online)) throw new ProError(409, "asistido_no_disponible");
     const f = await foto(thread);

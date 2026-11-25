@@ -168,3 +168,12 @@ test("sin Groq: plantilla; 24 h sin resultado -> necesita_usuario; marcar a mano
   assert.equal((await sondear(r.round.id)).round.status, "necesita_usuario");
   assert.equal((await call(`/api/pro/rounds/${r.round.id}/marcar-hecha`, { method: "POST" })).round.status, "hecha");
 });
+
+test("una nota privada bloquea Pro web aunque el texto no lo parezca", async () => {
+  await ctx.notes.add({ userId: ctx.ownerId, body: "el proyecto Girasol es mi sorpresa", level: "privada" });
+  const t = (await nuevoHilo()).thread.id;
+  groqCalls = [];
+  const r = await dicho(t, "ordena el proyecto Girasol");
+  assert.equal(r.status, 422); assert.equal(r.error, "privado");
+  assert.equal(groqCalls.length, 0);
+});
