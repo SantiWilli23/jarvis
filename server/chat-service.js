@@ -109,7 +109,7 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       }
       if (pcI) {
         const out = await pc.create({ userId, action: pcI.action, params: pcI.params, source, conversationId: conv, deviceId });
-        const reply = out.ok ? pcReply(out.item) : pcError(out.error);
+        const reply = out.ok ? pcReply(out.item) : out.mensaje || pcError(out.error);
         await saveMsg(userId, conv, "user", original, null, flagPrivate);
         await saveMsg(userId, conv, "assistant", reply, "pc", flagPrivate);
         bus?.emit("chat.done", { userId, text: reply, provider: "pc" });

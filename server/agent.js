@@ -18,6 +18,8 @@ function cleanCaps(c) {
     repos: strs((c.repos || []).map((r) => (typeof r === "string" ? r : r?.ruta || ""))).filter(Boolean),
   };
 }
+// Nombres de acciones del PC que informa la app (capabilities.pc_acciones); null = app antigua que no informa.
+const cleanAcciones = (a) => (Array.isArray(a) ? a.filter((x) => typeof x === "string").map((x) => x.slice(0, 40)).slice(0, 100) : null);
 const dayOf = (t) => new Date(t).toISOString().slice(0, 10);
 
 export function createAgent({ db, bus, tasks, approvals, audit, permissions, state, proModelos = null, now = () => Date.now() }) {
@@ -28,12 +30,15 @@ export function createAgent({ db, bus, tasks, approvals, audit, permissions, sta
     return { por_tarea_tokens: t.por_tarea_tokens ?? null, diario_tareas: t.diario_tareas ?? null, diario_tokens: t.diario_tokens ?? null };
   };
   const publish = (userId) => bus.emit("pc.status", { userId, ...api.view() });
-  const setCaps = (c) => { if (c && typeof c === "object") pc.capabilities = cleanCaps(c); };
+  // Si solo llega pc_acciones (el doctor aún no terminó) no se pisan las capacidades de Claude.
+  const setCaps = (c) => { if (c && typeof c === "object" && Object.keys(c).some((k) => k !== "pc_acciones")) pc.capabilities = cleanCaps(c); };
+  pc.acciones = null;
   const touch = () => { pc.last_seen = now(); };
 
   const api = {
     caps,
     capabilities: () => pc.capabilities,
+    accionesPc: () => pc.acciones,
     // Motores de la cola de tareas que el PC atiende: solo Claude.
     engines: () => ["claude"],
     // ¿Claude llegó a su tope diario? (tareas o tokens)
@@ -55,6 +60,7 @@ export function createAgent({ db, bus, tasks, approvals, audit, permissions, sta
       const wasOnline = pc.online;
       Object.assign(pc, { online: true, version, host: host ? String(host).slice(0, 60) : null });
       setCaps(capabilities); touch();
+      pc.acciones = cleanAcciones(capabilities?.pc_acciones); // cada hello manda: una app antigua vuelve a null
       // Tareas que se quedaron a medias cuando el PC se apagó: no se repiten solas (podrían duplicar efectos).
       const hung = await run(db, "UPDATE tasks SET status='interrumpida', result='El PC se apagó o perdió conexión durante la tarea.', updated_at=? WHERE user_id=? AND status IN ('reclamada','en_curso')", [now(), userId]);
       await audit?.log({ userId, action: "pc.en_linea", detail: `${host || "PC"} ${version || ""}`.trim() });
@@ -70,6 +76,7 @@ export function createAgent({ db, bus, tasks, approvals, audit, permissions, sta
     async heartbeat(userId, { paused = false, current_task = null, capabilities } = {}) {
       const was = pc.online;
       setCaps(capabilities);
+      if (Array.isArray(capabilities?.pc_acciones)) pc.acciones = cleanAcciones(capabilities.pc_acciones);
       pc.online = true; pc.paused = !!paused; pc.current_task = current_task ?? null; touch();
       if (!was) bus.emit("pc_online", { userId, host: pc.host });
       publish(userId);

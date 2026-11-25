@@ -28,7 +28,7 @@ async function lanzar(accion, params) {
     const r = await api("/pc/actions", { method: "POST", body: { accion, params } });
     aviso = r.action?.status === "aprobacion" ? "Enviada: espera su aprobación." : "Enviada al PC.";
     abierta = null;
-  } catch (e) { aviso = "No se pudo: " + (e.data?.error || e.message); }
+  } catch (e) { aviso = "No se pudo: " + (e.data?.mensaje || e.data?.error || e.message); }
   await cargar(); pintar();
 }
 async function decidir(id, aprobar) {
@@ -102,7 +102,8 @@ function pintar() {
   if (aviso) kids.push(el("div", "pcaviso", aviso));
 
   const grid = el("div", "pcgrid");
-  for (const a of datos.catalogo || []) {
+  const soportadas = (datos.catalogo || []).filter((a) => a.soportada !== false);
+  for (const a of soportadas) {
     const sinParams = !Object.values(a.params || {}).some((p) => !p.opcional);
     const b = el("button", "pcbtn" + (a.nivel === "aprobacion" ? " ask" : ""));
     b.type = "button"; b.title = a.descripcion;
@@ -114,7 +115,8 @@ function pintar() {
     grid.append(b);
   }
   kids.push(grid);
-  const ab = (datos.catalogo || []).find((a) => a.id === abierta);
+  if (soportadas.length < (datos.catalogo || []).length) kids.push(el("div", "pcaviso", "Actualice la app del PC para ver más acciones."));
+  const ab = soportadas.find((a) => a.id === abierta);
   if (ab) kids.push(formulario(ab));
 
   const lista = datos.acciones || [];

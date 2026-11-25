@@ -2,6 +2,7 @@
   "nota": "Lista blanca de acciones del PC (cola propia, separada de las tareas de Claude). nivel: automatico = se ejecuta sin preguntar; aprobacion = antes hay que aprobarla (tarjeta de aprobaciones). El PC valida OTRA VEZ con desktop/runner/pc-spec.js y esto debe coincidir (lo comprueba test/pc-actions.test.js). Las aplicaciones: aquí solo los NOMBRES permitidos; el comando fijo de cada una vive en el PC (desktop config.json -> pc_apps, o los de pc-spec.js).",
   "caducidad_minutos": 5,
   "caducidad_aprobacion_minutos": 30,
+  "capturas_por_dia": 20,
   "apps": ["calculadora", "bloc de notas", "explorador", "paint", "administrador de tareas", "configuracion", "spotify"],
   "acciones": {
     "multimedia": { "descripcion": "Tecla multimedia: reproducir/pausar, siguiente, anterior", "nivel": "automatico", "params": { "valor": { "tipo": "enum", "valores": ["play_pausa", "siguiente", "anterior"] } } },

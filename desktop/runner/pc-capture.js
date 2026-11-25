@@ -36,12 +36,12 @@ export function claudeDescriber({ claude, runClaude, cwd, model = null, timeoutM
   };
 }
 
-const dia = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const dia = (d) => d.toISOString().slice(0, 10); // UTC, igual que el tope del servidor
 
 // desktopCapturer/screen: los de Electron (inyectados). describir({ jpeg }) -> texto. onUso({ fecha, n }): gancho del contador
-// local (el tope diario y el registro oficial los lleva el servidor, ola D2).
-export function createPcCapture({ desktopCapturer, screen, describir, dir, notify = () => {}, fs = nodeFs, path = nodePath, now = () => new Date(), onUso = () => {}, maxPorDia = null }) {
-  const uso = { fecha: null, n: 0 };
+// local (el tope diario y el registro oficial los lleva el servidor; esto es la segunda barrera). usoInicial: lo guardado.
+export function createPcCapture({ desktopCapturer, screen, describir, dir, notify = () => {}, fs = nodeFs, path = nodePath, now = () => new Date(), onUso = () => {}, maxPorDia = null, usoInicial = null }) {
+  const uso = { fecha: usoInicial?.fecha ?? null, n: Number(usoInicial?.n) || 0 };
 
   async function limpiar() {
     try {
