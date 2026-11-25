@@ -1,8 +1,8 @@
 <!-- estado-proyecto -->
-# Estado de Jarvis (25-nov-2026) - rama ola-e (desde integracion)
-**Pedido:** Ola E - escenas y disparadores de iOS.
-**Hecho:** `config/escenas.json` + `server/escenas.js` (solo pasos automáticos; sin capturas), intents de chat, botones en la hoja Control de `/m`.
-**iOS:** `POST /api/phone/disparador` con token phone, solo `{escena}`, 10/hora, auditado; guía en `docs/ATAJO-PUENTE.md` apartado 8.
-**Antes:** Ola D2 (tope de capturas, pc_acciones), Ola C (iPhone), Ola A (resultados al chat).
-**Queda:** probar en navegador, iPhone y Windows/Electron reales; sin push, merge ni despliegue.
-**Verificar:** `npm test` (incluye `test/escenas.test.js`).
+# Estado de Jarvis (25-nov-2026) - rama integracion
+**Pedido:** terminar el control del PC y del iPhone.
+**Hecho:** resultados al chat/voz; hoja Control (iPhone/PC) y panel web; PC: archivos, captura (20/día), apagar/suspender con aprobación; iPhone: temporizador, enfoque, notificación, estado, hacer sonar, atajos permitidos; escenas y /api/phone/disparador; fuera Gemini/agy de Pro; GitHub paginado.
+**Queda:** unir a main y subir (pide permiso); `npm run dist` e instalar la app del PC; armar/actualizar el Atajo del iPhone (docs/ATAJO-PUENTE.md).
+**Sin probar:** navegador real, iPhone, Windows/Electron, CLI de Claude describiendo capturas, migración en Turso.
+**Ojo:** una prueba de música falló una vez en la tanda completa (no se repitió).
+**Verificar:** `npm test`.

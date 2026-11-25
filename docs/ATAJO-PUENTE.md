@@ -196,7 +196,7 @@ Una **escena** hace varias cosas con una sola orden. Vienen tres:
 | Buenas noches | `buenas_noches` | No molestar, brillo al 10 %, volumen del PC a 0 y PC bloqueado |
 | Llego a casa | `llego_a_casa` | Quita No molestar, enciende Wi-Fi, volumen al 50 %, estado del PC |
 
-Se lanzan diciendo a Jarvis "activa modo estudio" o "buenas noches", con los botones de la hoja **Control**,
+Se lanzan diciendo a Jarvis "activa modo estudio" o "modo buenas noches", con los botones de la hoja **Control**,
 o solas con una automatización. Si el PC está apagado, sus pasos se omiten y no quedan en cola.
 
 > **No verificado en iPhone.** Nada de este apartado se ha probado en un teléfono: los nombres de menús y

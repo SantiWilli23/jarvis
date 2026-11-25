@@ -54,10 +54,10 @@ test("al cargar se rechaza la escena entera con un paso sensible o inválido", (
 
 test("intents: frase exacta, con o sin «activa»; la charla no se secuestra", () => {
   const es = cargarEscenas(loadJson("escenas.json"), ctx).escenas;
-  for (const [f, id] of [["activa modo estudio", "modo_estudio"], ["Jarvis, pon el modo estudio por favor", "modo_estudio"], ["¡Buenas noches, Jarvis!", "buenas_noches"], ["llego a casa", "llego_a_casa"], ["ejecuta la escena llego a casa", "llego_a_casa"]]) {
+  for (const [f, id] of [["activa modo estudio", "modo_estudio"], ["Jarvis, pon el modo estudio por favor", "modo_estudio"], ["¡Modo buenas noches, Jarvis!", "buenas_noches"], ["llego a casa", "llego_a_casa"], ["ejecuta la escena llego a casa", "llego_a_casa"]]) {
     assert.equal(parseEscenaIntent(f, es)?.id, id, f);
   }
-  for (const f of ["buenas noches, ¿qué tiempo hará mañana?", "qué es el modo estudio", "activa el modo trabajo", "no actives modo estudio"]) assert.equal(parseEscenaIntent(f, es), null, f);
+  for (const f of ["buenas noches, ¿qué tiempo hará mañana?", "qué es el modo estudio", "activa el modo trabajo", "no actives modo estudio", "buenas noches"]) assert.equal(parseEscenaIntent(f, es), null, f);
 });
 
 test("chat: con el PC apagado lanza lo del iPhone y dice lo que falló", async () => {

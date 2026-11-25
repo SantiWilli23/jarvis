@@ -13,8 +13,8 @@
     },
     {
       "id": "buenas_noches",
-      "nombre": "Buenas noches",
-      "frases": ["buenas noches", "me voy a dormir"],
+      "nombre": "Modo buenas noches",
+      "frases": ["modo buenas noches", "me voy a dormir"],
       "pasos": [
         { "destino": "phone", "accion": "no_molestar", "params": { "valor": "on" } },
         { "destino": "phone", "accion": "brillo", "params": { "valor": 10 } },
