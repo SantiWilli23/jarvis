@@ -5,6 +5,19 @@ import { all, get, run } from "../db/client.js";
 
 const MAX_LOTE = 5;
 const HORA = /^([01]?\d|2[0-3]):([0-5]\d)$/;
+// Campos que el Atajo puede devolver (todo lo demás se descarta); texto/número/booleano de longitud limitada.
+const DATOS_OK = ["texto", "valor", "estado", "nivel", "bateria", "nombre", "cantidad", "hora"];
+export function filtrarDatos(datos) {
+  const out = {};
+  if (!datos || typeof datos !== "object" || Array.isArray(datos)) return out;
+  for (const k of DATOS_OK) {
+    const v = datos[k];
+    if (typeof v === "string") out[k] = v.slice(0, 200);
+    else if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
+    else if (typeof v === "boolean") out[k] = v;
+  }
+  return out;
+}
 const norm = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
 export function createPhoneQueue({ db, bus, approvals, audit, config, now = () => Date.now() }) {
@@ -100,14 +113,14 @@ export function createPhoneQueue({ db, bus, approvals, audit, config, now = () =
       return r.changes;
     },
 
-    async create({ userId, action, args: input = {}, source = "web" }) {
+    async create({ userId, action, args: input = {}, source = "web", conversationId = null, deviceId = null }) {
       const v = validate(action, input);
       if (!v.ok) return v;
       const t = now();
       const status = v.necesitaAprobacion ? "aprobacion" : "lista";
       const expires = t + (v.necesitaAprobacion ? minCadAprob : minCad);
-      const r = await run(db, "INSERT INTO phone_actions (user_id, action, args_json, status, expires_at, created_at) VALUES (?,?,?,?,?,?)",
-        [userId, action, JSON.stringify(v.args), status, expires, t]);
+      const r = await run(db, "INSERT INTO phone_actions (user_id, action, args_json, status, expires_at, created_at, conversation_id, device_id, source) VALUES (?,?,?,?,?,?,?,?,?)",
+        [userId, action, JSON.stringify(v.args), status, expires, t, conversationId ?? null, deviceId ?? null, String(source).slice(0, 20)]);
       if (v.necesitaAprobacion) {
         const detalle = v.def.privado ? [v.args.para && `Para: ${v.args.para}`, v.args.valor && String(v.args.valor).slice(0, 200)].filter(Boolean).join("\n") : JSON.stringify(v.args);
         const a = await approvals.request({ userId, kind: `phone:${action}`, summary: `Teléfono: ${v.def.nombre}`, detail: detalle || "Esta acción necesita su aprobación." });
@@ -145,17 +158,22 @@ export function createPhoneQueue({ db, bus, approvals, audit, config, now = () =
       });
     },
 
-    // El Atajo informa el resultado. Solo vale para acciones "entregada".
-    async done(userId, id, { ok = true, result = null } = {}) {
+    // El Atajo informa el resultado. Solo vale para acciones "entregada". `datos`: solo campos de la lista blanca.
+    // Si la acción es privada, la BD guarda "[privado]" y el contenido real solo viaja en vivo.
+    async done(userId, id, { ok = true, result = null, datos = null } = {}) {
       const row = await get(db, "SELECT * FROM phone_actions WHERE id=? AND user_id=?", [id, userId]);
       if (!row) return { ok: false, error: "no_encontrada" };
       const priv = !!acciones[row.action]?.privado;
-      const text = result == null ? null : priv ? "[omitido]" : String(result).slice(0, 300);
+      const d = filtrarDatos(datos);
+      const real = String(result ?? d.texto ?? d.valor ?? "").slice(0, 300);
+      const text = !real ? null : priv ? "[privado]" : real;
       const status = ok ? "hecha" : "fallida";
       const r = await run(db, "UPDATE phone_actions SET status=?, result=?, done_at=? WHERE id=? AND user_id=? AND status='entregada'", [status, text, now(), id, userId]);
       if (!r.changes) return { ok: false, error: "estado_invalido", status: row.status };
       await log(userId, ok ? "phone.hecha" : "phone.fallida", row.action);
       emit(userId, { action: { id, status } });
+      bus?.emit("phone.action.result", { userId, id, action: row.action, nombre: acciones[row.action]?.nombre || row.action, ok, texto: real, privado: priv,
+        conversationId: row.conversation_id == null ? null : Number(row.conversation_id), deviceId: row.device_id == null ? null : Number(row.device_id) });
       return { ok: true, item: view(await get(db, "SELECT * FROM phone_actions WHERE id=?", [id])) };
     },
   };

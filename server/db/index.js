@@ -22,6 +22,11 @@ export async function migrate(db) {
   await addColumn(db, "pro_threads", "gh_repo", "TEXT");
   await addColumn(db, "pro_threads", "gh_rama", "TEXT");
   await addColumn(db, "browser_tasks", "pro_round_id", "INTEGER"); // tarea ligada a una ronda Pro web (solo preparar)
+  for (const t of ["pc_actions", "phone_actions"]) { // a quién devolver el resultado (chat, dispositivo y origen de la orden)
+    await addColumn(db, t, "conversation_id", "INTEGER");
+    await addColumn(db, t, "device_id", "INTEGER");
+    await addColumn(db, t, "source", "TEXT");
+  }
   await addColumn(db, "devices", "expires_at", "INTEGER"); // caducidad: solo sesiones web (90 días); pc/phone/shortcut = NULL
   await db.execute({ sql: "UPDATE devices SET expires_at = ? WHERE kind = 'web' AND expires_at IS NULL", args: [Date.now() + 90 * 24 * 60 * 60 * 1000] });
 }

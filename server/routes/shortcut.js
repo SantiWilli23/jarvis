@@ -23,7 +23,7 @@ export function shortcutRoutes(ctx) {
       const text = [b.text, b.dictado, b.input, b.q].find((v) => typeof v === "string" && v.trim()) || (typeof req.body === "string" ? req.body : "");
       if (!text.trim()) return res.status(400).json({ error: "falta_texto", reply: "No oí nada, señor." });
       if (text.length > MAX_IN) return res.status(413).json({ error: "texto_largo" });
-      const out = await ctx.chat.handle({ userId: req.user.id, text, flagPrivate: !!b.private, source: "atajo" });
+      const out = await ctx.chat.handle({ userId: req.user.id, deviceId: req.device?.id ?? null, text, flagPrivate: !!b.private, source: "atajo" });
       const reply = shortReply(out.reply);
       if (req.query.format === "text" || /text\/plain/.test(req.get("accept") || "")) return res.type("text/plain; charset=utf-8").send(reply);
       res.json({ status: out.status, reply, speak: reply });

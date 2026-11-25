@@ -49,14 +49,14 @@ export function createPcQueue({ db, bus, approvals, audit, agent, config, now = 
     },
 
     // Encola una acción. No despierta ni espera al PC: si está apagado, se dice y no se guarda nada.
-    async create({ userId, action, params: input = {}, source = "web" }) {
+    async create({ userId, action, params: input = {}, source = "web", conversationId = null, deviceId = null }) {
       const v = validate(action, input);
       if (!v.ok) return v;
       if (!pcOnline()) return { ok: false, error: "pc_apagado" };
       const t = now();
       const status = v.aprobacion ? "aprobacion" : "lista";
-      const r = await run(db, "INSERT INTO pc_actions (user_id, action, params, status, expires_at, created_at) VALUES (?,?,?,?,?,?)",
-        [userId, action, JSON.stringify(v.params), status, t + (v.aprobacion ? minCadAprob : minCad), t]);
+      const r = await run(db, "INSERT INTO pc_actions (user_id, action, params, status, expires_at, created_at, conversation_id, device_id, source) VALUES (?,?,?,?,?,?,?,?,?)",
+        [userId, action, JSON.stringify(v.params), status, t + (v.aprobacion ? minCadAprob : minCad), t, conversationId ?? null, deviceId ?? null, String(source).slice(0, 20)]);
       if (v.aprobacion) {
         const a = await approvals.request({ userId, kind: `pc:${action}`, summary: `PC: ${v.def.descripcion}`, detail: v.def.privado ? "Esta acción necesita su aprobación." : JSON.stringify(v.params) });
         await run(db, "UPDATE pc_actions SET approval_id=? WHERE id=?", [a.id, r.id]);
@@ -93,12 +93,15 @@ export function createPcQueue({ db, bus, approvals, audit, agent, config, now = 
       return null;
     },
 
-    // Resultado del PC. Solo vale para acciones "reclamada". El texto privado se guarda para el dueño pero no se audita.
+    // Resultado del PC. Solo vale para acciones "reclamada". Si la acción es privada, la BD guarda "[privado]":
+    // el contenido real solo viaja en vivo (evento pc.action.result -> accion.resultado -> WebSocket).
     async result(userId, id, { ok = true, texto = "", datos = null } = {}) {
       const row = await get(db, "SELECT * FROM pc_actions WHERE id=? AND user_id=?", [id, userId]);
       if (!row) return { ok: false, error: "no_encontrada" };
-      const body = { ok: !!ok, texto: String(texto ?? "").slice(0, RESULT_MAX) };
-      if (datos && typeof datos === "object" && !Array.isArray(datos)) {
+      const priv = !!defs[row.action]?.privado;
+      const real = String(texto ?? "").slice(0, RESULT_MAX);
+      const body = { ok: !!ok, texto: priv ? "[privado]" : real };
+      if (!priv && datos && typeof datos === "object" && !Array.isArray(datos)) {
         const s = JSON.stringify(datos);
         if (s.length <= RESULT_MAX) body.datos = datos;
       }
@@ -106,7 +109,8 @@ export function createPcQueue({ db, bus, approvals, audit, agent, config, now = 
       if (!r.changes) return { ok: false, error: "estado_invalido", status: row.status };
       await log(userId, ok ? "pc.hecha" : "pc.fallida", row.action);
       emit(userId, { action: { id, status: ok ? "hecha" : "fallida" } });
-      bus?.emit("pc.action.result", { userId, id, action: row.action, ok: !!ok });
+      bus?.emit("pc.action.result", { userId, id, action: row.action, nombre: defs[row.action]?.descripcion || row.action, ok: !!ok, texto: real, privado: priv,
+        conversationId: row.conversation_id == null ? null : Number(row.conversation_id), deviceId: row.device_id == null ? null : Number(row.device_id) });
       return { ok: true, item: view(await get(db, "SELECT * FROM pc_actions WHERE id=?", [id])) };
     },
 

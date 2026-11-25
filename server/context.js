@@ -32,6 +32,7 @@ import { buildExtensions } from "./extensions.js";
 import { createDespertador } from "./phone/despertador.js";
 import { createGitHub } from "./connectors/github.js";
 import { createPush, loadWebPush } from "./push.js";
+import { createResultados } from "./acciones/resultados.js";
 
 const cfgPath = (f) => fileURLToPath(new URL(`../config/${f}`, import.meta.url));
 export const loadJson = (f) => JSON.parse(readFileSync(cfgPath(f), "utf8"));
@@ -135,7 +136,9 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   ext = buildExtensions(base, { fetch: f });
   const despertador = createDespertador({ env, bus, audit, getGoogle: () => ext?.google, now });
   const push = createPush({ db, env, bus, audit, ownerId, webpush: webpushOverride === undefined ? await loadWebPush() : webpushOverride, now });
-  return { ...base, ...ext, despertador, push };
+  const out = { ...base, ...ext, despertador, push };
+  out.resultados = createResultados({ bus, push, notify: ext.notify, getHub: () => out.hub, audit, now }); // out.hub lo pone index.js
+  return out;
 }
 
 export { all };

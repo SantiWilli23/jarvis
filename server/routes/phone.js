@@ -43,7 +43,7 @@ export function phoneRoutes(ctx) {
     try {
       const b = req.body && typeof req.body === "object" ? req.body : {};
       const ok = !(b.ok === false || b.ok === "false" || b.status === "fallida");
-      const out = await ctx.phone.done(Number(req.user.id), Number(req.params.id), { ok, result: b.result ?? b.resultado ?? null });
+      const out = await ctx.phone.done(Number(req.user.id), Number(req.params.id), { ok, result: b.result ?? b.resultado ?? null, datos: b.datos ?? null });
       res.status(out.ok ? 200 : out.error === "no_encontrada" ? 404 : 409).json(out.ok ? { ok: true, status: out.item.status } : { ok: false, error: out.error });
     } catch (e) { next(e); }
   });
@@ -63,7 +63,7 @@ export function phoneRoutes(ctx) {
     try {
       const b = req.body && typeof req.body === "object" ? req.body : {};
       const { accion, action, ...rest } = b;
-      const out = await ctx.phone.create({ userId: Number(req.user.id), action: String(accion || action || ""), args: rest, source: "web" });
+      const out = await ctx.phone.create({ userId: Number(req.user.id), action: String(accion || action || ""), args: rest, source: "web", deviceId: req.device?.id ?? null });
       res.status(out.ok ? 201 : 400).json(out.ok ? { action: out.item } : { error: out.error });
     } catch (e) { next(e); }
   });

@@ -15,7 +15,7 @@ export function pcRoutes(ctx) {
   }));
   r.post("/actions", wrap(async (req, res) => {
     const b = req.body && typeof req.body === "object" ? req.body : {};
-    const out = await ctx.pc.create({ userId: Number(req.user.id), action: b.accion ?? b.action, params: b.params, source: "web" });
+    const out = await ctx.pc.create({ userId: Number(req.user.id), action: b.accion ?? b.action, params: b.params, source: "web", deviceId: req.device?.id ?? null });
     res.status(out.ok ? 201 : codeOf(out.error)).json(out.ok ? { action: out.item } : { error: out.error });
   }));
   r.get("/actions/:id", wrap(async (req, res) => {
