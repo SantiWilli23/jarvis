@@ -53,7 +53,7 @@ export function phoneRoutes(ctx) {
   r.get("/actions", web, async (req, res, next) => {
     try {
       const uid = Number(req.user.id);
-      res.json({ atajo: ctx.phone.config.atajo_nombre || "Jarvis Puente", catalogo: ctx.phone.catalog(), acciones: await ctx.phone.list(uid), pendientes: await ctx.phone.counts(uid) });
+      res.json({ atajo: ctx.phone.config.atajo_nombre || "Jarvis Puente", catalogo: ctx.phone.catalog(), enfoques: ctx.phone.config.enfoques_permitidos || [], atajos: ctx.phone.config.atajos_permitidos || [], acciones: await ctx.phone.list(uid), pendientes: await ctx.phone.counts(uid) });
     } catch (e) { next(e); }
   });
   r.get("/despertador", web, async (req, res, next) => {

@@ -6,7 +6,7 @@ import { all, get, run } from "../db/client.js";
 const MAX_LOTE = 5;
 const HORA = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 // Campos que el Atajo puede devolver (todo lo demás se descarta); texto/número/booleano de longitud limitada.
-const DATOS_OK = ["texto", "valor", "estado", "nivel", "bateria", "nombre", "cantidad", "hora"];
+const DATOS_OK = ["texto", "valor", "estado", "nivel", "bateria", "nombre", "cantidad", "hora", "cargando", "brillo", "volumen", "wifi"];
 export function filtrarDatos(datos) {
   const out = {};
   if (!datos || typeof datos !== "object" || Array.isArray(datos)) return out;
@@ -17,6 +17,30 @@ export function filtrarDatos(datos) {
     else if (typeof v === "boolean") out[k] = v;
   }
   return out;
+}
+// Resumen legible de la acción "estado": batería, carga, brillo, volumen y wifi (sí/no, nunca el nombre de la red).
+const SI = /^(true|1|si|sí|yes|on)$/i, NO = /^(false|0|no|off)$/i;
+const aBool = (v) => (typeof v === "boolean" ? v : SI.test(String(v ?? "").trim()) ? true : NO.test(String(v ?? "").trim()) ? false : null);
+function aPorciento(v, fraccion) {
+  if (typeof v !== "number" && typeof v !== "string") return null;
+  const m = /^\s*(\d+(?:[.,]\d+)?)\s*(%?)\s*$/.exec(String(v));
+  if (!m) return null;
+  let n = Number(m[1].replace(",", "."));
+  if (fraccion && !m[2] && n <= 1) n *= 100; // Atajos da brillo y volumen entre 0 y 1
+  return n <= 100 ? Math.round(n) : null;
+}
+export function textoEstado(d) {
+  const partes = [];
+  const bat = aPorciento(d.bateria, false), car = aBool(d.cargando), bri = aPorciento(d.brillo, true), vol = aPorciento(d.volumen, true);
+  if (bat != null) partes.push(`batería ${bat}%`);
+  if (car != null) partes.push(car ? "cargando" : "sin cargar");
+  if (bri != null) partes.push(`brillo ${bri}%`);
+  if (vol != null) partes.push(`volumen ${vol}%`);
+  if (d.wifi !== undefined) {
+    const w = String(d.wifi).trim();
+    partes.push(w && !NO.test(w) ? "Wi-Fi conectado" : "sin Wi-Fi");
+  }
+  return partes.length ? `iPhone: ${partes.join(", ")}.` : "";
 }
 const norm = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
@@ -31,13 +55,24 @@ export function createPhoneQueue({ db, bus, approvals, audit, config, now = () =
     const vacio = v === undefined || v === null || v === "";
     if (spec.tipo === "ninguno") return { ok: true, value: undefined };
     if (vacio) return spec.opcional ? { ok: true, value: undefined } : { ok: false, error: `falta_${nombre}` };
+    if (typeof v !== "string" && typeof v !== "number") return { ok: false, error: `${nombre}_invalido` };
     switch (spec.tipo) {
+      case "enfoque": {
+        const f = (config.enfoques_permitidos || []).find((x) => norm(x) === norm(v));
+        return f ? { ok: true, value: f } : { ok: false, error: "enfoque_no_permitido" };
+      }
+      case "atajo": {
+        // El propio puente nunca se ejecuta a sí mismo.
+        const a = (config.atajos_permitidos || []).find((x) => norm(x) === norm(v));
+        return a && norm(a) !== norm(config.atajo_nombre || "Jarvis Puente") ? { ok: true, value: a } : { ok: false, error: "atajo_no_permitido" };
+      }
       case "enum": {
         const s = String(v).toLowerCase();
         return spec.valores.includes(s) ? { ok: true, value: s } : { ok: false, error: `${nombre}_invalido` };
       }
       case "rango": {
         const n = Number(v);
+        if (spec.entero && !(/^\s*\d+\s*$/.test(String(v)))) return { ok: false, error: `${nombre}_invalido` };
         return Number.isFinite(n) && n >= spec.min && n <= spec.max ? { ok: true, value: Math.round(n) } : { ok: false, error: `${nombre}_fuera_de_rango` };
       }
       case "texto": {
@@ -165,7 +200,8 @@ export function createPhoneQueue({ db, bus, approvals, audit, config, now = () =
       if (!row) return { ok: false, error: "no_encontrada" };
       const priv = !!acciones[row.action]?.privado;
       const d = filtrarDatos(datos);
-      const real = String(result ?? d.texto ?? d.valor ?? "").slice(0, 300);
+      const resumen = ok && row.action === "estado" ? textoEstado(d) : "";
+      const real = String(resumen || (result ?? d.texto ?? d.valor ?? "")).slice(0, 300);
       const text = !real ? null : priv ? "[privado]" : real;
       const status = ok ? "hecha" : "fallida";
       const r = await run(db, "UPDATE phone_actions SET status=?, result=?, done_at=? WHERE id=? AND user_id=? AND status='entregada'", [status, text, now(), id, userId]);

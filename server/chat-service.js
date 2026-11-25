@@ -101,7 +101,7 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       const destino = !chatSolo ? detectDestino(original) : null;
       const textoOrden = destino ? stripDestino(original) : original;
       let pcI = !chatSolo && pc && destino !== "telefono" ? parsePcIntent(textoOrden, { apps: pc.config.apps || [], destino }) : null;
-      let pi = !chatSolo && phone && !flagPrivate && destino !== "pc" ? parsePhoneIntent(textoOrden, phone.config) : null;
+      let pi = !chatSolo && phone && !flagPrivate && destino !== "pc" ? parsePhoneIntent(textoOrden, phone.config, { destino, original }) : null;
       if (pcI && pi) { if (origen === "pc") pi = null; else pcI = null; }
       if (!pcI && !pi && !chatSolo && pc && destino === "pc" && textoOrden.length <= 140) {
         // Respaldo: el modelo (Groq primero) elige de la lista cerrada; lo privado solo a proveedores permitidos.
