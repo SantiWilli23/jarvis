@@ -223,6 +223,14 @@ const TILES = [
   ["Modo oscuro", "encender", { accion: "modo_oscuro", valor: "on" }], ["Modo oscuro", "apagar", { accion: "modo_oscuro", valor: "off" }], ["Pausa", "música", { accion: "multimedia", valor: "pausa" }],
   ["Play", "música", { accion: "multimedia", valor: "play" }], ["Siguiente", "canción", { accion: "multimedia", valor: "siguiente" }], ["Wi-Fi", "apagar", { accion: "wifi", valor: "off" }],
   ["Modo avión", "encender", { accion: "modo_avion", valor: "on" }], ["Portapapeles", "leer", { accion: "leer_portapapeles" }], ["WhatsApp", "abrir", { accion: "abrir_app", valor: "WhatsApp" }],
+  ["Temporizador", "5 min", { accion: "temporizador", valor: 5 }], ["Temporizador", "10 min", { accion: "temporizador", valor: 10 }], ["Estado", "iPhone", { accion: "estado" }],
+  ["Hacer sonar", "iPhone", { accion: "buscar_iphone" }], ["Notificación", "de prueba", { accion: "notificacion", valor: "Aviso de Jarvis" }],
+];
+// Botones según las listas del servidor (enfoques y atajos permitidos).
+let enfoques = [], atajos = [];
+const tilesExtra = () => [
+  ...enfoques.flatMap((n) => [[n, "activar", { accion: "enfoque", valor: n, activar: "on" }], [n, "desactivar", { accion: "enfoque", valor: n, activar: "off" }]]),
+  ...atajos.map((n) => [n, "atajo", { accion: "atajo", valor: n }]),
 ];
 let catalogo = {};
 const needsApproval = (spec) => {
@@ -241,7 +249,7 @@ async function sendPhone(spec) {
 }
 function renderTiles() {
   const g = $("phgrid"); if (g.childElementCount) return;
-  for (const [t, sub, spec] of TILES) {
+  for (const [t, sub, spec] of [...TILES, ...tilesExtra()]) {
     const b = el("button", needsApproval(spec) ? "ask" : "", t); b.type = "button";
     const s = needsApproval(spec) ? "pide OK" : sub;
     if (s) b.append(el("small", "", s));
@@ -275,6 +283,7 @@ async function loadPhone() {
   try {
     const r = await api("/phone/actions");
     catalogo = Object.fromEntries(r.catalogo.map((c) => [c.id, c]));
+    enfoques = r.enfoques || []; atajos = r.atajos || [];
     $("phrun").href = `shortcuts://run-shortcut?name=${encodeURIComponent(r.atajo || "Jarvis Puente")}`;
     renderTiles(); renderHist(r.acciones); paintPhoneCount(r.pendientes.lista || 0);
   } catch { $("phmsg").textContent = "sin conexión"; }

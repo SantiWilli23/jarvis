@@ -15,13 +15,53 @@ function minutos(t) {
   return m ? Number(m[1]) : null;
 }
 
-// Devuelve { action, args } o null.
-export function parsePhoneIntent(text, config = {}) {
+// Texto libre (notificación, etiqueta) tomado del original para no perder mayúsculas ni acentos.
+const limpio = (s) => String(s).replace(/\s+(?:por favor|porfa)[.!]*$/i, "").replace(/[.\s]+$/, "").trim();
+const NOTIF = /^(?:jarvis[,.]?\s+)?(?:por favor,?\s+)?(?:(?:manda|mandame|mándame|pon|ponme|muestra|muestrame|muéstrame|crea|lanza|enviame|envíame|envia|envía)\s+)?(?:una\s+)?notificaci[oó]n(?:\s+(?:en|al|a)\s+(?:el\s+|mi\s+)?(?:iphone|tel[eé]fono|m[oó]vil|celular))?\s*(?::|que diga|diciendo|con el texto)\s*:?\s*(.+)$/i;
+const APARATO = "(?:iphone|telefono|movil|celular)";
+
+// Devuelve { action, args } o null. destino="telefono" si la frase ya nombraba el teléfono (y se le quitó);
+// original es la frase sin recortar, de donde se toma el texto libre.
+export function parsePhoneIntent(text, config = {}, { destino = null, original = text } = {}) {
   let t = norm(text);
   if (!t || t.length > 90) return null;
   t = t.replace(/^jarvis\s+/, "").replace(/^(por favor|porfa)\s+/, "").replace(/\s+(por favor|porfa)$/, "").replace(/^(puedes|podrias)\s+/, "");
   const r = (action, args = {}) => ({ action, args });
   let m;
+
+  const orig = String(original).trim();
+  const enTel = destino === "telefono";
+
+  if ((m = NOTIF.exec(orig))) {
+    const x = limpio(m[1]);
+    return x ? r("notificacion", { valor: x }) : null;
+  }
+
+  // Temporizador: "pon un temporizador de 10 minutos para la pasta"
+  if ((m = /^(?:(?:pon|ponme|crea|inicia|programa|activa)\s+)?(?:un\s+)?temporizador\s+(?:de\s+|por\s+|a\s+)?(\d+\s+min(?:utos?)?|un minuto|\d+\s+horas?|una hora|media hora)(\s+(?:para|llamado)\s+.+)?$/.exec(t))) {
+    const min = m[1] === "un minuto" ? 1 : minutos(m[1]);
+    const e = m[2] && /\s(?:para|llamado)\s+(.+)$/i.exec(orig);
+    return min >= 1 && min <= 1439 ? r("temporizador", e ? { valor: min, etiqueta: limpio(e[1]).slice(0, 60) } : { valor: min }) : null;
+  }
+
+  // Modos de concentración de la lista ("activa el modo trabajo"). "No molestar" va aparte.
+  for (const nombre of config.enfoques_permitidos || []) {
+    const pat = "(?:el\\s+)?(?:modo(?: de)?(?: concentracion| enfoque)?|enfoque|concentracion)\\s+(?:de\\s+)?" + norm(nombre);
+    if (new RegExp("^" + OFF + "\\s+" + pat + "$").test(t)) return r("enfoque", { valor: nombre, activar: "off" });
+    if (new RegExp("^" + ON + "\\s+" + pat + "$").test(t)) return r("enfoque", { valor: nombre, activar: "on" });
+  }
+
+  // Estado del iPhone y hacer que suene
+  if (new RegExp("^(?:(?:dime|dame|muestrame|revisa)\\s+)?(?:el )?estado (?:del|de mi) " + APARATO + "$|^como esta mi " + APARATO + "$").test(t)
+    || (enTel && /^(?:(?:dime|dame|muestrame|revisa)\s+)?(?:el )?estado$|^como esta$/.test(t))) return r("estado");
+  if (new RegExp("^(?:busca|encuentra|haz sonar|donde esta) (?:mi |el )" + APARATO + "$").test(t)
+    || (enTel && /^(?:busca|buscame|encuentra|haz sonar|donde esta)$/.test(t))) return r("buscar_iphone");
+
+  // Atajo propio: solo los de la lista (y siempre con aprobación)
+  if ((m = /^(?:ejecuta|lanza|corre|inicia)\s+(?:el\s+|mi\s+)?atajo\s+(?:de\s+|llamado\s+)?(.+)$/.exec(t))) {
+    const a = (config.atajos_permitidos || []).find((x) => norm(x) === m[1]);
+    return a ? r("atajo", { valor: a }) : null;
+  }
 
   // Interruptores simples: encender / apagar
   const toggles = [
@@ -34,7 +74,8 @@ export function parsePhoneIntent(text, config = {}) {
   }
 
   // No molestar / enfoque
-  if (/\b(no molestar|enfoque|concentracion)\b/.test(t)) {
+  // Un enfoque con nombre desconocido no debe acabar activando "No molestar".
+  if (/\b(no molestar|enfoque|concentracion)\b/.test(t) && !/\b(?:enfoque|concentracion) (?!\d|por\b|durante\b|una?\b|media\b)\S/.test(t)) {
     if (new RegExp(`^${OFF}\\b`).test(t)) return r("no_molestar", { valor: "off" });
     if (new RegExp(`^(?:${ON}|activa|pon)\\b`).test(t) || /^no molestar\b/.test(t) || /^(?:modo )?(?:no molestar|enfoque)/.test(t)) {
       const min = minutos(t);
