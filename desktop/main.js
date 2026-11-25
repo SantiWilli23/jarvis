@@ -9,6 +9,7 @@ import { loadConfig, saveConfig, configPath } from "./lib/config.js";
 import { createHubClient } from "./runner/hub-client.js";
 import { createWorker } from "./runner/worker.js";
 import { createProWorker } from "./runner/pro-worker.js";
+import { createNavWorker } from "./runner/nav-worker.js";
 import { createOutbox } from "./runner/outbox.js";
 import { runDoctor, resolveAgy } from "./runner/doctor.js";
 import { createBrowserWindow } from "./browser/window.js";
@@ -109,8 +110,12 @@ function startWorker() {
     geminiFolders: () => (cfg.carpetas_gemini || []).filter(Boolean),
     onStatus: (s) => { lastStatus = { ...lastStatus, ...s }; updateTray(); },
   });
+  const nav = createNavWorker({
+    hub, log: (m) => console.log("[jarvis:nav]", m),
+    claude: cfg.claudePath ? { command: cfg.claudePath, prefix: [] } : null,
+  });
   worker = createWorker({
-    pro, getCapabilities: () => caps,
+    pro, nav, getCapabilities: () => caps,
     hub, host: hostname(), version: app.getVersion(),
     claude: cfg.claudePath ? { command: cfg.claudePath, prefix: [] } : null,
     folders: null, fallbackCwd: cfg.workFolder || join(app.getPath("documents"), "Jarvis"),

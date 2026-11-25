@@ -29,6 +29,10 @@ if (process.env.FAKE_ERR_MODEL && args[args.indexOf("--model") + 1] === process.
 }
 out({ type: "system", subtype: "init", session_id: "sesion-falsa-1", tools: [] });
 out({ type: "assistant", message: { content: [{ type: "text", text: "Voy a trabajar en ello." }, { type: "tool_use", name: "Read", input: { file_path: "a.txt" } }], usage: { input_tokens: mode === "big" ? 9000 : 10, output_tokens: mode === "big" ? 9000 : 5 } } });
+// Navegador: FAKE_TOOLS = JSON [{name,input}] que "usa"; FAKE_HANG_MS = se queda colgado después.
+writeFileSync(`${base}.${n}.cwd.json`, JSON.stringify({ cwd: process.cwd() }));
+for (const t of JSON.parse(process.env.FAKE_TOOLS || "[]")) out({ type: "assistant", message: { content: [{ type: "tool_use", ...t }] } });
+if (process.env.FAKE_HANG_MS) await new Promise((r) => setTimeout(r, Number(process.env.FAKE_HANG_MS)));
 let denials = [], text = process.env.FAKE_EMPTY ? "" : process.env.FAKE_RESULT || "Listo, señor.";
 if (mode === "deny" && !/Bash\(rm /.test(allowed)) {
   denials = [{ tool_name: "Bash", tool_use_id: "t1", tool_input: { command: "rm viejo.txt" } }];
