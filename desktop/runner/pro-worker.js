@@ -1,30 +1,14 @@
-// Worker del Modo Pro: reclama jobs de /api/agent/pro, los ejecuta con Claude Code o Gemini CLI dentro de un
+// Worker del Modo Pro: reclama jobs de /api/agent/pro, los ejecuta con Claude Code dentro de un
 // repo permitido, calcula el diff real (git-snapshot) y manda informe + diff. Contrato: docs/PRO.md §5-§7.
-import { appendFileSync, existsSync, writeFileSync, readFileSync } from "node:fs";
-import { join, isAbsolute } from "node:path";
+import { existsSync } from "node:fs";
 import { buildProArgs } from "./claude-args.js";
-import { policyFor } from "./agy-policy.js";
-import { buildAgyArgs, prepareAgyPrompt, modelChain, isProhibited, normalizeModel, IGNORE_PRIVADOS } from "./agy-args.js";
 import { classifyDenial, allowRule } from "./danger.js";
 import { runClaude as realRunClaude, resolveClaude as realResolveClaude, classifyClaudeError } from "./claude-runner.js";
-import { runAgy as realRunAgy } from "./agy-runner.js";
 import * as gitSnap from "./git-snapshot.js";
 import { isRetryable } from "./outbox.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MAX_RONDAS = 3;
-
-// .geminiignore (oculto para git vía .git/info/exclude para que no ensucie el diff). No pisa uno existente.
-export async function ensureGeminiIgnore(repo) {
-  try {
-    const f = join(repo, ".geminiignore");
-    if (!existsSync(f)) writeFileSync(f, IGNORE_PRIVADOS.join("\n") + "\n");
-    const ex = (await gitSnap.git(repo, ["rev-parse", "--git-path", "info/exclude"])).trim();
-    const exPath = isAbsolute(ex) ? ex : join(repo, ex);
-    const cur = existsSync(exPath) ? readFileSync(exPath, "utf8") : "";
-    if (!/^\.geminiignore$/m.test(cur)) appendFileSync(exPath, (cur && !cur.endsWith("\n") ? "\n" : "") + ".geminiignore\n");
-  } catch { /* sin .git/info: no es grave */ }
-}
 
 // Intenta leer el informe JSON ({dijo_hizo, archivos_tocados, comandos, resultado}) del texto del motor.
 export function parseInforme(text) {
@@ -39,10 +23,8 @@ export function parseInforme(text) {
 
 export function createProWorker({
   hub, outbox = null, allowedFolders = () => [], log = () => {},
-  claude = null, agy = null,                      // { command, prefix } o función que lo resuelve (agy = Antigravity CLI, motor "gemini" del contrato)
-  runClaude = realRunClaude, runAgy = realRunAgy, resolveClaude = realResolveClaude,
-  geminiActivo = () => false,            // Gemini del PC apagado por defecto (lo enciende el servidor: motores_pc.gemini.activo)
-  geminiFolders = () => [],              // carpetas_gemini: el repo debe estar DENTRO de ellas
+  claude = null,                                  // { command, prefix } o función que lo resuelve
+  runClaude = realRunClaude, resolveClaude = realResolveClaude,
   snap = gitSnap, diffMax = 200000, approvalPollMs = 3000, approvalTtlMs = 30 * 60_000, onStatus = () => {}, cancelPollMs = 5000,
 }) {
   const bin = (b, fallback) => { const v = typeof b === "function" ? b() : b; return v || (fallback ? fallback() : null); };
@@ -129,31 +111,6 @@ export function createProWorker({
     return { text: last.result, usage: total, commands, modelo_real: reales.join(","), ...(fallback || reales.some((m) => m !== job.model) ? { fallback: fallback || { de: job.model, a: reales.join(","), motivo: "reserva automática de Claude" } } : {}) };
   }
 
-  // Gemini: programar baja de modelo SOLO ante 503; cuota (429) falla con sin_cuota sin bajar.
-  async function withGemini(job, ev, signal) {
-    const b = bin(agy);
-    if (!geminiActivo()) return { error: "gemini_apagado" };
-    if (!snap.isInsideAllowed(job.repo, geminiFolders())) return { error: "repo_fuera_de_carpetas_gemini" };
-    if (!b) return { error: "gemini_no_instalado" };
-    await ensureGeminiIgnore(job.repo);
-    let lastErr = "gemini_error";
-    const p = prepareAgyPrompt(job.prompt, job); // prompt largo -> archivo temporal (carpeta única fuera del repo)
-    const dirs = [...geminiFolders(), ...(p.dir ? [p.dir] : [])]; // agy solo puede leer ese archivo temporal además de carpetas_gemini
-    try {
-    for (const model of modelChain(job.role, job.model, Array.isArray(job.fallback_models) ? job.fallback_models : null)) {
-      const r = await runAgy({ ...b, args: buildAgyArgs({ prompt: p.text, model, role: job.role, mode: job.mode }), allowedDirs: dirs, policy: policyFor({ role: job.role, mode: job.mode }), cwd: job.repo, timeoutMs: (job.timeout_s || 1800) * 1000, onEvents: ev.push, signal });
-      if (r.aborted === "cancelado") return { cancelado: true };
-      if (r.aborted === "tiempo") return { error: "timeout" };
-      if (r.blocked) return { error: `comando_bloqueado: ${r.blocked.kind}: ${r.blocked.detail}`.slice(0, 400), usage: r.usage };
-      if (!r.isError) return { text: r.text, usage: r.usage, commands: r.commands, model };
-      if (r.errorKind === "sin_cuota") return { error: "sin_cuota", usage: r.usage };
-      if (r.errorKind === "503") { lastErr = "gemini_503"; log(`Gemini ${model}: 503${job.role === "programar" ? ", pruebo el siguiente modelo" : ""}`); continue; } // el for solo sigue si hay más en la cadena (programar)
-      return { error: `gemini_error: ${(r.stderr || r.text).slice(0, 300)}`, usage: r.usage };
-    }
-    return { error: lastErr };
-    } finally { p.cleanup(); }
-  }
-
   // Rol "commit" (docs/PRO.md "Ampliaciones P2"): el prompt es el mensaje; commit local, nunca push.
   async function processCommit(job) {
     const repo = job.repo;
@@ -174,24 +131,22 @@ export function createProWorker({
 
   async function processJob(job) {
     if (job.role === "commit") return processCommit(job);
-    // "consultar" (Claude/Gemini se pasan opiniones) corre SIEMPRE como verificar en solo lectura, diga lo que diga el prompt.
+    // "consultar" (otra IA pide opinión a Claude) corre SIEMPRE como verificar en solo lectura, diga lo que diga el prompt.
     const consulta = job.role === "consultar";
     if (consulta) job = { ...job, role: "verificar", mode: "solo_lectura" };
     const roles = ["planear", "programar", "verificar"];
-    if (!roles.includes(job.role) || !["claude", "gemini"].includes(job.engine)) return fail(job, "job_invalido");
+    if (!roles.includes(job.role) || job.engine !== "claude") return fail(job, "job_invalido");
     const repo = job.repo;
     if (!repo || !snap.isInsideAllowed(repo, allowedFolders())) return fail(job, "repo_invalido");
     if (!existsSync(repo) || !(await snap.isGitRepo(repo))) return fail(job, "repo_invalido");
-    if (job.engine === "gemini" && isProhibited(normalizeModel(job.model || ""))) return fail(job, "modelo_prohibido");
 
     const controller = new AbortController();
     const ev = eventSender(job, controller);
     const edita = job.role === "programar" && job.mode === "editar";
     let treeA = null;
     try {
-      if (job.engine === "gemini") await ensureGeminiIgnore(repo); // antes del snapshot, así no cuenta como cambio
       if (edita) treeA = await snap.snapshot(repo);
-      const r = job.engine === "claude" ? await withClaude(job, ev, controller.signal) : await withGemini(job, ev, controller.signal);
+      const r = await withClaude(job, ev, controller.signal);
       ev.flush(); ev.stop();
       if (r.cancelado) { log(`Job ${job.id} cancelado por el usuario: proceso detenido`); return; } // el servidor ya lo dio por cancelado
       if (r.error) return fail(job, r.error);

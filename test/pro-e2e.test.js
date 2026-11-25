@@ -32,7 +32,7 @@ function mkRepo(name) {
 }
 const gitLog = (d) => execFileSync("git", ["log", "--format=%s"], { cwd: d }).toString().trim().split("\n");
 const env = (o = {}) => {
-  for (const k of ["FAKE_503", "FAKE_QUOTA", "FAKE_EDIT", "FAKE_CMD", "FAKE_RESULT"]) delete process.env[k];
+  for (const k of ["FAKE_EDIT", "FAKE_RESULT"]) delete process.env[k];
   process.env.FAKE_OUT = join(mkdtempSync(join(tmpdir(), "e2e-out-")), "f");
   Object.assign(process.env, o); return process.env.FAKE_OUT;
 };

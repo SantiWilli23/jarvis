@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,6 @@ import { createOutbox } from "../desktop/runner/outbox.js";
 
 const fx = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 const CLAUDE = { command: process.execPath, prefix: [join(fx, "fake-claude.mjs")] };
-const AGY = { command: process.execPath, prefix: [join(fx, "fake-agy.mjs")] };
 
 function repo() {
   const d = mkdtempSync(join(tmpdir(), "pro-w-"));
@@ -20,8 +19,8 @@ function repo() {
 }
 function setup(env = {}) {
   const out = join(mkdtempSync(join(tmpdir(), "pro-out-")), "f");
-  for (const k of ["FAKE_503", "FAKE_QUOTA", "FAKE_EDIT", "FAKE_CMD", "FAKE_RESULT", "FAKE_ERR_MODEL", "FAKE_ERR_TEXT", "FAKE_EMPTY", "FAKE_SLEEP_MS"]) delete process.env[k];
-  Object.assign(process.env, { FAKE_OUT: out, GEMINI_API_KEY: "secreta", ...env });
+  for (const k of ["FAKE_EDIT", "FAKE_RESULT", "FAKE_ERR_MODEL", "FAKE_ERR_TEXT", "FAKE_EMPTY", "FAKE_SLEEP_MS"]) delete process.env[k];
+  Object.assign(process.env, { FAKE_OUT: out, ...env });
   return out;
 }
 const job = (r, o = {}) => ({ id: 1, round_id: 1, role: "programar", engine: "claude", model: "sonnet", repo: r, mode: "editar", prompt: "haz algo", timeout_s: 60, ...o });
@@ -33,7 +32,7 @@ function mkHub(extra = {}) {
   h.proFail = async (id, e) => { if (h.down) throw Object.assign(new Error("HTTP 503"), { status: 503 }); h.fails.push({ id, e }); };
   return h;
 }
-const worker = (hub, r, o = {}) => createProWorker({ hub, allowedFolders: () => [r], claude: CLAUDE, agy: AGY, geminiActivo: () => true, geminiFolders: () => [dirname(r)], ...o });
+const worker = (hub, r, o = {}) => createProWorker({ hub, allowedFolders: () => [r], claude: CLAUDE, ...o });
 const args = (out, n = 0) => JSON.parse(readFileSync(`${out}.${n}.args.json`, "utf8"));
 const flag = (a, f) => a[a.indexOf(f) + 1];
 const clean = (...ds) => ds.forEach((d) => rmSync(d, { recursive: true, force: true }));
@@ -56,37 +55,16 @@ test("programar con Claude: sonnet acceptEdits y diff real", async () => {
   assert.deepEqual(rep.informe.archivos_tocados, ["nuevo.txt"]); clean(r);
 });
 
-test("agy: sin GEMINI_API_KEY, 503 baja de modelo y programa", async () => {
-  const r = repo(), out = setup({ FAKE_503: "gemini-3.8-flash-medium", FAKE_EDIT: "x.txt:1" });
-  const hub = mkHub(); hub.jobs.push(job(r, { engine: "gemini", model: "gemini-3.8-flash-medium" }));
+test("motor distinto de claude: job_invalido sin ejecutar nada", async () => {
+  const r = repo(); setup(); const hub = mkHub(); hub.jobs.push(job(r, { engine: "gemini" }));
   await worker(hub, r).tick();
-  assert.equal(flag(args(out, 0), "--model"), "gemini-3.8-flash-medium");
-  assert.equal(flag(args(out, 1), "--model"), "gemini-3.8-flash-low");
-  assert.equal(JSON.parse(readFileSync(`${out}.1.env.json`, "utf8")).GEMINI_API_KEY, null);
-  assert.match(hub.reports[0].diff, /x\.txt/); assert.ok(existsSync(join(r, "x.txt")));
-  clean(r);
-});
-
-test("agy: sin cuota falla con sin_cuota y NO baja de modelo", async () => {
-  const r = repo(), out = setup({ FAKE_QUOTA: "1" });
-  const hub = mkHub(); hub.jobs.push(job(r, { role: "planear", engine: "gemini", model: "gemini-3.8-flash-high", mode: "solo_lectura" }));
-  await worker(hub, r).tick();
-  assert.deepEqual(hub.fails, [{ id: 1, e: "sin_cuota" }]); assert.ok(!existsSync(`${out}.1.args.json`));
-  const o2 = setup({ FAKE_QUOTA: "1" }); const h2 = mkHub(); h2.jobs.push(job(r, { engine: "gemini", model: "gemini-3.8-flash-medium" }));
-  await worker(h2, r).tick(); assert.equal(h2.fails[0].e, "sin_cuota"); assert.ok(!existsSync(`${o2}.1.args.json`));
-  clean(r);
-});
-
-test("agy: comando peligroso se bloquea", async () => {
-  const r = repo(); setup({ FAKE_CMD: "git push origin main" });
-  const hub = mkHub(); hub.jobs.push(job(r, { engine: "gemini", model: "gemini-3.8-flash-medium" }));
-  await worker(hub, r).tick(); assert.match(hub.fails[0].e, /comando_bloqueado: git_push/); clean(r);
+  assert.deepEqual(hub.fails, [{ id: 1, e: "job_invalido" }]); assert.equal(hub.reports.length, 0); clean(r);
 });
 
 test("repo fuera de carpetas permitidas o no git se rechaza", async () => {
   const r = repo(), otro = repo(), plain = mkdtempSync(join(tmpdir(), "pro-plain-")); setup();
   const hub = mkHub(); hub.jobs.push(job(otro), job(plain, { id: 2 }));
-  const w = createProWorker({ hub, allowedFolders: () => [r, plain], claude: CLAUDE, agy: AGY });
+  const w = createProWorker({ hub, allowedFolders: () => [r, plain], claude: CLAUDE });
   await w.tick(); await w.tick();
   assert.deepEqual(hub.fails.map((f) => f.e), ["repo_invalido", "repo_invalido"]);
   clean(r, otro, plain);
@@ -104,20 +82,6 @@ test("outbox reenvía el informe cuando el servidor vuelve", async () => {
   clean(r, box);
 });
 
-test("agy: prompt como valor de -p, largo por archivo temporal, plan = solo lectura y programar = diff real", async () => {
-  const r = repo(), out = setup({ FAKE_EDIT: "p.txt:1" });
-  const hub = mkHub(); const largo = "x".repeat(7000) + " FIN";
-  hub.jobs.push(job(r, { id: 1, engine: "gemini", role: "planear", model: "gemini-3.8-flash-high", mode: "solo_lectura", prompt: largo }));
-  hub.jobs.push(job(r, { id: 2, engine: "gemini", model: "gemini-3.8-flash-medium", prompt: "haz algo" }));
-  const w = worker(hub, r); await w.tick(); await w.tick();
-  const a0 = args(out, 0), a1 = args(out, 1);
-  assert.equal(flag(a0, "--mode"), "plan"); assert.match(flag(a0, "-p"), /^Lee y sigue exactamente las instrucciones de /);
-  assert.ok(readFileSync(`${out}.0.prompt`, "utf8").endsWith(largo)); assert.ok(!existsSync(join(r, "p.txt")) || hub.reports[1]);
-  assert.equal(flag(a1, "--mode"), "accept-edits"); assert.ok(flag(a1, "-p").endsWith("haz algo"));
-  assert.equal(hub.reports[0].diff, ""); assert.match(hub.reports[1].diff, /p\.txt/);
-  clean(r);
-});
-
 test("consultar: aunque el job pida editar, corre como solo lectura y entrega texto sin diff", async () => {
   const r = repo(), out = setup({ FAKE_EDIT: "intruso.txt:1", FAKE_RESULT: "mi opinion" });
   const hub = mkHub(); hub.jobs.push(job(r, { role: "consultar", model: "opus", mode: "editar", prompt: "edita todo" }));
@@ -125,7 +89,5 @@ test("consultar: aunque el job pida editar, corre como solo lectura y entrega te
   const a = args(out); assert.equal(flag(a, "--permission-mode"), "default");
   assert.ok(!flag(a, "--allowedTools").includes("Edit"));
   assert.equal(hub.reports.length, 1); assert.equal(hub.reports[0].diff, ""); assert.equal(typeof hub.reports[0].informe, "string"); assert.equal(hub.reports[0].tree_before, null);
-  const g = setup(); const hub2 = mkHub(); hub2.jobs.push(job(r, { role: "consultar", engine: "gemini", model: "gemini-3.8-flash-high", mode: "editar" }));
-  await worker(hub2, r).tick();
-  assert.equal(flag(args(g), "--mode"), "plan"); clean(r);
+  clean(r);
 });

@@ -1,13 +1,13 @@
 # Modo Pro de Jarvis: contrato
 
-Chat de tres (usuario, Jarvis, Claude). **Pro usa solo Claude** (Opus planea y verifica, Sonnet programa); el motor Gemini/agy se retiró del servidor y de la web (las secciones sobre agy más abajo son históricas; el runner del PC se limpia aparte). El informe del programador pasa al verificador y este compara lo dicho contra lo realmente cambiado en el repo (diff de git). Este documento es el contrato compartido por: UI Clásico, orquestador servidor (`server/pro/*`, `server/routes/pro.js`, `server/routes/agent-pro.js`), runner del PC (`desktop/runner/*`) y web Pro. Configuración: `config/pro.json`.
+Chat de tres (usuario, Jarvis, Claude). **Pro usa solo Claude** (Opus planea y verifica, Sonnet programa); el motor Gemini/agy se retiró del servidor, de la web y del runner del PC. El informe del programador pasa al verificador y este compara lo dicho contra lo realmente cambiado en el repo (diff de git). Este documento es el contrato compartido por: UI Clásico, orquestador servidor (`server/pro/*`, `server/routes/pro.js`, `server/routes/agent-pro.js`), runner del PC (`desktop/runner/*`) y web Pro. Configuración: `config/pro.json`.
 
 ## 1. Reglas
 
 1. Máximo 2 correcciones por decisión del usuario (`limites.correcciones_max`). Al agotarlas la ronda pasa a `necesita_usuario`.
-2. Nada privado entra en Pro: los mensajes marcados privados por `server/router/privacy.js` se rechazan (`422 privado`) y nunca viajan a Claude ni a Gemini CLI.
+2. Nada privado entra en Pro: los mensajes marcados privados por `server/router/privacy.js` se rechazan (`422 privado`) y nunca viajan a Claude.
 3. Redacción de secretos: antes de guardar o emitir prompts, informes, diffs y logs se enmascaran claves (`sk-`, `AIza`, `ghp_`, `Bearer ...`, líneas de `.env`, tokens largos). Los archivos `.env*`, `*.pem`, `*.key` nunca se incluyen en prompts ni en el diff guardado (solo aparecen por nombre en `archivos_tocados`).
-4. Pro está habilitado solo si: PC en línea + Claude listo (cada id de `requisitos.claude_modelos` verificado con una llamada real: `claude-opus-5-5` y `claude-sonnet-5-5`) + al menos un repo git. **Pro funciona con SOLO Claude**: Gemini (`agy`) es opcional. `status.pro = { habilitado, motivos[], avisos[], gemini:{activo,listo} }`. Motivos (bloquean): `pc_apagado`, `claude_no_listo`, `claude_sin_login`, `claude_modelo_no_disponible`, `sin_repos_git`. Avisos (no bloquean, explican por qué no hay Gemini): `gemini_apagado`, `gemini_sin_login`, `gemini_modelos_faltan`, `gemini_fuera_de_carpetas`. Sin Gemini usable, programa Claude (Sonnet) y verifica Claude (Opus); con Gemini, verifica el otro motor.
+4. Pro está habilitado solo si: PC en línea + Claude listo (cada id de `requisitos.claude_modelos` verificado con una llamada real: `claude-opus-5-5` y `claude-sonnet-5-5`) + al menos un repo git. `status.pro = { habilitado, motivos[], avisos[] }`. Motivos (bloquean): `pc_apagado`, `claude_no_listo`, `claude_sin_login`, `claude_modelo_no_disponible`, `sin_repos_git`. Programa Claude (Sonnet) y verifica Claude (Opus).
 5. El repo se elige por hilo (`pro_threads.repo`) y debe estar dentro de `permissions.carpetas_permitidas` y ser repo git. Fuera de esas carpetas el job se rechaza (`repo_invalido`).
 6. Acciones de `permissions.requiere_aprobacion` (git_push, borrar, terminal_libre, desplegar) siguen pidiendo aprobación; `approvals.pro_job_id` enlaza la aprobación con el job.
 
@@ -109,40 +109,34 @@ Hacia la web (el bus lleva `userId`; el mensaje WS no):
 - `pro.round` `{thread_id, round:{id, status, corrections, programmer, verifier, summary}}`
 - `conn.using` `{id}`: conexión usada ahora (`groq`, `gemini`, `openrouter`, `claude_pc`, ...).
 
-`/api/status.connections[]` = `{id, nombre, ok, usa}`; `usa` es true durante 6 s tras el último uso. El router lo emite solo vía `onUse(id, {userId})`; el orquestador avisa uso de Claude o Gemini CLI con `bus.emit("pc.using", {userId, id: "claude_pc"})`.
+`/api/status.connections[]` = `{id, nombre, ok, usa}`; `usa` es true durante 6 s tras el último uso. El router lo emite solo vía `onUse(id, {userId})`; el orquestador avisa uso de Claude con `bus.emit("pc.using", {userId, id: "claude_pc"})`.
 
 Capacidades que el PC manda en `hello` y `heartbeat`:
 
 ```json
 { "capabilities": { "claude": {"ok": true, "modelos": ["claude-opus-5-5","claude-sonnet-5-5"]},
-                    "agy": {"ok": true, "login": "google"},
                     "repos": ["C:\\Users\\x\\proyecto"] } }
 ```
 
 ## Ampliaciones P2
 
-Cambio de motor: el motor logico `gemini` es ahora **Antigravity CLI (`agy`)** con login de la cuenta Google AI Pro (Gemini CLI ya no atiende esas cuentas). Las capacidades pasan a `agy: {ok, login, modelos}` (se acepta `gemini_cli` por compatibilidad; el servidor lo guarda como `agy`). `config/pro.json`: `modelos.gemini.planear/verificar` son configurables (por defecto `gemini-3.8-flash-high`, id real de `agy models`); ya no se prohibe `gemini-4-*`. El motivo de `status.pro` sigue llamandose `gemini_sin_login`.
-
 Roles e informes:
 - Job con `role: "commit"` (mode `editar`): el `prompt` es el mensaje de commit; el runner hace `git add -A && git commit` local (nunca push) y envia `report` con `informe.resultado: "ok"`. Se emite al aceptar (`aprobar` sobre una ronda ya programada).
 - `report` de `planear`: `informe` es texto (string) o `{plan|texto}`. De `verificar`: `informe` es el JSON de verificacion (o string que lo contenga). De `programar`: JSON del punto 6 (string aceptado).
-- `claim` acepta `{again: <job_id>}` para recuperar un job `reclamado`/`en_curso` cuya respuesta se perdio; los `reclamado` sin eventos tras `timeouts.job_reclamado_s` vuelven a `pendiente`. El job puede traer `fallback_models` y `fallback_solo_por` (solo ante 503) para Gemini/agy al programar.
+- `claim` acepta `{again: <job_id>}` para recuperar un job `reclamado`/`en_curso` cuya respuesta se perdio; los `reclamado` sin eventos tras `timeouts.job_reclamado_s` vuelven a `pendiente`. El job puede traer `fallback_models` y `fallback_solo_por` (solo ante 503).
 - `events` y `report` responden `{ok:true, cancelado:true}` / `{ignorado:true}` si la ronda se cancelo (el runner debe abortar). Reenviar `report`/`fail` de un job cerrado devuelve `{ok:true, duplicado:true}` (idempotente); `report` sobre un job `fallido` da 409 `job_cerrado`.
 - Aprobacion de `npm test` y otras acciones: `POST /api/agent/pro/jobs/:id/approval {kind, summary, detail}` crea la aprobacion (con `pro_job_id`); `GET /api/agent/pro/approvals/:id` consulta su estado. La web la resuelve con `/api/approvals`.
 - Estados de ronda: tras verificar `aprobado` la ronda queda en `esperando_aprobacion` (fase "aceptar"); `aprobar` ahi lanza el commit. `necesita_usuario` admite `aprobar` (aceptar igualmente), `corregir` (reinicia contador) o `rechazar`. `decision` acepta `motor: "claude"|"gemini"` al replanificar.
 - Errores: 409 `ronda_activa`, 409 `estado_invalido`, 422 `repo_invalido`, 422 `privado`, 400 `texto_invalido`, 409 `pro_deshabilitado` con `motivos`.
 - `fail {error}`: `sin_cuota` deja la ronda en `necesita_usuario` (sin bajar de modelo); `timeout` u otros la dejan `fallida`; un `commit` fallido deja la ronda en `esperando_aprobacion` para reintentar.
-- Eventos: `pc.using` con `id` `claude_pc` o `gemini`; `pro.status` cuando cambia la habilitacion.
+- Eventos: `pc.using` con `id` `claude_pc`; `pro.status` cuando cambia la habilitacion.
 ## Ampliaciones P3 (runner del PC)
 
-- **Motor "gemini" = Antigravity CLI (`agy`) 1.5.x** (flags VERIFICADOS con agy real): `agy --print <prompt> --output-format stream-json --model <id> --mode plan|accept-edits [--effort ...]` con cwd = repo del job (sin `--dangerously-skip-permissions`). El prompt va como VALOR de `-p` (por stdin falla). Si supera ~6000 caracteres se escribe a un archivo temporal fuera del repo y se pasa `Lee y sigue exactamente las instrucciones de <ruta>` (probado: agy lo lee con view_file). `--mode plan` es solo lectura de verdad (planear y verificar); `--mode accept-edits` para programar; `--effort` solo para modelos sin sufijo de esfuerzo. Los flags viven en `desktop/runner/agy-args.js`; `doctor.js` los comprueba con `agy --help`.
-- **Modelos** (ids de `agy models`): `gemini-3.8-flash-high|medium|low`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`, `gpt-oss-120b-medium`. No existen "argon", Gemini Pro ni 3.7/3.6. Siguen vetados `gemini-2.5-pro` y `*flash-lite*`. Planear/verificar usan `gemini-3.8-flash-high`; programar `gemini-3.8-flash-medium` y baja a `gemini-3.8-flash-low` solo ante 503; 429/cuota = `error: "sin_cuota"` sin bajar.
-- **capabilities** (hello/heartbeat): `{claude:{ok,modelos}, agy:{ok,login,modelos,faltan,flags}, gemini_cli:{ok,login} (copia de agy, compat), repos:[ruta]}`. `login:"google"` si `agy models` lista modelos (sin sesion falla); `faltan` = modelos configurados que la cuenta no ofrece. Salida stream-json: `init`, `step_update` (`agent_response`, `text_delta`) y `result{status,response,usage}`; errores 429/503 por stderr con codigo != 0 (formato exacto de esos errores sin verificar).
-- **Aprobaciones de un job**: `POST /api/agent/pro/jobs/:id/approval {kind,summary,detail}` -> `{approval:{id}}` (enlaza `approvals.pro_job_id`); el estado se consulta con el existente `GET /api/agent/approvals/:id`. Solo Claude (tiene "denegados"). Con agy los comandos peligrosos y `npm test` se vigilan en su stream y el job falla con `error: "comando_bloqueado: <kind>: <cmd>"`.
-- **Errores de fail**: `sin_cuota`, `gemini_503`, `timeout`, `repo_invalido`, `modelo_prohibido`, `job_invalido`, `claude_no_instalado`, `gemini_no_instalado`, `comando_bloqueado: ...`, `aprobacion_<estado>`, `claude_error: ...`, `gemini_error: ...`, `error_runner: ...`.
+- **Aprobaciones de un job**: `POST /api/agent/pro/jobs/:id/approval {kind,summary,detail}` -> `{approval:{id}}` (enlaza `approvals.pro_job_id`); el estado se consulta con el existente `GET /api/agent/approvals/:id`. Solo Claude (tiene "denegados").
+- **Errores de fail**: `sin_cuota`, `timeout`, `repo_invalido`, `job_invalido` (incluye cualquier motor que no sea `claude`), `claude_no_instalado`, `aprobacion_<estado>`, `claude_error: ...`, `error_runner: ...`.
 - **Idempotencia / buzón**: `report` y `fail` pueden repetirse (reenvío desde el buzón del PC si Render dormía); el servidor debe responder `409`/`404` si el job ya está cerrado, y el PC lo da por entregado.
-- **Solo `programar`+`editar`** calcula `tree_before/tree_after/diff`; en planear/verificar van `null` y `diff:""`. `.geminiignore` se crea en el repo (si falta) y se oculta con `.git/info/exclude`.
-- **Config del PC** (`config.json`): `hubUrl`, `carpetas_permitidas[]`, `agyPath` (compat: `geminiPath`; se busca tambien `%LOCALAPPDATA%\agy\bin\agy.exe`), `claudePath`.
+- **Solo `programar`+`editar`** calcula `tree_before/tree_after/diff`; en planear/verificar van `null` y `diff:""`.
+- **Config del PC** (`config.json`): `hubUrl`, `carpetas_permitidas[]`, `claudePath`.
 
 ## Coordinador Groq (Jarvis)
 
@@ -161,14 +155,14 @@ Groq (`openai/gpt-oss-120b`, el proveedor de `config/providers.json`) coordina a
 Desajustes servidor (P2) / runner (P3) hallados con `test/pro-e2e.test.js` y su arreglo:
 1. **Rol `commit`**: el servidor lo emite al aceptar, pero el worker lo rechazaba con `job_invalido`. Ahora `pro-worker.js` lo ejecuta (`git add -A && git commit -m <prompt>` vía `git-snapshot.commitAll`, nunca push; sin cambios = `ok`; fallo = `commit_fallido: ...`) y manda `report` con `resultado: "ok"`.
 2. **Informe de `planear`**: el servidor espera texto (string); el worker mandaba un objeto `{dijo_hizo,...}` y el plan salía como JSON. Ahora manda el texto del plan tal cual. `verificar` manda el JSON de verificación (campos propios) y `programar` el informe del punto 6.
-3. Comprobados sin cambios: rutas, `claim`/`again`, aprobaciones (`/pro/jobs/:id/approval`, estado por `/api/agent/approvals/:id`), capacidades `agy`, `sin_cuota` / `gemini_503`, duplicado (`report` 200 `duplicado`, `fail` repetido 200) y reenvío del buzón.
+3. Comprobados sin cambios: rutas, `claim`/`again`, aprobaciones (`/pro/jobs/:id/approval`, estado por `/api/agent/approvals/:id`), `sin_cuota`, duplicado (`report` 200 `duplicado`, `fail` repetido 200) y reenvío del buzón.
 4. Límite conocido: el worker no aborta el motor si `events` devuelve `cancelado`; termina el paso y el servidor ignora el `report`.
 
 ## Estabilidad y modelos 5.5 (rama pro-estabilidad)
 - **Ids exactos** (config/pro.json `modelos.claude`): planear y verificar `claude-opus-5-5`; programar y consultar `claude-sonnet-5-5`. Ya no se usan los alias `opus`/`sonnet`. Comprobado con `claude -p --model <id>`: ambos responden en la cuenta; un id inexistente devuelve `is_error: true` (404) aunque el proceso salga bien, por eso el doctor mira `is_error`.
 - **Doctor**: hace una sonda real y barata (~1,6k tokens: `--tools "" --strict-mcp-config --disable-slash-commands`) por cada id; éxito en caché 30 min, fallo 2 min. `capabilities.claude = { ok, modelos (verificados), faltan, error: sin_login|modelo_no_disponible|…, version }`. El hello devuelve `pro.modelos_claude` (los ids a verificar). Se ejecuta sin `ANTHROPIC_API_KEY` ni proveedores alternativos: solo la sesión (suscripción) del PC.
 - **Reserva de Opus**: si Opus está saturado, sin cuota o la cuenta no lo tiene, planear/verificar se rehacen con `claude-sonnet-5-5` (`job.fallback_models`, además de `--fallback-model`). El PC informa `modelo_real` y `fallback`; el servidor lo guarda en `pro_jobs.model_real` y **avisa en el hilo** (mensaje de sistema, `meta.aviso = "modelo_cambiado"`). Nunca en silencio.
-- **Errores con causa**: `sin_cuota` y `sin_login` dejan la ronda en `necesita_usuario`; `modelo_no_disponible`, `error_max_turns`, `respuesta_vacia`, `timeout`, `tiempo_excedido`, `pc_reinicio` y `cambios_ajenos` la dejan en `fallida` con un mensaje claro. Un error normal de una herramienta de `agy` ya no cuenta como permiso denegado.
+- **Errores con causa**: `sin_cuota` y `sin_login` dejan la ronda en `necesita_usuario`; `modelo_no_disponible`, `error_max_turns`, `respuesta_vacia`, `timeout`, `tiempo_excedido`, `pc_reinicio` y `cambios_ajenos` la dejan en `fallida` con un mensaje claro.
 - **Tiempos** (config `timeouts`): planear 900 s, programar 1800 s, verificar 600 s, consultar 300 s, más `margen_s` 120 antes de dar un job por perdido (barrido en cada claim/hilo). Un `hello` del PC (reinicio) marca como `fallido` (`pc_reinicio`) todo job reclamado o en curso.
 - **Cancelar** detiene el proceso del PC: el PC sondea `POST /api/agent/pro/jobs/:id/events` (cuerpo vacío) cada ~5 s y, si la respuesta trae `cancelado: true`, mata el proceso sin enviar report ni fail.
 - **Reintentar paso**: `POST /api/pro/rounds/:id/reintentar` vuelve a encolar el último paso fallido (mismo motor e instrucciones). Errores 409: `job_en_curso`, `nada_que_reintentar`, `ronda_activa`.

@@ -202,17 +202,15 @@ Jarvis tiene dos modos. **Clásico**: la cola de siempre (usted pide, Claude Cod
 
 ### Dejarlo configurado
 1. En el archivo de configuración de la app (bandeja > "Abrir archivo de configuración") ponga `"hubUrl": "https://jarvis-6pjr.onrender.com"`, reinicie la app, inicie sesión y deje que registre el PC (aparecerá "PC en línea").
-2. En ese mismo archivo, `carpetas_permitidas`: lista de carpetas donde Pro puede trabajar, por ejemplo `["C:\Users\yo\proyectos"]`. Solo se usan repos git que estén dentro (la carpeta misma o sus subcarpetas directas). Fuera de ahí Pro rechaza el trabajo. Opcionales: `claudePath` y `agyPath` si no los encuentra (agy se busca tambien en `%LOCALAPPDATA%\agy\bin`).
-3. **`agy` ya esta verificado** (flags `-p`, `--mode plan|accept-edits`, `--output-format stream-json`). Solo debe haber iniciado sesion con su cuenta Google AI Pro: ejecute `agy models`; si lista modelos, Jarvis detecta el login. Los modelos de `config/pro.json` son ids reales (`gemini-3.8-flash-high|medium|low`).
+2. En ese mismo archivo, `carpetas_permitidas`: lista de carpetas donde Pro puede trabajar, por ejemplo `["C:\Users\yo\proyectos"]`. Solo se usan repos git que estén dentro (la carpeta misma o sus subcarpetas directas). Fuera de ahí Pro rechaza el trabajo. Opcionales: `claudePath` si no lo encuentra.
 
 ### Usarlo
-Abra la pestaña **Pro** en Jarvis, elija repo (nuevo hilo) y escriba el pedido. Pro solo se activa con el PC encendido, Claude listo (con sus dos modelos 5.5) y algún repo; Claude programa (Sonnet) y Opus revisa. Si falta algo, la pestaña le dice qué; los avisos sobre Gemini no bloquean. Si un paso falla, pulse **Reintentar paso**; **Cancelar** detiene de verdad el proceso del PC. "Hacer commit" guarda solo los archivos de la ronda y se niega si usted tenía cambios en ellos. Verá el plan; pulse Aprobar, Corregir o Rechazar. Tras programar y verificar, "Aceptar" hace el commit local. Si `agy` se queda sin cuota, Jarvis se detiene y se lo dice (no baja de modelo solo); si está saturado (503) al programar, baja de Flash a un Flash anterior. Nada privado (contraseñas, etc.) entra en Pro y los secretos se tapan.
+Abra la pestaña **Pro** en Jarvis, elija repo (nuevo hilo) y escriba el pedido. Pro solo se activa con el PC encendido, Claude listo (con sus dos modelos 5.5) y algún repo; Claude programa (Sonnet) y Opus revisa. Si falta algo, la pestaña le dice qué. Si un paso falla, pulse **Reintentar paso**; **Cancelar** detiene de verdad el proceso del PC. "Hacer commit" guarda solo los archivos de la ronda y se niega si usted tenía cambios en ellos. Verá el plan; pulse Aprobar, Corregir o Rechazar. Tras programar y verificar, "Aceptar" hace el commit local. Nada privado (contraseñas, etc.) entra en Pro y los secretos se tapan.
 
 ### Jarvis coordina (Groq)
 Con `GROQ_API_KEY` puesta, **Jarvis** (Groq) lee su pedido en Pro, le habla con claridad, puede preguntar en privado a Claude (solo lectura, máximo 3 consultas y 6 turnos seguidos sin usted) y le **propone** quién programa y quién verifica. Usted decide con el botón **Aprobar propuesta** (o cambia el motor); sin su botón no empieza nada. Su pedido original siempre se ve tal cual, y la charla entre las IAs está plegada (despliéguela si quiere). Jarvis no ejecuta nada, no hace commit y no aprueba por usted. Casilla **Jarvis coordina**: apáguela para el flujo de siempre (también se usa solo si Groq falla o no hay clave). Sin probar con Groq real.
 
 ### Límites conocidos
-- `agy` no tiene un modo "solo lectura" garantizado: se le pide en el prompt y el diff real de git lo comprueba. Sus comandos peligrosos y `npm test` se vigilan y cortan el trabajo.
 - Si cancela una ronda, el PC puede terminar el paso en curso (su resultado se descarta).
 - Sin probar con las CLIs reales ni con Render: solo con simuladores.
 
