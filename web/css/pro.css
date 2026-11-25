@@ -42,8 +42,6 @@
 .a-usuario .who { color: var(--cyan); }
 .a-claude { align-self: flex-start; border-left: 4px solid #d98a4e; }
 .a-claude .who { color: #e9a36b; }
-.a-gemini { align-self: flex-start; border-left: 4px solid #7c9cff; }
-.a-gemini .who { color: #9fb6ff; }
 .a-jarvis { align-self: center; max-width: 100%; border-style: dashed; color: var(--dim); }
 .k-vivo { opacity: .92; }
 .k-consulta { align-self: stretch; max-width: 100%; font-size: 13px; } .k-consulta summary { cursor: pointer; color: var(--dim); min-height: 24px; }

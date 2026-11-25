@@ -20,7 +20,7 @@ function cleanCaps(c) {
 }
 const dayOf = (t) => new Date(t).toISOString().slice(0, 10);
 
-export function createAgent({ db, bus, tasks, approvals, audit, permissions, state, motores = null, proModelos = null, now = () => Date.now() }) {
+export function createAgent({ db, bus, tasks, approvals, audit, permissions, state, proModelos = null, now = () => Date.now() }) {
   const pc = state.pc;
   Object.assign(pc, { capabilities: null, online: false, last_seen: null, current_task: null, paused: false, version: null, host: null });
   const caps = () => {
@@ -34,9 +34,6 @@ export function createAgent({ db, bus, tasks, approvals, audit, permissions, sta
   const api = {
     caps,
     capabilities: () => pc.capabilities,
-    // Interruptor del Modo Pro para su motor "gemini" (apagado por defecto): solo motores_pc.gemini.activo === true lo enciende.
-    geminiActive: () => motores?.gemini?.activo === true,
-    geminiReady: () => motores?.gemini?.activo === true && !!pc.capabilities?.gemini_cli?.ok, // lo usa el Modo Pro
     // Motores de la cola de tareas que el PC atiende: solo Claude.
     engines: () => ["claude"],
     // ¿Claude llegó a su tope diario? (tareas o tokens)
@@ -67,7 +64,6 @@ export function createAgent({ db, bus, tasks, approvals, audit, permissions, sta
       return {
         ok: true, interrumpidas: hung.changes || 0, caps: caps(), uso: await api.usageToday(userId),
         permissions: { automatico: permissions.automatico, requiere_aprobacion: permissions.requiere_aprobacion, carpetas_permitidas: permissions.carpetas_permitidas, aprobacion_caduca_minutos: permissions.aprobacion_caduca_minutos },
-        motores: { gemini: { activo: motores?.gemini?.activo === true } }, // interruptor del Modo Pro
         pro: { modelos_claude: proModelos ? proModelos() : [] }, // ids de Claude que el doctor debe verificar
       };
     },

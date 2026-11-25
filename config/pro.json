@@ -1,5 +1,5 @@
 {
-  "nota": "Modo Pro (funciona con SOLO Claude; Gemini es un extra opcional): modelos, límites y tiempos. Motor lógico \"gemini\" = Antigravity CLI (agy) con la sesión iniciada en el PC. Contrato: docs/PRO.md.",
+  "nota": "Modo Pro (funciona con SOLO Claude): modelos, límites y tiempos. Contrato: docs/PRO.md.",
   "local_visible": false,
   "web": {
     "nota": "Pro web: Groq traduce el pedido a un prompt tecnico; el usuario lo envia a Claude Code web o Jules. El resultado se lee por la API de GitHub (solo lectura). Jarvis nunca fusiona ni escribe en GitHub.",
@@ -52,31 +52,7 @@
       "consultar": "claude-sonnet-5-5",
       "fallback_planear_verificar": "claude-sonnet-5-5",
       "nota": "ids exactos aceptados por la cuenta (comprobado con claude -p --model). Si Opus está saturado o sin cuota, planear/verificar los hace Sonnet 5.5 y se AVISA en el hilo (nunca en silencio)."
-    },
-    "gemini": {
-      "planear": "gemini-3.8-flash-high",
-      "verificar": "gemini-3.8-flash-high",
-      "programar": [
-        "gemini-3.8-flash-medium",
-        "gemini-3.8-flash-low"
-      ],
-      "programar_baja_solo_por": [
-        503
-      ],
-      "nota": "ids reales de `agy models` en la cuenta AI Pro; configurable aquí. planear/verificar corren con --mode plan (solo lectura real). gemini-4-hydrogen se permite pero NO aparece en agy: planea por la API (config/providers.json motores_pc.gemini.planificador)."
-    },
-    "prohibidos": [
-      "gemini-2.5-pro",
-      "*flash-lite*",
-      "gemini-4-argon",
-      "gemini-4-carbon",
-      "gemini-3.1-pro*"
-    ],
-    "permitidos": [
-      "gemini-4-hydrogen",
-      "gemini-3.8-flash",
-      "gemini-3.8-flash-*"
-    ]
+    }
   },
   "limites": {
     "correcciones_max": 2,
@@ -93,7 +69,7 @@
     "pc_en_linea_s": 45
   },
   "coordinador": {
-    "nota": "Groq (openai/gpt-oss-120b) coordina: habla con el usuario y consulta a Claude/Gemini (solo lectura). Nunca ejecuta. Sin clave o con error, vale el flujo de siempre.",
+    "nota": "Groq (openai/gpt-oss-120b) coordina: habla con el usuario y consulta a Claude (solo lectura). Nunca ejecuta. Sin clave o con error, vale el flujo de siempre.",
     "enabled": true,
     "max_consultas_sin_usuario": 3,
     "max_turnos_sin_usuario": 6,
@@ -112,8 +88,6 @@
       "claude-opus-5-5",
       "claude-sonnet-5-5"
     ],
-    "gemini_login": null,
-    "repos_git": true,
-    "gemini_cli_min": "1.1.1"
+    "repos_git": true
   }
 }

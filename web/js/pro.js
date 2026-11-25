@@ -1,4 +1,4 @@
-// Modo Pro: chat de tres (usuario, Claude, Gemini). Contrato en docs/PRO.md (§4 endpoints, §8 eventos ws).
+// Modo Pro: chat de tres (usuario, Jarvis, Claude). Contrato en docs/PRO.md (§4 endpoints, §8 eventos ws).
 // Las funciones de render son puras (devuelven HTML escapado) y se prueban sin navegador.
 import { api, getToken, decideApproval, pendingApprovals } from "./api.js";
 import { renderRondaWeb, renderRamaSelect, opcionesRepos, opcionesRamas, ramaPorDefecto, motivosWebTexto, proActivo, localVisible, webHabilitado, createWebCtl, errWeb } from "./pro-web.js";
@@ -10,15 +10,7 @@ export const MOTIVOS = {
   claude_modelo_no_disponible: "Tu cuenta de Claude no tiene alguno de los modelos 5.5 que usa el Modo Pro.",
   sin_repos_git: "No hay ningún repositorio git en las carpetas permitidas.",
 };
-// Avisos: NO bloquean el Modo Pro (Pro funciona con solo Claude); explican por qué no se ofrece Gemini.
-export const AVISOS = {
-  gemini_apagado: "Gemini está apagado: Claude programa y Opus revisa a Sonnet.",
-  gemini_sin_login: "Gemini no tiene la sesión iniciada: se usa solo Claude.",
-  gemini_modelos_faltan: "A Gemini le faltan modelos en este PC: se usa solo Claude.",
-  gemini_fuera_de_carpetas: "Alguno de los repositorios queda fuera de las carpetas permitidas a Gemini: ahí se usa solo Claude.",
-};
-export const avisosTexto = (pro) => lista(pro?.avisos).map((m) => AVISOS[m] || m);
-export const AUTORES = { usuario: "Usted", jarvis: "Jarvis", claude: "Claude", gemini: "Gemini", claude_web: "Claude Code", jules: "Jules", chatgpt: "ChatGPT", grok: "Grok", perplexity: "Perplexity" };
+export const AUTORES = { usuario: "Usted", jarvis: "Jarvis", claude: "Claude", claude_web: "Claude Code", jules: "Jules", chatgpt: "ChatGPT", grok: "Grok", perplexity: "Perplexity" };
 export const ESTADOS = {
   planeando: "Planeando", esperando_aprobacion: "Esperando su aprobación", programando: "Programando", verificando: "Verificando",
   corrigiendo: "Corrigiendo", coordinando: "Jarvis coordina", conversando: "Esperando su respuesta", hecha: "Hecha", necesita_usuario: "Necesita su decisión", fallida: "Fallida", cancelada: "Cancelada",
@@ -36,11 +28,11 @@ export const rondaViva = (r) => !!r && VIVOS.has(r.status);
 export function trabajador(ronda, ultimo) {
   if (!rondaViva(ronda)) return null;
   const prog = ronda.programmer || "claude";
-  const ver = ronda.verifier || (prog === "claude" ? "gemini" : "claude");
+  const ver = "claude";
   // El modelo sale del job que está corriendo (lo manda el servidor); la tabla solo es respaldo.
-  const m = (e, rol) => (ronda.trabajo?.model && ronda.trabajo.engine === e ? ronda.trabajo.model : e === "claude" ? (rol === "programar" ? "claude-sonnet-5-5" : "claude-opus-5-5") : (rol === "programar" ? "gemini-3.8-flash-medium" : "gemini-3.8-flash-high"));
+  const m = (e, rol) => (ronda.trabajo?.model && ronda.trabajo.engine === e ? ronda.trabajo.model : rol === "programar" ? "claude-sonnet-5-5" : "claude-opus-5-5");
   if (ronda.status === "coordinando") return { engine: "jarvis", modelo: "gpt-oss-120b", rol: "coordina" };
-  if (ronda.status === "planeando") { const e = ultimo === "gemini" || ultimo === "claude" ? ultimo : prog; return { engine: e, modelo: m(e, "planear"), rol: "planea" }; }
+  if (ronda.status === "planeando") { const e = ultimo === "claude" ? ultimo : prog; return { engine: e, modelo: m(e, "planear"), rol: "planea" }; }
   if (ronda.status === "verificando") return { engine: ver, modelo: m(ver, "verificar"), rol: "verifica" };
   return { engine: prog, modelo: m(prog, "programar"), rol: ronda.status === "corrigiendo" ? "corrige" : "programa" };
 }
@@ -66,7 +58,7 @@ export function renderVerificacion(b) {
   const sec = (clave, titulo, cls) => (lista(b[clave]).length ? `<div class="hl ${cls}"><p class="lbl">${titulo}</p>${ul(b[clave])}</div>` : "");
   const v = String(b.veredicto || "").split(/\s/)[0];
   const limpio = !lista(b.dijo_no_hizo).length && !lista(b.hizo_no_dijo).length && !lista(b.cambios_ajenos).length;
-  return `<div class="rep ver"><h4>Verificación del otro motor${v ? ` <span class="veredicto v-${esc(v)}">${esc(b.veredicto)}</span>` : ""}</h4>
+  return `<div class="rep ver"><h4>Verificación${v ? ` <span class="veredicto v-${esc(v)}">${esc(b.veredicto)}</span>` : ""}</h4>
     ${sec("dijo_no_hizo", "Dijo y no hizo", "h-nohizo")}${sec("hizo_no_dijo", "Hizo y no dijo", "h-nodijo")}${sec("cambios_ajenos", "Cambios ajenos al pedido", "h-ajeno")}
     ${limpio ? '<p class="ok">Lo dicho coincide con lo cambiado.</p>' : ""}</div>`;
 }
@@ -82,7 +74,7 @@ export function renderDiff(diff) {
   return `<div class="diff" role="group" aria-label="Diff real del repositorio">${lineas.join("")}</div>`;
 }
 
-// Conversación entre IAs (consultas de Jarvis a Claude/Gemini): plegada; el pedido original nunca se pliega.
+// Conversación entre IAs (consultas de Jarvis a Claude): plegada; el pedido original nunca se pliega.
 export function renderConsulta(msg) {
   const n = AUTORES[msg.author] || msg.author, quien = msg.meta?.pregunta ? `Jarvis pregunta a ${AUTORES[msg.meta.a] || msg.meta.a}` : `${n} responde a Jarvis`;
   return `<details class="msg a-${esc(msg.author)} k-consulta" data-id="${esc(msg.id ?? "")}"><summary>${esc(quien)} (consulta, solo lectura)</summary><div class="txt">${esc(msg.text)}</div></details>`;
@@ -90,10 +82,9 @@ export function renderConsulta(msg) {
 export function renderPropuesta(msg, viva) {
   const m = msg.meta || {}, rid = esc(msg.round_id ?? "");
   const btn = (motor, txt, cls) => `<button type="button" class="${cls}" data-act="iniciar" data-round="${rid}" data-motor="${esc(motor)}">${txt}</button>`;
-  const otro = m.programador === "claude" ? "gemini" : "claude";
   return `<article class="msg a-jarvis k-propuesta" data-id="${esc(msg.id ?? "")}"><header><b class="who">Jarvis propone</b></header><div class="txt">${esc(msg.text)}</div>
     <p class="lbl">Programa ${esc(AUTORES[m.programador] || m.programador)} · verifica ${esc(AUTORES[m.verificador] || m.verificador)}</p>${m.nota ? `<p class="lbl">Nota del coordinador: ${esc(m.nota)}</p>` : ""}
-    ${viva ? `<div class="btns">${btn(m.programador, "Aprobar propuesta", "yes")}${btn(otro, "Cambiar: programa " + (AUTORES[otro] || otro), "")}</div>` : ""}</article>`;
+    ${viva ? `<div class="btns">${btn("claude", "Aprobar propuesta", "yes")}</div>` : ""}</article>`;
 }
 
 export function renderMensaje(msg, { propuestaViva = false } = {}) {
@@ -166,7 +157,6 @@ export const ERRORES = {
   commit_en_curso: "El commit ya se está haciendo.",
   repo_invalido: "Ese repositorio no está permitido o no existe en el PC.",
   pro_deshabilitado: "Modo Pro no está disponible ahora mismo (mire los motivos arriba).",
-  gemini_no_disponible: "Gemini no está disponible: use Claude.",
   job_en_curso: "Todavía hay un paso en marcha; espere a que termine.",
   nada_que_reintentar: "No hay ningún paso fallido que reintentar.",
   privado: "Ese mensaje es privado y no puede ir a Pro.",
@@ -231,7 +221,7 @@ function pestanas() {
 function pintar() {
   const el = $("pro-main"); if (!el) return;
   const web = S.actual?.modo === "web", ok = web ? webHabilitado(S.pro) : !!S.pro?.habilitado, r = ronda(), sin = !S.actual;
-  const aviso = S.error || (ok && !web ? avisosTexto(S.pro).join(" ") : ""); $("pro-aviso").textContent = aviso; $("pro-aviso").hidden = !aviso;
+  const aviso = S.error || ""; $("pro-aviso").textContent = aviso; $("pro-aviso").hidden = !aviso;
   $("pro-hilos").innerHTML = renderHilos(S.hilos, S.actual?.id);
   const lv = localVisible(S.pro), wh = webHabilitado(S.pro);
   $("pro-modo-box").hidden = !(lv && wh);
@@ -240,7 +230,7 @@ function pintar() {
   for (const id of ["pro-local-box"]) $(id).hidden = modoWeb || !lv;
   if (modoWeb) { const cur = $("pro-gh-repo").value; $("pro-gh-repo").innerHTML = opcionesRepos(S.ghRepos, cur); $("pro-gh-rama").innerHTML = opcionesRamas(S.ramas, S.ramas.find((b) => b.name === $("pro-gh-rama").value)?.name || ramaPorDefecto(S.ghRepos, $("pro-gh-repo").value)); }
   $("pro-repo").innerHTML = S.repos.map((p) => `<option value="${esc(p)}">${esc(String(p).split(/[\\/]/).pop())}</option>`).join("") || '<option value="">(sin repos)</option>';
-  let h = sin ? '<p class="vacio">Elija o cree un hilo para hablar con Claude y Gemini.</p>' : (S.msgs.length || S.vivos.size ? "" : '<p class="vacio">Hilo vacío. Describa la tarea: se planea, usted aprueba, se programa y el otro motor verifica.</p>');
+  let h = sin ? '<p class="vacio">Elija o cree un hilo para hablar con Claude.</p>' : (S.msgs.length || S.vivos.size ? "" : '<p class="vacio">Hilo vacío. Describa la tarea: se planea, usted aprueba, se programa y Opus verifica.</p>');
   const viva = r?.status === "conversando" ? [...S.msgs].reverse().find((m) => m.kind === "propuesta" && m.round_id === r.id)?.id : null;
   h += S.msgs.map((m) => renderMensaje(m, { propuestaViva: m.id === viva })).join("") + [...S.vivos.values()].map(renderVivo).join("");
   const abajo = el.scrollTop + el.clientHeight >= el.scrollHeight - 40;

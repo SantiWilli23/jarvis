@@ -1,6 +1,6 @@
 # Modo Pro de Jarvis: contrato
 
-Chat de tres (usuario, Claude, Gemini). Jarvis orquesta: enruta por tipo de tarea, el informe del primero pasa al segundo y este compara lo dicho contra lo realmente cambiado en el repo (diff de git). Este documento es el contrato compartido por: UI Clásico, orquestador servidor (`server/pro/*`, `server/routes/pro.js`, `server/routes/agent-pro.js`), runner del PC (`desktop/runner/*`) y web Pro. Configuración: `config/pro.json`.
+Chat de tres (usuario, Jarvis, Claude). **Pro usa solo Claude** (Opus planea y verifica, Sonnet programa); el motor Gemini/agy se retiró del servidor y de la web (las secciones sobre agy más abajo son históricas; el runner del PC se limpia aparte). El informe del programador pasa al verificador y este compara lo dicho contra lo realmente cambiado en el repo (diff de git). Este documento es el contrato compartido por: UI Clásico, orquestador servidor (`server/pro/*`, `server/routes/pro.js`, `server/routes/agent-pro.js`), runner del PC (`desktop/runner/*`) y web Pro. Configuración: `config/pro.json`.
 
 ## 1. Reglas
 
@@ -13,15 +13,13 @@ Chat de tres (usuario, Claude, Gemini). Jarvis orquesta: enruta por tipo de tare
 
 ## 2. Modelos
 
-| Rol | Claude (CLI) | Gemini (agy) |
-|---|---|---|
-| Planear | `claude-opus-5-5`, solo lectura | `gemini-3.8-flash-high`, `--mode plan` (solo lectura real) |
-| Programar | `claude-sonnet-5-5`, `acceptEdits` | `gemini-3.8-flash-medium`, `--mode accept-edits`; solo ante 503: `gemini-3.8-flash-low` |
-| Verificar | `claude-opus-5-5` | `gemini-3.8-flash-high`, `--mode plan` |
+| Rol | Claude (CLI) |
+|---|---|
+| Planear | `claude-opus-5-5`, solo lectura |
+| Programar | `claude-sonnet-5-5`, `acceptEdits` |
+| Verificar | `claude-opus-5-5` |
 
-- Si Gemini no tiene cuota al planear o verificar NO se baja de modelo en silencio: el job falla con `error: "sin_cuota"` y se avisa al usuario.
-- Bajar de Flash solo por HTTP 503; un 429 no baja.
-- Nunca: Flash-Lite, `gemini-2.5-pro`, `gemini-4-*`.
+- Si Claude no tiene cuota al planear o verificar NO se baja de modelo en silencio: el job falla con `error: "sin_cuota"` y se avisa al usuario (Opus saturado: reserva Sonnet, avisada).
 
 ## 3. Tablas (server/db/schema.sql)
 

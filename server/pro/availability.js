@@ -1,14 +1,11 @@
 // Pro habilitado solo con PC en línea + Claude (ids de config/pro.json verificados) + repos git.
-// Gemini es opcional: sus avisos (`avisos`) no bloquean.
-import { proReasons, proNotices, claudeRequired } from "./reasons.js";
+import { proReasons, claudeRequired } from "./reasons.js";
 
 export function availability({ agent, config, permissions = {} }) {
   agent.sweep?.();
   const caps = agent.capabilities();
-  const geminiActivo = agent.geminiActive?.() ?? false;
   const motivos = proReasons({ pcOnline: agent.view().online, caps, cfg: config });
-  const avisos = proNotices({ caps, geminiActivo, geminiFolders: permissions.carpetas_gemini || [] });
-  const out = { habilitado: motivos.length === 0, motivos, avisos, gemini: { activo: geminiActivo, listo: !!agent.geminiReady?.() } };
+  const out = { habilitado: motivos.length === 0, motivos };
   if (motivos.includes("claude_modelo_no_disponible")) out.claude_faltan = claudeRequired(config).filter((x) => !(caps?.claude?.modelos || []).includes(x));
   return out;
 }
@@ -24,5 +21,3 @@ export function repoValid(repo, { agent, permissions }) {
   return !!known && insideAny(known, permissions?.carpetas_permitidas);
 }
 export const canonicalRepo = (repo, agent) => reposOf(agent).find((r) => samePath(r, repo)) || repo;
-// Gemini solo puede trabajar en un repo si está activo, listo y el repo cae DENTRO de carpetas_gemini (lista vacía = no).
-export const geminiUsable = (repo, { agent, permissions }) => !!agent.geminiReady?.() && (permissions?.carpetas_gemini || []).filter(Boolean).length > 0 && insideAny(repo, permissions.carpetas_gemini);

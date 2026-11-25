@@ -11,7 +11,7 @@ import { classifyTask } from "../server/pro/classify.js";
 let server, base, ctx, web, pc, thread, events;
 const call = (path, { method = "GET", body, tk = web } = {}) =>
   fetch(base + path, { method, headers: { ...(body ? { "content-type": "application/json" } : {}), authorization: `Bearer ${tk}` }, body: body ? JSON.stringify(body) : undefined }).then(async (r) => ({ status: r.status, ...(await r.json()) }));
-const CAPS = { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, agy: { ok: true, login: "google" }, repos: ["C:\\dev\\app"] };
+const CAPS = { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, repos: ["C:\\dev\\app"] };
 const hello = (capabilities = CAPS) => call("/api/agent/hello", { method: "POST", tk: pc, body: { host: "pc", capabilities } });
 const claim = async (body = {}) => (await call("/api/agent/pro/claim", { method: "POST", tk: pc, body })).job;
 const report = (id, b) => call(`/api/agent/pro/jobs/${id}/report`, { method: "POST", tk: pc, body: b });
@@ -24,7 +24,7 @@ const round = async (id) => (await call(`/api/pro/threads/${thread}`)).rounds.fi
 const decide = (rid, body) => call(`/api/pro/rounds/${rid}/decision`, { method: "POST", body });
 
 before(async () => {
-  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.config.motores_pc.gemini.activo = true; ctx.pro.config.local_visible = true;
+  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.pro.config.local_visible = true;
   ctx.permissions.carpetas_permitidas = ["C:\\dev"]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
   server = createServer(createApp(ctx));
   await new Promise((r) => server.listen(0, r));
@@ -38,12 +38,11 @@ after(() => server.close());
 
 const habilitar = async () => { await hello(); const t = await call("/api/pro/threads", { method: "POST", body: { repo: "C:\\dev\\app" } }); thread = t.thread.id; };
 
-test("solo Claude: con Gemini apagado la ronda se programa y verifica con Claude (Opus revisa a Sonnet)", async () => {
-  ctx.config.motores_pc.gemini.activo = false;
+test("solo Claude: la ronda se programa y verifica con Claude (Opus revisa a Sonnet)", async () => {
   await habilitar();
   const r = await say("mejora el css de la pantalla y los colores");
   assert.equal(r.status, 201); assert.equal(r.round.programmer, "claude"); assert.equal(r.round.verifier, "claude");
-  const v = await call("/api/pro/status"); assert.equal(v.habilitado, true); assert.ok(v.avisos.includes("gemini_apagado"));
+  const v = await call("/api/pro/status"); assert.equal(v.habilitado, true);
   const j = await claim(); assert.equal(j.model, "claude-opus-5-5"); assert.deepEqual(j.fallback_models, ["claude-sonnet-5-5"]);
   await call("/api/pro/rounds/" + r.round.id + "/cancel", { method: "POST" });
   assert.equal((await round(r.round.id)).status, "cancelada");

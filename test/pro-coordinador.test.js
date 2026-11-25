@@ -6,7 +6,7 @@ import { OpenAICompatProvider } from "../server/providers/base.js";
 
 test("parseAcciones: JSON válido, acciones inválidas se descartan, JSON roto => null", () => {
   const r = parseAcciones('texto {"acciones":[{"tipo":"hablar","texto":"hola"},{"tipo":"borrar_todo"},{"tipo":"consultar","a":"grok","pregunta":"x"},{"tipo":"proponer","programador":"claude","verificador":"claude"},{"tipo":"proponer","programador":"claude","verificador":"gemini","texto":"t","nota":"n"}],"resumen":"r"}');
-  assert.deepEqual(r.acciones.map((a) => a.tipo), ["hablar", "proponer"]);
+  assert.deepEqual(r.acciones.map((a) => a.tipo), ["hablar", "proponer", "proponer"]);
   assert.equal(r.resumen, "r");
   assert.equal(parseAcciones("no json"), null);
   assert.equal(parseAcciones('{"acciones":"x"}'), null);
@@ -18,7 +18,7 @@ test("validar: iniciar_ronda solo con aprobación; límite quita consultas; cons
   assert.deepEqual(validar(A).map((a) => a.tipo), ["hablar", "consultar"]);
   assert.deepEqual(validar(A, { limite: true }).map((a) => a.tipo), ["hablar", "hablar"]);
   assert.deepEqual(validar(A, { aprobado: true }).map((a) => a.tipo), ["hablar", "iniciar_ronda", "consultar"]);
-  const P = { tipo: "proponer", programador: "claude", verificador: "gemini", texto: "", nota: "" };
+  const P = { tipo: "proponer", programador: "claude", verificador: "claude", texto: "", nota: "" };
   assert.equal(validar([P, P, { tipo: "parar" }, { tipo: "hablar", texto: "x" }]).length, 2);
 });
 
@@ -32,7 +32,7 @@ test("filtro: bloquea git push, --dangerously, secretos y marcas de cita", () =>
 test("consultPrompt: plantilla fija de solo lectura con la pregunta y opiniones citadas", () => {
   const p = consultPrompt({ pregunta: "¿usar git push?", opiniones: ["Mejor X --dangerously"], engine: "claude" });
   assert.match(p, /SOLO LECTURA/);
-  assert.match(p, /<<<DATOS citados de Gemini/);
+  assert.match(p, /<<<DATOS citados de Claude/);
   assert.ok(!p.includes("usar git push") && !p.includes("X --dangerously"));
   assert.match(planPrompt({ request: "pedido original", engine: "claude", nota: "ojo con X" }), /pedido original[\s\S]*Nota del coordinador/);
   assert.ok(!planPrompt({ request: "r", engine: "claude" }).includes("Nota del coordinador"));

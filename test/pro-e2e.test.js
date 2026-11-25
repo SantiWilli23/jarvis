@@ -1,5 +1,5 @@
 // E2E del Modo Pro: servidor real de Jarvis (en memoria) + pro-worker REAL del desktop por HTTP,
-// con claude/agy falsos (test/fixtures) sobre repos git temporales. Contrato: docs/PRO.md.
+// con claude falso (test/fixtures) sobre repos git temporales. Contrato: docs/PRO.md.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
@@ -17,7 +17,6 @@ import { createOutbox } from "../desktop/runner/outbox.js";
 
 const fx = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 const CLAUDE = { command: process.execPath, prefix: [join(fx, "fake-claude.mjs")] };
-const AGY = { command: process.execPath, prefix: [join(fx, "fake-agy.mjs")] };
 Object.assign(process.env, { GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" });
 
 let server, base, ctx, web, pc, root, repo, repoB, hub, worker, outbox;
@@ -57,8 +56,8 @@ const tick = (o = {}) => { env(o); return worker.tick(); };
 before(async () => {
   root = realpathSync.native(mkdtempSync(join(tmpdir(), "e2e-pro-")));
   repo = mkRepo("app"); repoB = mkRepo("otro");
-  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.config.motores_pc.gemini.activo = true; ctx.pro.config.local_visible = true;
-  ctx.permissions.carpetas_permitidas = [root]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
+  ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.pro.config.local_visible = true;
+  ctx.permissions.carpetas_permitidas = [root];
   server = createServer(createApp(ctx));
   await new Promise((r) => server.listen(0, r));
   base = `http://127.0.0.1:${server.address().port}`;
@@ -74,8 +73,8 @@ before(async () => {
   hub = createHubClient({ baseUrl: base, token: pc, fetchFn });
   outbox = createOutbox(mkdtempSync(join(tmpdir(), "e2e-box-")));
   // El worker solo permite `repo` (no `repoB`): sirve para el rechazo del lado del PC.
-  worker = createProWorker({ hub, outbox, allowedFolders: () => [repo], claude: CLAUDE, agy: AGY, geminiActivo: () => true, geminiFolders: () => [dirname(repo)] });
-  await hub.hello({ host: "pc-test", version: "t", capabilities: { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, agy: { ok: true, login: "google" }, repos: [repo, repoB] } });
+  worker = createProWorker({ hub, outbox, allowedFolders: () => [repo], claude: CLAUDE });
+  await hub.hello({ host: "pc-test", version: "t", capabilities: { claude: { ok: true, modelos: ["claude-opus-5-5", "claude-sonnet-5-5"] }, repos: [repo, repoB] } });
 });
 after(() => { server.close(); rmSync(root, { recursive: true, force: true }); });
 
@@ -94,8 +93,8 @@ test("(a) ronda feliz: plan, programar, verificar, aceptar y commit local", asyn
   assert.deepEqual(modelsUsed(out), ["claude-sonnet-5-5"]);
   assert.equal((await roundOf(t, r.id)).status, "verificando");
   const o2 = env({ FAKE_RESULT: VER() });
-  assert.equal(await worker.tick(), "job"); // verifica el OTRO motor (agy)
-  assert.deepEqual(modelsUsed(o2), ["gemini-3.8-flash-high"]);
+  assert.equal(await worker.tick(), "job"); // verifica Claude (Opus)
+  assert.deepEqual(modelsUsed(o2), ["claude-opus-5-5"]);
   const st = await roundOf(t, r.id);
   assert.equal(st.status, "esperando_aprobacion"); assert.match(st.summary, /aprobado/);
   assert.ok(!gitLog(repo).some((l) => /Jarvis Pro/.test(l)));
@@ -136,29 +135,6 @@ test("(b)+(c) mentira detectada (dijo_no_hizo, hizo_no_dijo, cambios_ajenos) y t
   await cancel(r.id);
 });
 
-test("(d) agy: 503 al programar baja de modelo; sin cuota al planear no baja", async () => {
-  const t = await newThread();
-  const r = (await say(t, "mejora el css de la pantalla y los colores")).round;
-  assert.equal(r.programmer, "gemini");
-  const q = env({ FAKE_QUOTA: "1" });
-  assert.equal(await worker.tick(), "job");
-  assert.deepEqual(modelsUsed(q), ["gemini-3.8-flash-high"]); // un solo intento: no baja
-  assert.equal((await roundOf(t, r.id)).status, "necesita_usuario");
-  assert.match((await view(t)).messages.at(-1).text, /No cambio de modelo/);
-  await decide(r.id, { accion: "corregir", text: "reintenta" }); // replanifica
-  await tick({ FAKE_RESULT: "plan css" });
-  assert.equal((await roundOf(t, r.id)).status, "esperando_aprobacion");
-  await decide(r.id, { accion: "aprobar" });
-  const o = env({ FAKE_503: "gemini-3.8-flash-medium", FAKE_EDIT: "estilo.css:a{}", FAKE_RESULT: INF(["estilo.css"]) });
-  assert.equal(await worker.tick(), "job");
-  assert.deepEqual(modelsUsed(o), ["gemini-3.8-flash-medium", "gemini-3.8-flash-low"]);
-  assert.equal((await roundOf(t, r.id)).status, "verificando");
-  const o2 = env({ FAKE_RESULT: VER() });
-  await worker.tick();
-  assert.deepEqual(modelsUsed(o2), ["claude-opus-5-5"]); // verifica Claude
-  await cancel(r.id);
-});
-
 test("(e) repo no permitido: lo rechazan el servidor y el PC", async () => {
   assert.equal((await call("/api/pro/threads", { method: "POST", body: { repo: join(tmpdir(), "no-declarado") } })).status, 422);
   const t = await newThread(repoB); // el servidor lo acepta, el PC no lo tiene en sus carpetas
@@ -169,10 +145,10 @@ test("(e) repo no permitido: lo rechazan el servidor y el PC", async () => {
   // el servidor revalida al reclamar si cambian las carpetas permitidas
   const t2 = await newThread(repo);
   const r2 = (await say(t2, "arregla el bug 2")).round;
-  ctx.permissions.carpetas_permitidas = [repoB]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
+  ctx.permissions.carpetas_permitidas = [repoB];
   assert.equal(await tick(), "vacio");
   assert.equal((await roundOf(t2, r2.id)).status, "fallida");
-  ctx.permissions.carpetas_permitidas = [root]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
+  ctx.permissions.carpetas_permitidas = [root];
 });
 
 test("(f) buzón: servidor dormido y reenvío idempotente", async () => {

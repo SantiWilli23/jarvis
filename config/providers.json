@@ -1,8 +1,6 @@
 {
   "nota": "Los límites son null a propósito: no se inventan cifras. Verifíquelos en la consola de cada proveedor y rellene rpm (por minuto) y rpd (por día).",
   "permite_privado": ["claude", "groq"],
-  "nota_motores_pc": "Motores del PC. por_defecto: motor de las acciones en el PC en modo Auto. gemini.activo: interruptor del motor Gemini del Modo Pro (APAGADO por defecto); la cola de tareas ya no usa Gemini.",
-  "motores_pc": { "por_defecto": "claude", "gemini": { "activo": false } },
   "puestos": [
     { "id": "claude", "nombre": "Claude Pro", "rol": "Solo PC · tope diario", "pc": true },
     { "id": "chatgpt", "nombre": "ChatGPT", "rol": "Revisor de fallas · fotos (apagado hasta pegar clave)", "proveedor": "openai", "sustituto": "groq", "apagado": true },
