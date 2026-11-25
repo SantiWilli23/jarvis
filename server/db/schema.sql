@@ -344,6 +344,14 @@ CREATE TABLE IF NOT EXISTS nav_tasks (
   device_id INTEGER,
   creado INTEGER NOT NULL,
   tomado INTEGER,
-  terminado INTEGER
+  terminado INTEGER,
+  perfil TEXT,
+  url_conversacion TEXT,
+  session_id TEXT,
+  pasos TEXT,
+  cuenta_visible TEXT,
+  capturas INTEGER NOT NULL DEFAULT 0,
+  url_inicial TEXT,
+  cuenta TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_nav_tasks_user ON nav_tasks (user_id, estado, id);

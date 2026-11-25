@@ -27,6 +27,9 @@ export async function migrate(db) {
     await addColumn(db, t, "device_id", "INTEGER");
     await addColumn(db, t, "source", "TEXT");
   }
+  // Navegador de Claude v2 (docs/NAV.md): perfiles, en vivo e historial.
+  for (const [col, ddl] of [["perfil", "TEXT"], ["url_conversacion", "TEXT"], ["session_id", "TEXT"], ["pasos", "TEXT"], ["cuenta_visible", "TEXT"],
+    ["capturas", "INTEGER NOT NULL DEFAULT 0"], ["url_inicial", "TEXT"], ["cuenta", "TEXT"]]) await addColumn(db, "nav_tasks", col, ddl);
   // Registro de uso del PC (capturas): solo fecha, tipo, dispositivo y ok (1/0, NULL = en curso). Nunca imagen ni descripción.
   for (const [col, ddl] of [["tipo", "TEXT"], ["device_id", "INTEGER"], ["ok", "INTEGER"], ["action_id", "INTEGER"]]) await addColumn(db, "claude_usage", col, ddl);
   await addColumn(db, "devices", "expires_at", "INTEGER"); // caducidad: solo sesiones web (90 días); pc/phone/shortcut = NULL

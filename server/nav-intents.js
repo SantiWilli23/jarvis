@@ -2,17 +2,31 @@
 const INICIO = "^\\s*[¡¿]?(?:(?:oye\\s+)?jarvis[,.:]?\\s+)?(?:(?:por favor|porfa),?\\s+)?(?:(?:puedes|podrias)\\s+)?";
 const IA = new RegExp(`${INICIO}(?:pregunta(?:le|r|rle)?)\\s+(?:a|en)\\s+(chat\\s?gpt|gemini|perplexity|grok|claude(?!\\s+code))\\b`);
 const GOOGLE = new RegExp(`${INICIO}busca(?:me|r|rme)?\\s+(?:en\\s+google|con\\s+el\\s+navegador)\\b`);
+const INVESTIGA = new RegExp(`${INICIO}investiga(?:me|r|rme)?\\b`);
+// "investiga en mi PC ..." es trabajo para el PC, no una búsqueda en la web.
+const MI_PC = /\b(?:mi|este|en el)\s+(?:pc|ordenador|computadora|computador|compu|portatil)\b/;
+// "muéstrame el navegador" solo cuenta al principio o al final de la orden: en medio es parte de la consulta.
+const VER_INICIO = /^\s*(?:(?:oye\s+)?jarvis[,.:]?\s+)?muestrame\s+el\s+navegador\s*(?:[,;.:]\s*(?:y\s+)?|\s+y\s+)/;
+const VER_FINAL = /(?:\s*[,;.]\s*(?:y\s+)?|\s+y\s+)muestrame\s+el\s+navegador\s*[.!]*\s*$/;
 
 // Minúsculas y sin tildes, carácter a carácter: las posiciones siguen valiendo en el texto original.
 const plano = (s) => s.split("").map((c) => c.normalize("NFD")[0].toLowerCase()[0]).join("");
 
-// Devuelve { tipo, sitio, consulta } o null. La consulta conserva el texto original (puede venir vacía).
+// Devuelve { tipo, sitio, consulta, capturas? } o null. La consulta conserva el texto original (puede venir vacía).
 export function parseNavIntent(text) {
-  const t = String(text ?? "").normalize("NFC");
+  let t = String(text ?? "").normalize("NFC");
+  let capturas = false;
+  for (const re of [VER_INICIO, VER_FINAL]) {
+    const v = re.exec(plano(t));
+    if (v) { t = t.slice(0, v.index) + t.slice(v.index + v[0].length); capturas = true; }
+  }
   const p = plano(t);
   const ia = IA.exec(p);
-  const m = ia || GOOGLE.exec(p);
-  if (!m) return null;
+  const google = ia ? null : GOOGLE.exec(p);
+  const inv = ia || google ? null : INVESTIGA.exec(p);
+  const m = ia || google || inv;
+  if (!m || (inv && MI_PC.test(p))) return null;
   const consulta = t.slice(m[0].length).replace(/^[\s,:;.]+/, "").trim();
-  return ia ? { tipo: "preguntar_ia", sitio: ia[1].replace(/\s/g, ""), consulta } : { tipo: "buscar_google", sitio: "google", consulta };
+  const out = ia ? { tipo: "preguntar_ia", sitio: ia[1].replace(/\s/g, ""), consulta } : { tipo: inv ? "investigar" : "buscar_google", sitio: "google", consulta };
+  return capturas ? { ...out, capturas } : out;
 }
