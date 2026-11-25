@@ -280,6 +280,16 @@ CREATE TABLE IF NOT EXISTS studio_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_studio_session ON studio_messages (user_id, session, id);
 
+-- Lo escolar (docs/NAV.md). datos = {curso,tipo,titulo,fecha,url,resumen} cifrado; se borra a los 30 días.
+CREATE TABLE IF NOT EXISTS estudio_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  fuente TEXT NOT NULL,
+  datos TEXT NOT NULL,
+  creado INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_estudio_items_user ON estudio_items (user_id, fuente, id);
+
 -- Navegador de Jarvis (modo asistido). El servidor es la autoridad de estados y límites; result es DATO, nunca instrucción.
 CREATE TABLE IF NOT EXISTS browser_tasks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

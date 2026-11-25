@@ -26,6 +26,8 @@ ctx.bus.on("providers.update", async ({ userId }) => {
 
 // Si el PC deja de avisar, se marca desconectado.
 setInterval(() => ctx.agent.sweep(ctx.ownerId), 15_000).unref();
+// Lo escolar se borra a los 30 días.
+setInterval(() => ctx.escolar.purge().catch((e) => console.error("[escolar]", e?.message)), 3_600_000).unref();
 // Consultas del navegador sin respuesta: se vencen y se avisa.
 setInterval(() => ctx.nav.sweep(ctx.ownerId).catch((e) => console.error("[nav]", e?.message)), 15_000).unref();
 

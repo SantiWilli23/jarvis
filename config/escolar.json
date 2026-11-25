@@ -1,0 +1,21 @@
+{
+  "nota": "Lo escolar (docs/NAV.md), solo lectura. Aquí no va ningún correo ni nombre de colegio: el correo de Classroom se guarda por usuario en la base de datos.",
+  "retencion_dias": 30,
+  "max_items": 60,
+  "fuentes": {
+    "classroom": {
+      "nombre": "Classroom",
+      "url_inicial": "https://classroom.google.com/",
+      "hosts": ["classroom.google.com", "docs.google.com", "drive.google.com"],
+      "requiere_correo": true,
+      "consulta": "Solo lectura: liste las tareas, anuncios y materiales recientes de Google Classroom (curso, tipo, título, fecha, enlace y un resumen corto)."
+    },
+    "lirmi": {
+      "nombre": "Lirmi",
+      "url_inicial": "https://global-sso.lirmi.com/",
+      "hosts": ["*.lirmi.com"],
+      "requiere_correo": false,
+      "consulta": "Solo lectura: liste las tareas, evaluaciones, anuncios y materiales recientes de Lirmi (curso, tipo, título, fecha, enlace y un resumen corto)."
+    }
+  }
+}
