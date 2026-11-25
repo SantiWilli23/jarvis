@@ -10,7 +10,7 @@ import { createHubClient } from "./runner/hub-client.js";
 import { createWorker } from "./runner/worker.js";
 import { createProWorker } from "./runner/pro-worker.js";
 import { createOutbox } from "./runner/outbox.js";
-import { runDoctor, resolveAgy } from "./runner/doctor.js";
+import { runDoctor } from "./runner/doctor.js";
 import { createBrowserWindow } from "./browser/window.js";
 import { createBrowserWorker } from "./browser/worker.js";
 import selectors from "./browser/selectors.json" with { type: "json" };
@@ -92,14 +92,14 @@ function startWorker() {
   // Modo Pro: carpetas permitidas = las de config.json carpetas_permitidas.
   let caps = null;
   const folders = () => (cfg.carpetas_permitidas || []).filter(Boolean);
-  // El doctor usa lo que el servidor dijo en el hello (Gemini activo, ids de Claude a verificar), así que corre DESPUÉS
+  // El doctor usa lo que el servidor dijo en el hello (ids de Claude a verificar), así que corre DESPUÉS
   // de crear el worker y otra vez cuando eso cambie (chequeo corto cada 20 s; la sonda de Claude va en caché).
   let doctorKey = null, doctorBusy = false;
   const refreshCaps = async (force = false) => {
-    const key = JSON.stringify([!!worker?.geminiActive?.(), worker?.claudeIds?.() || []]);
+    const key = JSON.stringify(worker?.claudeIds?.() || []);
     if (doctorBusy || (!force && key === doctorKey)) return;
     doctorBusy = true; doctorKey = key;
-    try { caps = await runDoctor({ folders: folders(), claudePath: cfg.claudePath, agyPath: cfg.agyPath || cfg.geminiPath, geminiActivo: !!worker?.geminiActive?.(), claudeModelos: worker?.claudeIds?.() || null }); }
+    try { caps = await runDoctor({ folders: folders(), claudePath: cfg.claudePath, claudeModelos: worker?.claudeIds?.() || null }); }
     catch { /* se reintenta */ } finally { doctorBusy = false; }
   };
   setInterval(() => refreshCaps(false), 20_000).unref();
@@ -108,8 +108,6 @@ function startWorker() {
     hub, outbox: createOutbox(join(dataDir, "pro-outbox"), { log: (m) => console.log("[jarvis]", m) }),
     allowedFolders: folders, log: (m) => console.log("[jarvis]", m),
     claude: cfg.claudePath ? { command: cfg.claudePath, prefix: [] } : null,
-    agy: () => resolveAgy({ configured: cfg.agyPath || cfg.geminiPath }),
-    geminiFolders: () => (cfg.carpetas_gemini || []).filter(Boolean),
     onStatus: (s) => { lastStatus = { ...lastStatus, ...s }; updateTray(); },
   });
   worker = createWorker({

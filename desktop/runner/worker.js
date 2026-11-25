@@ -87,7 +87,7 @@ export function createWorker({
     return hub.finish(task.id, { status: last.isError || last.exitCode ? "fallida" : "hecha", result: ((last.result || last.stderr || "") + nota).trim(), usage: total });
   }
 
-  // Avisa "PC en línea" y guarda la configuración del servidor (permisos, motores).
+  // Avisa "PC en línea" y guarda la configuración del servidor (permisos, modelos de Claude).
   const sync = async () => { serverCfg = await hub.hello({ version, host, ...capsBody() }); return serverCfg; };
 
   // Un ciclo: devuelve "tarea" | "vacia" | "tope_diario" | "pausada".
@@ -128,7 +128,6 @@ export function createWorker({
     async stop() { running = false; halted = true; try { await hub.bye(); } catch { /* sin red */ } status(); },
     pause(v = true) { paused = !!v; status(); hub.heartbeat({ paused, current_task: current }).catch(() => {}); },
     isPaused: () => paused,
-    geminiActive: () => serverCfg.motores?.gemini?.activo === true, // interruptor del Modo Pro
     claudeIds: () => (Array.isArray(serverCfg.pro?.modelos_claude) ? serverCfg.pro.modelos_claude : []), sync, tick, processTask,
   };
 }

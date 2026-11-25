@@ -5,7 +5,6 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { snapshot, diffBetween, isGitRepo, isInsideAllowed } from "../desktop/runner/git-snapshot.js";
-import { blockedForGemini } from "../desktop/runner/danger.js";
 
 const g = (cwd, ...a) => execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...a], { cwd, encoding: "utf8" });
 const mk = (commit = true) => {
@@ -41,12 +40,8 @@ test("snapshot en un repo sin commits", async () => {
   } finally { rmSync(d, { recursive: true, force: true }); }
 });
 
-test("carpetas permitidas y bloqueo de comandos para agy", () => {
+test("carpetas permitidas", () => {
   const d = mkdtempSync(join(tmpdir(), "pro-allow-"));
   assert.ok(isInsideAllowed(join(d, "x"), [d])); assert.ok(!isInsideAllowed(tmpdir(), [d]));
-  assert.equal(blockedForGemini("git push origin main").kind, "git_push");
-  assert.equal(blockedForGemini("npm test").kind, "terminal_libre");
-  assert.equal(blockedForGemini("rm -rf x").kind, "borrar");
-  assert.equal(blockedForGemini("ls"), null);
   rmSync(d, { recursive: true, force: true });
 });

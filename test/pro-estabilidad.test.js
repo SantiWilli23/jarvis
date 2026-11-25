@@ -11,8 +11,6 @@ import { classifyClaudeError, claudeEnv } from "../desktop/runner/claude-runner.
 import { commitPaths, snapshot } from "../desktop/runner/git-snapshot.js";
 import { probeClaudeModel, limpiarCacheSonda, runDoctor } from "../desktop/runner/doctor.js";
 import { buildProArgs } from "../desktop/runner/claude-args.js";
-import { modelChain } from "../desktop/runner/agy-args.js";
-import { classifyAgyError } from "../desktop/runner/agy-runner.js";
 import { redact } from "../server/pro/redact.js";
 import { commitPathsOf } from "../server/pro/check.js";
 import { proReasons } from "../server/pro/reasons.js";
@@ -43,7 +41,7 @@ function mkHub(extra = {}) {
   return h;
 }
 const job = (r, o = {}) => ({ id: 1, round_id: 1, role: "planear", engine: "claude", model: OPUS, repo: r, mode: "solo_lectura", prompt: "plan", timeout_s: 60, ...o });
-const worker = (hub, r, o = {}) => createProWorker({ hub, allowedFolders: () => [r], claude: CLAUDE, geminiActivo: () => false, geminiFolders: () => [], cancelPollMs: 0, ...o });
+const worker = (hub, r, o = {}) => createProWorker({ hub, allowedFolders: () => [r], claude: CLAUDE, cancelPollMs: 0, ...o });
 const args0 = (out, n) => JSON.parse(readFileSync(`${out}.${n}.args.json`, "utf8"));
 
 test("classifyClaudeError: modelo, cuota, login y saturación", () => {
@@ -62,16 +60,6 @@ test("claudeEnv quita claves de API y proveedores alternativos", () => {
 test("buildProArgs: --fallback-model solo si es otro modelo", () => {
   assert.equal(buildProArgs({ role: "planear", model: OPUS, repo: "r", fallbackModel: SONNET }).includes("--fallback-model"), true);
   assert.equal(buildProArgs({ role: "planear", model: SONNET, repo: "r", fallbackModel: SONNET }).includes("--fallback-model"), false);
-});
-
-test("modelChain usa los modelos de reserva que manda el servidor", () => {
-  assert.deepEqual(modelChain("programar", "gemini-3.8-flash-medium", ["gemini-3.8-flash-low"]), ["gemini-3.8-flash-medium", "gemini-3.8-flash-low"]);
-  assert.equal(modelChain("planear", "gemini-3.8-flash-high", ["x"]).length, 1);
-});
-
-test("classifyAgyError: solo mira el error del motor", () => {
-  assert.equal(classifyAgyError("HTTP 429 quota exceeded"), "sin_cuota");
-  assert.equal(classifyAgyError("todo bien"), null);
 });
 
 test("redact: secretos largos sí; hashes y nombres de código no", () => {

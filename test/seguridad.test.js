@@ -7,7 +7,6 @@ import { createApp, csp } from "../server/app.js";
 import { createWhatsApp } from "../server/connectors/whatsapp.js";
 import { buildArgs } from "../desktop/runner/claude-args.js";
 import { DENEGADAS_CLAUDE, rutaProtegida } from "../desktop/runner/secret-paths.js";
-import { guardTool } from "../desktop/runner/agy-policy.js";
 
 test("cola normal: Claude no lee secretos ni escribe guardianes (con y sin carpetas)", () => {
   for (const folders of [[], ["C:/a"]]) {
@@ -15,21 +14,17 @@ test("cola normal: Claude no lee secretos ni escribe guardianes (con y sin carpe
     const lista = a[a.indexOf("--disallowedTools") + 1].split(",");
     assert.deepEqual(lista, DENEGADAS_CLAUDE);
     for (const r of ["Read(**/.env)", "Read(**/.env.*)", "Read(**/*.pem)", "Read(**/*.key)", "Read(**/*.p12)", "Write(**/.env)",
-      "Edit(**/desktop/runner/danger.js)", "Write(**/config/permissions.json)", "Edit(**/desktop/runner/claude-args.js)", "Edit(**/desktop/runner/agy-policy.js)", "Edit(**/desktop/runner/agy-args.js)"]) {
+      "Edit(**/desktop/runner/danger.js)", "Write(**/config/permissions.json)", "Edit(**/desktop/runner/claude-args.js)"]) {
       assert.ok(lista.includes(r), r);
     }
   }
 });
 
-test("Gemini: rutas secretas o guardianes se bloquean aunque estén en la carpeta permitida", () => {
+test("rutaProtegida: secretos y guardianes se reconocen por nombre", () => {
   assert.equal(rutaProtegida("C:\\x\\.env"), "secreto");
   assert.equal(rutaProtegida("/a/b/id.PEM"), "secreto");
   assert.equal(rutaProtegida("C:\\j\\desktop\\runner\\danger.js"), "guardian");
   assert.equal(rutaProtegida("/a/notas.txt"), null);
-  const dirs = ["C:/j"];
-  assert.ok(guardTool({ tool: "view_file", params: { AbsolutePath: "C:/j/.env" } }, dirs, "C:/j"));
-  assert.ok(guardTool({ tool: "write_to_file", params: { TargetFile: "C:/j/desktop/runner/danger.js" } }, dirs, "C:/j"));
-  assert.equal(guardTool({ tool: "view_file", params: { AbsolutePath: "C:/j/notas.md" } }, dirs, "C:/j"), null);
 });
 
 test("sesión web caduca a los 90 días, se renueva con el uso; pc/phone no caducan; revocar sigue", async () => {

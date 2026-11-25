@@ -25,7 +25,7 @@ const decide = (rid, body) => call(`/api/pro/rounds/${rid}/decision`, { method: 
 
 before(async () => {
   ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.pro.config.local_visible = true;
-  ctx.permissions.carpetas_permitidas = ["C:\\dev"]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
+  ctx.permissions.carpetas_permitidas = ["C:\\dev"];
   server = createServer(createApp(ctx));
   await new Promise((r) => server.listen(0, r));
   base = `http://127.0.0.1:${server.address().port}`;

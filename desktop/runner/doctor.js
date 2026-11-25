@@ -1,41 +1,21 @@
-// Diagnóstico del PC para el Modo Pro: ¿están Claude Code y Antigravity CLI (agy)? ¿hay login? ¿qué repos?
+// Diagnóstico del PC para el Modo Pro: ¿está Claude Code? ¿hay login? ¿qué repos?
 // Resultado = `capabilities` de hello/heartbeat (docs/PRO.md §8 + "Ampliaciones P3").
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { existsSync, readdirSync } from "node:fs";
-import { join, delimiter } from "node:path";
-import { homedir } from "node:os";
+import { join } from "node:path";
 import { resolveClaude, claudeEnv, classifyClaudeError } from "./claude-runner.js";
 import { PRO_MODELOS } from "./claude-args.js";
-import { FLAGS_USADOS, versionOk, VERSION_MINIMA, MODELO_PLAN_DEFECTO, CADENA_PROGRAMAR } from "./agy-args.js";
-import { resolveAgy } from "./agy-runner.js";
 import { isGitRepo } from "./git-snapshot.js";
 
 const run = promisify(execFile);
 
-export { resolveAgy };
-
 async function exec(b, args, timeout = 15000, baseEnv = process.env) {
   const p = run(b.command, [...b.prefix, ...args], { timeout, windowsHide: true, maxBuffer: 4_000_000, env: { ...baseEnv, ...(b.prefix.length && process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}) } });
-  p.child.stdin?.end(); // stdin cerrado: agy no debe quedarse esperando
+  p.child.stdin?.end(); // stdin cerrado: el CLI no debe quedarse esperando
   const { stdout, stderr } = await p;
   return `${stdout}\n${stderr}`;
 }
-
-// Comprueba con `agy --help` que existan los flags que usamos. { ok, missing[] }.
-export async function verifyAgyFlags(b, exec_ = exec) {
-  try { const h = await exec_(b, ["--help"]); const missing = FLAGS_USADOS.filter((f) => !h.includes(f)); return { ok: !missing.length, missing }; }
-  catch (e) { return { ok: false, missing: FLAGS_USADOS, error: e.message }; }
-}
-
-// `agy models` funciona solo con sesión iniciada: lista "id<TAB>nombre" por línea (tras "Fetching available models...").
-export function parseAgyModels(text) {
-  return String(text || "").split(/\r?\n/).filter((l) => l.includes("\t")).map((l) => l.split("\t")[0].trim()).filter((id) => /^[\w.-]+$/.test(id));
-}
-export async function agyModels(b, exec_ = exec) {
-  try { return parseAgyModels(await exec_(b, ["models"], 45000)); } catch { return []; }
-}
-export const listAgyModels = agyModels;
 
 export async function discoverRepos(folders = [], isGit = isGitRepo) {
   const out = [];
@@ -71,7 +51,7 @@ export async function probeClaudeModel(cb, id, { ex = exec, env = process.env, n
   return r;
 }
 
-export async function runDoctor({ folders = [], claudePath = null, agyPath = null, modelosEsperados = [MODELO_PLAN_DEFECTO, ...CADENA_PROGRAMAR], exec: ex = exec, env = process.env, home = homedir(), exists = existsSync, geminiActivo = false, claudeModelos = null } = {}) {
+export async function runDoctor({ folders = [], claudePath = null, exec: ex = exec, env = process.env, claudeModelos = null } = {}) {
   const cb = claudePath ? { command: claudePath, prefix: [] } : resolveClaude({ env });
   let claude = { ok: false, modelos: [], faltan: [], error: null };
   if (cb) {
@@ -87,19 +67,6 @@ export async function runDoctor({ folders = [], claudePath = null, agyPath = nul
       claude = { ok: buenos.length > 0 && !malos.length, modelos: buenos, faltan: malos.map(([id]) => id), error: err, version };
     }
   }
-  const ab = resolveAgy({ env, configured: agyPath, exists });
-  let agy = { ok: false, cli: "agy", login: null, version: null, modelos: [], faltan: [], flags: null };
-  // Gemini apagado (por defecto): no se ejecuta agy ni para diagnosticar; las capacidades lo dicen.
-  if (!geminiActivo) agy = { ...agy, activo: false, error: "gemini_apagado" };
-  else if (ab) {
-    let version = null; try { version = (await ex(ab, ["--version"])).match(/\d+(\.\d+){1,2}/)?.[0] || null; } catch { /* no responde */ }
-    if (version && versionOk(version)) {
-      const modelos = await agyModels(ab, ex);
-      const flags = await verifyAgyFlags(ab, ex);
-      agy = { activo: true, ok: modelos.length > 0 && flags.ok, cli: "agy", login: modelos.length ? "google" : null, version, modelos, faltan: modelos.length ? modelosEsperados.filter((m) => !modelos.includes(m)) : [], flags };
-    } else agy = { ...agy, version, error: version ? `agy ${version} es anterior a ${VERSION_MINIMA}` : "agy no responde" };
-  }
   const repos = await discoverRepos(folders);
-  // gemini_cli: compatibilidad con el contrato original (el servidor puede seguir leyéndolo).
-  return { claude, agy, gemini_cli: { ok: agy.ok, cli: "agy", login: agy.login, version: agy.version, modelos: agy.modelos }, repos };
+  return { claude, repos };
 }

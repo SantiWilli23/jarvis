@@ -23,7 +23,7 @@ const PROPONER = { tipo: "proponer", programador: "claude", verificador: "claude
 
 before(async () => {
   ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "x-123" } }); ctx.pro.config.local_visible = true;
-  ctx.permissions.carpetas_permitidas = ["C:\\dev"]; ctx.permissions.carpetas_gemini = ctx.permissions.carpetas_permitidas;
+  ctx.permissions.carpetas_permitidas = ["C:\\dev"];
   groqCalls = [];
   ctx.providers.groq = { enabled: true, chat: async (req) => { groqCalls.push(req); const t = groqOut.shift(); if (t instanceof Error) throw t; return { text: t, tokens: 1, headers: {} }; } };
   server = createServer(createApp(ctx));

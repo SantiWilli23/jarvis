@@ -18,7 +18,7 @@ export const DENEGADAS_CLAUDE = [
   ...GUARDIANES.flatMap((p) => REGLAS_ESCRITURA.map((t) => `${t}(${p})`)),
 ];
 
-// Para la vigilancia de Gemini (agy): ¿esta ruta es secreta o guardián? (solo por nombre, sin importar la carpeta)
+// ¿Esta ruta es secreta o guardián? (solo por nombre, sin importar la carpeta)
 const norm = (p) => String(p).replace(/\\/g, "/").toLowerCase();
 export function rutaProtegida(p) {
   const r = norm(p), base = r.split("/").pop();

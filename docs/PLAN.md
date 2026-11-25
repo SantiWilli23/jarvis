@@ -71,16 +71,16 @@ Push o deploy sin permiso, `--dangerously-skip-permissions`, claves en git o en 
 - Pendiente (necesita credenciales o la app de escritorio): probar cada API de verdad, crear los clientes OAuth, registrar los webhooks, interfaz web para los botones "Conectar" y para las herramientas.
 
 ## Modo Pro (Clásico/Pro)
-- Contrato y detalles en `docs/PRO.md`. Servidor: `server/pro/*`, `/api/pro`, `/api/agent/pro`. PC: `desktop/runner/pro-worker.js` (+ `agy-*`, `git-snapshot`, `outbox`, `doctor`). Web: pestaña Pro.
-- Ronda: plan -> usted aprueba -> programar -> verifica el otro motor (informe vs. diff real de git) -> hasta 2 correcciones -> aceptar = commit local. Gemini = Antigravity CLI (`agy`, cuenta AI Pro).
-- Etapa 3 (integración): servidor y runner, hechos en paralelo, se ajustaron al contrato (rol `commit` en el runner; plan como texto). Prueba extremo a extremo `test/pro-e2e.test.js` (servidor real + worker real + claude/agy falsos).
-- Pendiente de verificar a mano: `claude` y `agy` reales (flags, id del modelo, login), Render real, la web Pro con una ronda real.
+- Contrato y detalles en `docs/PRO.md`. Servidor: `server/pro/*`, `/api/pro`, `/api/agent/pro`. PC: `desktop/runner/pro-worker.js` (+ `git-snapshot`, `outbox`, `doctor`). Web: pestaña Pro.
+- Ronda: plan -> usted aprueba -> programar -> verifica Claude Opus (informe vs. diff real de git) -> hasta 2 correcciones -> aceptar = commit local.
+- Etapa 3 (integración): servidor y runner, hechos en paralelo, se ajustaron al contrato (rol `commit` en el runner; plan como texto). Prueba extremo a extremo `test/pro-e2e.test.js` (servidor real + worker real + claude falso).
+- Pendiente de verificar a mano: `claude` real (flags, id del modelo, login), Render real, la web Pro con una ronda real.
 
 ## Motores del PC (Flash / Claude)
 
 - Selector Auto/Flash/Claude en el chat (`localStorage jarvis_motor`).
 - Flash: cadena de nube (Gemini `gemini-3.8-flash`), siempre disponible.
-- La cola de tareas del PC es solo de Claude. El Gemini del PC (cola de tareas) se eliminó; lo que queda del motor "gemini" es solo del Modo Pro (apagado por defecto: `motores_pc.gemini.activo`).
+- La cola de tareas del PC es solo de Claude. El Gemini del PC (cola de tareas y Modo Pro, `agy`) se eliminó.
 - `/gemini ...`, `díselo a Gemini:` y `directo a Gemini:` ya no encolan: se quita el prefijo y el texto se contesta por la API con el proveedor `gemini` primero y luego el resto de la cadena gratis (lo privado lo contesta Groq).
 
 ## Música con YouTube (rama youtube-musica, lado servidor)

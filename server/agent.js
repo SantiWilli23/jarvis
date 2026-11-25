@@ -3,18 +3,13 @@
 import { all, get, run } from "./db/client.js";
 
 export const PC_TIMEOUT_MS = 45_000;
-// Capacidades que reporta el PC: { claude:{ok,modelos[]}, gemini_cli:{ok,cli:'agy',login,version,modelos[]}, repos:[ruta] }.
+// Capacidades que reporta el PC: { claude:{ok,modelos[]}, repos:[ruta] }.
 function cleanCaps(c) {
   const strs = (a) => (Array.isArray(a) ? a.map((x) => String(x).slice(0, 200)).slice(0, 30) : []);
   const err = (x) => (x ? String(x).slice(0, 200) : null);
   return {
     // modelos = ids de Claude que el PC VERIFICÓ con una llamada mínima; error = sin_login | modelo_no_disponible | texto
     claude: { ok: !!c.claude?.ok, modelos: strs(c.claude?.modelos), faltan: strs(c.claude?.faltan), error: err(c.claude?.error), ...(c.claude?.version ? { version: String(c.claude.version).slice(0, 20) } : {}) },
-    ...(() => {
-      const g = c.gemini_cli || c.agy || {};
-      const v = { ok: !!g.ok, cli: "agy", login: g.login ? String(g.login).slice(0, 20) : null, version: g.version ? String(g.version).slice(0, 20) : null, modelos: strs(g.modelos), faltan: strs(g.faltan), activo: g.activo === true, error: err(g.error), flags: g.flags && typeof g.flags === "object" ? { ok: !!g.flags.ok, missing: strs(g.flags.missing) } : null };
-      return { agy: v, gemini_cli: v }; // "agy" por compatibilidad con el Modo Pro
-    })(),
     repos: strs((c.repos || []).map((r) => (typeof r === "string" ? r : r?.ruta || ""))).filter(Boolean),
   };
 }

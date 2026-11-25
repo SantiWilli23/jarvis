@@ -10,8 +10,6 @@ export const DEFAULTS = {
   alwaysOnTop: false,
   greeting: true,                    // decir "Hola señor." al arrancar
   carpetas_permitidas: [],           // Modo Pro: si está vacío se usan las de config/permissions.json del hub
-  agyPath: null,                     // ruta a agy.exe si no está en el PATH ni en %LOCALAPPDATA%\agy\bin
-  geminiPath: null,                  // compat: nombre antiguo de agyPath
   claudePath: null,                 // ruta a claude.exe si no está en el PATH
   pc_apps: null,                     // apps extra que Jarvis puede abrir: { "nombre": { "cmd": "C:\\ruta\\app.exe", "args": [] } } (se suman a las de pc-spec.js; el servidor también debe listar el nombre en config/pc-actions.json)
   pc_carpetas: null,                 // carpetas que Jarvis puede listar/leer por nombre: { "documentos": "C:\Users\yo\Documents" } (el servidor solo manda el nombre + ruta relativa)
