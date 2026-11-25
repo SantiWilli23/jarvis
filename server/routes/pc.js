@@ -4,19 +4,19 @@ import { Router } from "express";
 //  - Con sesión web (/api/pc/*): ver catálogo e historial, encolar, aprobar/rechazar.
 //  - Con token "pc" (/api/agent/pc/*): el PC reclama la siguiente acción y devuelve su resultado.
 const wrap = (fn) => async (req, res, next) => { try { await fn(req, res); } catch (e) { next(e); } };
-const STATUS_ERR = { accion_desconocida: 400, no_encontrada: 404, estado_invalido: 409, pc_apagado: 409 };
+const STATUS_ERR = { accion_desconocida: 400, no_encontrada: 404, estado_invalido: 409, pc_apagado: 409, accion_no_soportada: 409, tope_capturas: 429 };
 const codeOf = (e) => STATUS_ERR[e] || 400;
 
 export function pcRoutes(ctx) {
   const r = Router();
   r.get("/actions", wrap(async (req, res) => {
     const uid = Number(req.user.id);
-    res.json({ pc_en_linea: ctx.pc.pcOnline(), catalogo: ctx.pc.catalog(), apps: ctx.pc.config.apps || [], acciones: await ctx.pc.list(uid) });
+    res.json({ pc_en_linea: ctx.pc.pcOnline(), catalogo: ctx.pc.catalog().map((a) => ({ ...a, soportada: ctx.pc.soportada(a.id) })), apps: ctx.pc.config.apps || [], acciones: await ctx.pc.list(uid) });
   }));
   r.post("/actions", wrap(async (req, res) => {
     const b = req.body && typeof req.body === "object" ? req.body : {};
     const out = await ctx.pc.create({ userId: Number(req.user.id), action: b.accion ?? b.action, params: b.params, source: "web", deviceId: req.device?.id ?? null });
-    res.status(out.ok ? 201 : codeOf(out.error)).json(out.ok ? { action: out.item } : { error: out.error });
+    res.status(out.ok ? 201 : codeOf(out.error)).json(out.ok ? { action: out.item } : { error: out.error, mensaje: out.mensaje });
   }));
   r.get("/actions/:id", wrap(async (req, res) => {
     const it = await ctx.pc.get(Number(req.user.id), Number(req.params.id));
@@ -32,7 +32,7 @@ export function pcRoutes(ctx) {
 export function agentPcRoutes(ctx) {
   const r = Router();
   r.post("/next", wrap(async (req, res) => {
-    res.json({ accion: await ctx.pc.next(Number(req.user.id)) });
+    res.json({ accion: await ctx.pc.next(Number(req.user.id), { deviceId: req.device?.id ?? null }) });
   }));
   r.post("/:id/result", wrap(async (req, res) => {
     const b = req.body && typeof req.body === "object" ? req.body : {};

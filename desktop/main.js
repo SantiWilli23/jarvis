@@ -20,6 +20,7 @@ import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createPcWorker } from "./runner/pc-worker.js";
 import { createPcExecutor } from "./runner/pc-exec.js";
+import { PC_ACTIONS } from "./runner/pc-spec.js";
 import { createPcFiles } from "./runner/pc-files.js";
 import { createPcCapture, claudeDescriber } from "./runner/pc-capture.js";
 import { runClaude, resolveClaude } from "./runner/claude-runner.js";
@@ -113,7 +114,7 @@ function startWorker() {
     onStatus: (s) => { lastStatus = { ...lastStatus, ...s }; updateTray(); },
   });
   worker = createWorker({
-    pro, getCapabilities: () => caps,
+    pro, getCapabilities: () => ({ ...(caps || {}), pc_acciones: Object.keys(PC_ACTIONS) }), // va desde el primer hello
     hub, host: hostname(), version: app.getVersion(),
     claude: cfg.claudePath ? { command: cfg.claudePath, prefix: [] } : null,
     folders: null, fallbackCwd: cfg.workFolder || join(app.getPath("documents"), "Jarvis"),
@@ -129,6 +130,8 @@ function startWorker() {
   const pcNotify = (title, body) => { try { new Notification({ title, body }).show(); } catch { /* sin aviso */ } };
   const capture = createPcCapture({
     desktopCapturer, screen, dir: join(dataDir, "capturas"), notify: pcNotify,
+    maxPorDia: cfg.capturas_por_dia, usoInicial: cfg.uso_capturas,
+    onUso: (u) => { cfg.uso_capturas = u; saveConfig(dataDir, cfg); },
     describir: claudeDescriber({ claude: cfg.claudePath ? { command: cfg.claudePath, prefix: [] } : resolveClaude(), runClaude, cwd: join(dataDir, "capturas") }),
   });
   capture.limpiar(); // por si una captura anterior quedó a medias

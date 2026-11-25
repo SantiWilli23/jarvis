@@ -15,6 +15,8 @@ export const DEFAULTS = {
   claudePath: null,                 // ruta a claude.exe si no está en el PATH
   pc_apps: null,                     // apps extra que Jarvis puede abrir: { "nombre": { "cmd": "C:\\ruta\\app.exe", "args": [] } } (se suman a las de pc-spec.js; el servidor también debe listar el nombre en config/pc-actions.json)
   pc_carpetas: null,                 // carpetas que Jarvis puede listar/leer por nombre: { "documentos": "C:\Users\yo\Documents" } (el servidor solo manda el nombre + ruta relativa)
+  capturas_por_dia: 20,             // segunda barrera en el PC (el tope oficial es config/pc-actions.json del servidor)
+  uso_capturas: null,               // lo escribe la app: { fecha, n }
   workFolder: null,                 // carpeta de trabajo si config/permissions.json no define ninguna
   agentToken: null,                  // lo escribe la propia app al enrolarse
   agentTokenEnc: null,
