@@ -79,7 +79,8 @@ export const NAV_SISTEMA = [
 export function buildNavArgs({ maxTurns = 25, model = "sonnet" } = {}) {
   return [
     "-p", "--chrome", "--output-format", "stream-json", "--verbose", "--model", model,
-    "--permission-mode", "default",
+    "--permission-mode", "default", "--strict-mcp-config", // sin los conectores del usuario (Gmail, etc.)
+    
     "--tools", "ToolSearch",
     "--allowedTools", NAV_PERMITIDAS.join(","),
     "--disallowedTools", NAV_PROHIBIDAS.join(","),
