@@ -1,8 +1,8 @@
 <!-- estado-proyecto -->
-# Estado de Jarvis (14-nov-2026) - rama juegos-atajos (desde main 9c9d6a4)
-**Pedido:** "abre <juego>" abre el juego sin gastar IA + botones de acceso rápido.
-**Hecho:** `server/games.js` (lista Futotal y Ski Beta, `parseJuegoIntent`, `respuestaJuego`); paso 1-bis en `chat-service` antes de música/PC/IA, igual en modo Chat e IA: `status:"juego"`, `juegos:[{id,nombre,url}]`, `acciones:[{tipo:"abrir_url",url,nuevaPestana}]`.
-**Web:** `web/js/juegos.js` (botones discretos `#juegos` en index.html y m.html + `window.open` noopener al llegar `jarvis:juego`; los botones sirven de respaldo si el navegador bloquea la pestaña); `sw.js` v13.
-**Pruebas:** `test/juegos.test.js`. Alquimia y Draft Europeo no están en la lista a propósito.
-**Queda:** probar en navegador real/iPhone (bloqueo de pestañas, estilo de botones). Sin push ni deploy.
+# Estado de Jarvis (25-nov-2026) - main c094cfc + 3 ramas en curso
+**Pedido:** voz en la pestaña Pro; desde Clásico, Claude Code del PC usa Chrome para preguntar a IAs web o buscar en Google (plan aceptado, contrato en `docs/NAV.md`).
+**Hecho:** "abre Futotal/Ski" desplegado (c669f63). Probado: `claude -p --chrome` abre Google en el PC sin pedir permisos.
+**En curso (worktrees):** `jarvis-voz-pro` (voz Pro), `jarvis-nav-pc` (runner del PC), `jarvis-nav-srv` (cola, chat y web).
+**Queda:** revisar y unir las 3 ramas, `npm test`, prueba real en el PC, pedir permiso para push/deploy, reiniciar app del PC.
+**Sin probar:** botones de juegos y bloqueo de pestañas en iPhone.
 **Verificar:** `npm test`.
