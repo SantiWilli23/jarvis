@@ -6,6 +6,7 @@ import { initOrb, setVisual } from "./orb.js";
 import { canRecord, startRecording, speak, stopSpeaking } from "./voice.js";
 import "./musica.js";
 import "./juegos.js";
+import { pintarNav, limpiarFuentes } from "./nav.js";
 import { tickClock, renderMemory, renderQueue, renderConn, renderPc, showApproval } from "./panels.js";
 
 const $ = (id) => document.getElementById(id);
@@ -16,6 +17,7 @@ let typeTimer = null, recorder = null, busy = false, activeProvider = null, last
 function say(who, text) {
   $("who").textContent = who;
   clearInterval(typeTimer);
+  limpiarFuentes();
   const el = $("txt");
   if (reduce) { el.textContent = text; return; }
   let i = 0; el.textContent = "";
@@ -56,6 +58,18 @@ async function decide(approve) {
   say("Jarvis", approve ? "Hecho, señor. Lo aprobé." : "Entendido, señor. Lo rechacé.");
 }
 
+/* ---------- navegador de Claude: llega la respuesta ---------- */
+function onNav(task) {
+  if (recorder || busy) return void setTimeout(() => onNav(task), 1500); // no pisar lo que el señor está haciendo
+  stopSpeaking();
+  say("Jarvis", ""); // detiene el tecleo y limpia las fuentes anteriores
+  clearInterval(typeTimer);
+  pintarNav(task);
+  if (store.state === "permiso") return;
+  setState("speaking");
+  speak(String(task.respuesta || "").slice(0, 1500), afterSpeech, false); // lo privado nunca llega al navegador
+}
+
 /* ---------- mensajes del WebSocket ---------- */
 function onWs(m) {
   window.dispatchEvent(new CustomEvent("jarvis:ws", { detail: m })); // la vista móvil (movil.js) también escucha
@@ -69,6 +83,7 @@ function onWs(m) {
     case "approval.resolved": if (store.approval?.id === m.approval.id) { setApproval(null); if (store.state === "permiso") setState("idle"); } break;
     case "conn.using": if (m.id) { lastUsed = m.id; renderConn(store.status, lastUsed, true); } break;
     case "chat.done": if (m.provider) lastUsed = m.provider; renderConn(store.status, lastUsed, false); break;
+    case "nav.done": if (m.task) onNav(m.task); break;
     case "task.update": case "providers.update": refreshStatus(); break;
     case "pc.status": renderPc(m); break;
     case "ws.closed": if (m.code === 4401 && getToken()) revisarSesionWs(); break;

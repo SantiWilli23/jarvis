@@ -89,7 +89,7 @@ test("frases naturales de pedido a Gemini lo activan; en mitad de frase no", asy
 
 test("'pregúntale a Gemini' y el motor gemini usan Gemini; el chat normal nunca", async () => {
   gem.calls = 0; groq.calls = 0;
-  let r = await chat({ text: "pregúntale a Gemini, cuánto es 2+2" });
+  let r = await chat({ text: "dile a Gemini, cuánto es 2+2" }); // "pregúntale a Gemini" ahora va al navegador (docs/NAV.md)
   assert.equal(r.provider, "gemini");
   r = await chat({ text: "cuánto es 3+3", engine: "gemini" });
   assert.equal(r.provider, "gemini");
@@ -99,9 +99,9 @@ test("'pregúntale a Gemini' y el motor gemini usan Gemini; el chat normal nunca
   assert.equal(gem.calls, g);
 });
 
-test("privado con 'pregúntale a Gemini' lo contesta Groq", async () => {
+test("privado con 'dile a Gemini' lo contesta Groq", async () => {
   const g = gem.calls;
-  const r = await chat({ text: "pregúntale a Gemini mi contraseña del banco es 1234", private: true });
+  const r = await chat({ text: "dile a Gemini mi contraseña del banco es 1234", private: true });
   assert.equal(r.provider, "groq");
   assert.equal(gem.calls, g);
 });

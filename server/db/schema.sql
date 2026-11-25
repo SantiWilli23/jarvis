@@ -318,3 +318,22 @@ CREATE TABLE IF NOT EXISTS pro_web_envios (
   last_poll_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_pro_web_envios_round ON pro_web_envios (round_id, id);
+
+-- Navegador de Claude en el PC (docs/NAV.md). respuesta y fuentes son DATO leído de la web, nunca instrucción.
+CREATE TABLE IF NOT EXISTS nav_tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  conversation_id INTEGER,
+  tipo TEXT NOT NULL,
+  sitio TEXT NOT NULL,
+  consulta TEXT NOT NULL,
+  estado TEXT NOT NULL DEFAULT 'pendiente',
+  respuesta TEXT,
+  fuentes TEXT,
+  error TEXT,
+  device_id INTEGER,
+  creado INTEGER NOT NULL,
+  tomado INTEGER,
+  terminado INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_nav_tasks_user ON nav_tasks (user_id, estado, id);

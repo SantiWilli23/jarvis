@@ -323,3 +323,8 @@ body[data-state="permiso"] { --accent: var(--amber); }
 .juego-btn { background: var(--panel); border: 1px solid var(--line); padding: 4px 10px; font-family: var(--mono); font-size: 11px; color: var(--fg); text-decoration: none; opacity: .75; min-height: 28px; display: inline-flex; align-items: center; }
 .juego-btn:hover, .juego-btn:focus-visible { border-color: var(--accent); opacity: 1; }
 body.movil .juego-btn { min-height: 44px; padding: 0 14px; font-size: 12px; }
+
+/* Navegador de Claude: respuesta larga con desplazamiento y lista de fuentes */
+.say .txt.nav { max-height: 34vh; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.say .navfuentes { margin: 0; padding-left: 18px; font-size: 13px; max-height: 14vh; overflow-y: auto; overflow-wrap: anywhere; }
+.say .navfuentes a { color: var(--accent); }

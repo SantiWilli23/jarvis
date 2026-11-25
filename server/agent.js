@@ -15,6 +15,7 @@ function cleanCaps(c) {
       const v = { ok: !!g.ok, cli: "agy", login: g.login ? String(g.login).slice(0, 20) : null, version: g.version ? String(g.version).slice(0, 20) : null, modelos: strs(g.modelos), faltan: strs(g.faltan), activo: g.activo === true, error: err(g.error), flags: g.flags && typeof g.flags === "object" ? { ok: !!g.flags.ok, missing: strs(g.flags.missing) } : null };
       return { agy: v, gemini_cli: v }; // "agy" por compatibilidad con el Modo Pro
     })(),
+    ...(c.chrome != null ? { chrome: { ok: c.chrome === true || c.chrome.ok === true } } : {}), // navegador de Claude (docs/NAV.md)
     repos: strs((c.repos || []).map((r) => (typeof r === "string" ? r : r?.ruta || ""))).filter(Boolean),
   };
 }
