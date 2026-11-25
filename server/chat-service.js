@@ -8,6 +8,7 @@ import { parseMusicIntent, CONTROLES } from "./music/intents.js";
 import { parseJuegoIntent, respuestaJuego } from "./games.js";
 import { getModo } from "./settings.js";
 import { parseNavIntent } from "./nav-intents.js";
+import { parseProIntent, crearSesionPro } from "./pro-intents.js";
 import { DATO } from "./nav.js";
 import { detectDestino, stripDestino, parsePcIntent, interpretWithModel, pcReply, pcError } from "./pc/intents.js";
 
@@ -18,7 +19,7 @@ const MSG_SIN_CUOTA = "Mis proveedores gratuitos llegaron a su límite por ahora
 
 const MOTORES = ["auto", "flash", "gemini", "claude"]; // lista cerrada del selector del chat
 
-export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, pc = null, escenas = null, persona = "", webSearch = null, agent = null, getMusic = () => null, getNav = () => null, now = () => Date.now() }) {
+export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, pc = null, escenas = null, persona = "", webSearch = null, agent = null, getMusic = () => null, getNav = () => null, getPro = () => null, getGithub = () => null, now = () => Date.now() }) {
   async function ensureConversation(userId, id, firstText) {
     if (id) {
       const c = await get(db, "SELECT id FROM conversations WHERE id=? AND user_id=?", [id, userId]);
@@ -32,7 +33,7 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       [userId, conv, role, content, provider || null, priv ? 1 : 0, now()]);
   const state = (userId, s, extra = {}) => bus?.emit("state", { userId, state: s, ...extra });
 
-  return {
+  const api = {
     // ¿El texto es privado? (marca, clasificador o notas privadas). Se usa ANTES de encolar algo.
     async checkPrivate({ userId, text, flagPrivate = false }) {
       const cls = classify(String(text ?? ""), { flagPrivate });
@@ -54,6 +55,17 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       if (d.direct && d.engine === "gemini") {
         if (!d.text.trim()) { state(userId, "idle"); return { status: "vacio", conversationId: conv, reply: "¿Qué quiere preguntarle a Gemini, señor?" }; }
         original = d.text; prefer = "gemini"; d = { direct: false };
+      }
+      // 1-00) Sesión Pro desde Clásico: solo modo IA y solo frase explícita.
+      const pro = !chatSolo && !d.direct && !prefer ? getPro() : null;
+      const proI = pro ? parseProIntent(original) : null;
+      if (proI) {
+        const out = await crearSesionPro({ pro, github: getGithub(), checkPrivate: api.checkPrivate, userId, intent: proI, original, flagPrivate });
+        await saveMsg(userId, conv, "user", original, null, out.private);
+        await saveMsg(userId, conv, "assistant", out.reply, "pro", out.private);
+        bus?.emit("chat.done", { userId, text: out.reply, provider: "pro", pro: out.pro });
+        state(userId, "speaking");
+        return { status: "pro", conversationId: conv, reply: out.reply, private: out.private, pro: out.pro };
       }
       // 1-0) Navegador de Claude en el PC (docs/NAV.md): solo modo IA y solo frase explícita. Va antes que el pedido a
       // Gemini por API, los juegos, la música y las acciones del PC. "/gemini ..." (prefer) no pasa por aquí.
@@ -218,4 +230,5 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       return { status: "ok", conversationId: conv, reply: texto, provider: r.provider, private: isPrivate, notes_read: found.notes.length };
     },
   };
+  return api;
 }

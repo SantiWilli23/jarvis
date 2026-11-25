@@ -352,6 +352,19 @@ function seleccionar(pro) {
   if (pro) { if (!S.cargado) { S.cargado = true; cargarHilos(); } pintar(); }
 }
 
+// Enlace directo "#pro/<id>" (sesión creada desde Clásico).
+export const hiloDeHash = (hash) => Number(/^#pro\/(\d+)$/.exec(String(hash || ""))?.[1]) || null;
+async function abrirHash() {
+  const id = hiloDeHash(location.hash);
+  if (!id || !getToken()) return;
+  history.replaceState(null, "", location.pathname + location.search); // así el mismo enlace vuelve a funcionar
+  await cargarEstado();
+  if ($("tab-pro").getAttribute("aria-disabled") === "true") { seleccionar(true); return; } // muestra los motivos
+  await abrirHilo(id);
+  seleccionar(true);
+  try { S.hilos = (await api("/pro/threads")).threads || S.hilos; pintar(); } catch { /* la lista se recarga luego */ }
+}
+
 function init() {
   if (!$("vista-pro")) return;
   $("tab-clasico").addEventListener("click", () => seleccionar(false));
@@ -377,7 +390,8 @@ function init() {
     let g = ""; try { g = localStorage.getItem("jarvis_pestana"); } catch { /* sin storage */ }
     if (g === "pro" && S.pro?.habilitado) seleccionar(true);
   });
-  if (getToken()) arranque();
+  window.addEventListener("hashchange", abrirHash);
+  if (getToken()) { if (hiloDeHash(location.hash)) abrirHash(); else arranque(); }
   setInterval(() => { if (getToken() && !document.hidden) cargarEstado(); }, 30000);
 }
 if (typeof document !== "undefined" && document.getElementById) init();
