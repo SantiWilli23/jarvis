@@ -29,6 +29,7 @@ export function createHubClient({ baseUrl, token, fetchFn = fetch }) {
     // Navegador de Claude (docs/NAV.md)
     navClaim: () => call("/nav/claim", { body: {} }),
     navResult: (id, out) => call(`/nav/${id}/result`, { body: out }),
+    navEvents: (id, body) => call(`/nav/${id}/events`, { body }), // pasos, captura y latido -> {cancelado}
     // Modo Pro (docs/PRO.md §5 y "Ampliaciones P3")
     proClaim: () => call("/pro/claim", { body: {} }),
     proEvents: (id, events) => call(`/pro/jobs/${id}/events`, { body: { events } }),
