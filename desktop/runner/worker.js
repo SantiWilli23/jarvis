@@ -19,6 +19,7 @@ export function createWorker({
   maxTurns = 30, model = null, onStatus = () => {},
   pro = null,                    // worker del Modo Pro ({tick}); se atiende cuando la cola clásica está vacía
   getCapabilities = null,        // () => capabilities del doctor (se manda en hello y heartbeat)
+  nav = null,                    // navegador de Claude ({tick}); solo cuando las colas clásica y Pro están vacías
 }) {
   let running = false, paused = false, current = null, serverCfg = { caps: {}, permissions: {} };
   const status = (extra = {}) => onStatus({ running, paused, current, ...extra });
@@ -113,6 +114,7 @@ export function createWorker({
         const out = await tick();
         if (out === "tarea") continue; // sigue de inmediato con la siguiente
         if (pro && (out === "vacia" || out === "tope_diario") && !paused) { const j = await pro.tick().catch((e) => { log(`Pro: ${e.message}`); if (e.status === 401 || e.status === 403) throw e; return "vacio"; }); if (j === "job") continue; }
+        if (nav && (out === "vacia" || out === "tope_diario") && !paused) { const n = await nav.tick().catch((e) => { log(`Navegador: ${e.message}`); if (e.status === 401 || e.status === 403) throw e; return "vacio"; }); if (n === "tarea") continue; }
         await sleep(out === "tope_diario" ? tapeWaitMs : pollMs);
       } catch (e) {
         said = false; status({ online: false, error: e.message });

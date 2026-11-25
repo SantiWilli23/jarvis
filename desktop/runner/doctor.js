@@ -71,6 +71,20 @@ export async function probeClaudeModel(cb, id, { ex = exec, env = process.env, n
   return r;
 }
 
+// Capacidad `chrome` (docs/NAV.md): el CLI conoce --chrome y hay sesión iniciada. No gasta cuota.
+// No comprueba que la extensión Claude in Chrome esté conectada: eso solo se sabe al ejecutar una tarea.
+export async function checkChrome(cb, { ex = exec, env = process.env } = {}) {
+  if (!cb) return { ok: false, error: "sin_claude" };
+  try {
+    if (!/(^|\s)--chrome\b/.test(await ex(cb, ["--help"], 15000, claudeEnv(env)))) return { ok: false, error: "sin_chrome" };
+    const t = String(await ex(cb, ["auth", "status"], 15000, claudeEnv(env)));
+    const j = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
+    return j.loggedIn === true ? { ok: true, error: null } : { ok: false, error: "sin_login" };
+  } catch (e) {
+    return { ok: false, error: /"loggedIn":\s*false/.test(String(e.stdout || "")) ? "sin_login" : "no_responde" };
+  }
+}
+
 export async function runDoctor({ folders = [], claudePath = null, agyPath = null, modelosEsperados = [MODELO_PLAN_DEFECTO, ...CADENA_PROGRAMAR], exec: ex = exec, env = process.env, home = homedir(), exists = existsSync, geminiActivo = false, claudeModelos = null } = {}) {
   const cb = claudePath ? { command: claudePath, prefix: [] } : resolveClaude({ env });
   let claude = { ok: false, modelos: [], faltan: [], error: null };
@@ -100,6 +114,7 @@ export async function runDoctor({ folders = [], claudePath = null, agyPath = nul
     } else agy = { ...agy, version, error: version ? `agy ${version} es anterior a ${VERSION_MINIMA}` : "agy no responde" };
   }
   const repos = await discoverRepos(folders);
+  const chrome = await checkChrome(cb, { ex, env });
   // gemini_cli: compatibilidad con el contrato original (el servidor puede seguir leyéndolo).
-  return { claude, agy, gemini_cli: { ok: agy.ok, cli: "agy", login: agy.login, version: agy.version, modelos: agy.modelos }, repos };
+  return { claude, chrome, agy, gemini_cli: { ok: agy.ok, cli: "agy", login: agy.login, version: agy.version, modelos: agy.modelos }, repos };
 }
