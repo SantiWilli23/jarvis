@@ -16,7 +16,7 @@ const MSG_SIN_CUOTA = "Mis proveedores gratuitos llegaron a su límite por ahora
 
 const MOTORES = ["auto", "flash", "gemini", "claude"]; // lista cerrada del selector del chat
 
-export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, pc = null, persona = "", webSearch = null, agent = null, getMusic = () => null, now = () => Date.now() }) {
+export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, pc = null, escenas = null, persona = "", webSearch = null, agent = null, getMusic = () => null, now = () => Date.now() }) {
   async function ensureConversation(userId, id, firstText) {
     if (id) {
       const c = await get(db, "SELECT id FROM conversations WHERE id=? AND user_id=?", [id, userId]);
@@ -78,6 +78,17 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
         bus?.emit("chat.done", { userId, text: out.reply, provider: "juegos" });
         state(userId, "idle");
         return { status: "juego", conversationId: conv, reply: out.reply, juegos: out.juegos, acciones: out.acciones };
+      }
+
+      // 1-ter) Escenas ("activa modo estudio", "buenas noches"): frase exacta, sin modelo. Nunca en modo Chat ni si es privado.
+      const escena = !chatSolo && !flagPrivate && escenas ? escenas.detectar(original) : null;
+      if (escena) {
+        const out = await escenas.ejecutar({ userId, id: escena.id, source, conversationId: conv, deviceId });
+        await saveMsg(userId, conv, "user", original, null, false);
+        await saveMsg(userId, conv, "assistant", out.resumen, "escena", false);
+        bus?.emit("chat.done", { userId, text: out.resumen, provider: "escena" });
+        state(userId, "speaking");
+        return { status: "escena", conversationId: conv, reply: out.resumen, escena: { id: out.escena, lanzadas: out.lanzadas.length, fallidas: out.fallidas.length } };
       }
 
       // 1a) Música (YouTube Music): sin modelo y solo texto. Los controles (pausa, siguiente...) solo se atienden aquí si el

@@ -1,0 +1,37 @@
+{
+  "nota": "Escenas: varias acciones con una sola orden. Solo pasos automáticos: si un paso pide aprobación, es privado o es una captura, la escena ENTERA se rechaza al arrancar (ver server/escenas.js). destino: pc | phone. params como en config/pc-actions.json y config/phone-actions.json.",
+  "escenas": [
+    {
+      "id": "modo_estudio",
+      "nombre": "Modo estudio",
+      "frases": ["modo estudio", "a estudiar"],
+      "pasos": [
+        { "destino": "phone", "accion": "no_molestar", "params": { "valor": "on", "minutos": 60 } },
+        { "destino": "phone", "accion": "temporizador", "params": { "valor": 50, "etiqueta": "Estudio" } },
+        { "destino": "pc", "accion": "volumen", "params": { "accion": "fijar", "nivel": 20 } }
+      ]
+    },
+    {
+      "id": "buenas_noches",
+      "nombre": "Buenas noches",
+      "frases": ["buenas noches", "me voy a dormir"],
+      "pasos": [
+        { "destino": "phone", "accion": "no_molestar", "params": { "valor": "on" } },
+        { "destino": "phone", "accion": "brillo", "params": { "valor": 10 } },
+        { "destino": "pc", "accion": "volumen", "params": { "accion": "fijar", "nivel": 0 } },
+        { "destino": "pc", "accion": "bloquear", "params": {} }
+      ]
+    },
+    {
+      "id": "llego_a_casa",
+      "nombre": "Llego a casa",
+      "frases": ["llego a casa", "ya llegue a casa", "estoy en casa"],
+      "pasos": [
+        { "destino": "phone", "accion": "no_molestar", "params": { "valor": "off" } },
+        { "destino": "phone", "accion": "wifi", "params": { "valor": "on" } },
+        { "destino": "phone", "accion": "volumen", "params": { "valor": 50 } },
+        { "destino": "pc", "accion": "estado_sistema", "params": {} }
+      ]
+    }
+  ]
+}

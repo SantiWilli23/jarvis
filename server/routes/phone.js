@@ -1,11 +1,14 @@
 import { Router } from "express";
 import { bearer, requireAuth } from "../auth/middleware.js";
+import { run } from "../db/client.js";
 
 // Cola del teléfono.
 //  - Con sesión web:  POST/GET /api/phone/actions  (crear acciones, ver catálogo e historial)
-//  - Con token "phone" (el del Atajo "Jarvis Puente"): POST /api/phone/next y POST /api/phone/actions/:id/done.
+//  - Con token "phone" (el del Atajo "Jarvis Puente"): POST /api/phone/next, POST /api/phone/actions/:id/done y
+//    POST /api/phone/disparador (solo lanza una escena de la lista cerrada, para automatizaciones de iOS).
 //    Ese token no sirve para nada más (chat, WebSocket, aprobaciones: 403).
 const LIMITE = 60, VENTANA_MS = 60_000;
+const DISPAROS_HORA = 10, HORA_MS = 60 * 60_000;
 
 export function phoneRoutes(ctx) {
   const r = Router();
@@ -45,6 +48,30 @@ export function phoneRoutes(ctx) {
       const ok = !(b.ok === false || b.ok === "false" || b.status === "fallida");
       const out = await ctx.phone.done(Number(req.user.id), Number(req.params.id), { ok, result: b.result ?? b.resultado ?? null, datos: b.datos ?? null });
       res.status(out.ok ? 200 : out.error === "no_encontrada" ? 404 : 409).json(out.ok ? { ok: true, status: out.item.status } : { ok: false, error: out.error });
+    } catch (e) { next(e); }
+  });
+
+  // Automatizaciones de iOS: cuerpo exacto { escena }. Sin acciones sueltas ni parámetros libres.
+  r.post("/disparador", phoneAuth, async (req, res, next) => {
+    try {
+      const uid = Number(req.user.id);
+      const b = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+      const id = Object.keys(b).length === 1 && typeof b.escena === "string" ? b.escena : null;
+      if (!id || !ctx.escenas.list().some((e) => e.id === id)) {
+        await ctx.audit.log({ userId: uid, action: "escena.disparador_rechazado", detail: `dispositivo ${req.device.id}` });
+        return res.status(400).json({ ok: false, error: id ? "escena_desconocida" : "cuerpo_invalido" });
+      }
+      // Tope por hora contado en la auditoría (sobrevive a reinicios); contar y apuntar en un solo INSERT.
+      const t = ctx.now();
+      const marca = await run(ctx.db, `INSERT INTO audit_log (user_id, action, detail, created_at) SELECT ?,'escena.disparador',?,?
+        WHERE (SELECT COUNT(*) FROM audit_log WHERE user_id=? AND action='escena.disparador' AND created_at > ?) < ?`,
+        [uid, `${id} dispositivo ${req.device.id}`, t, uid, t - HORA_MS, DISPAROS_HORA]);
+      if (!marca.changes) {
+        await ctx.audit.log({ userId: uid, action: "escena.disparador_tope", detail: id });
+        return res.status(429).json({ ok: false, error: "tope_disparador" });
+      }
+      const out = await ctx.escenas.ejecutar({ userId: uid, id, source: "disparador", deviceId: req.device.id });
+      res.json({ ok: out.ok, escena: id, resumen: out.resumen });
     } catch (e) { next(e); }
   });
 

@@ -36,7 +36,7 @@ function openSheet(name) {
   void s.offsetHeight; // reflujo para que corra la transición
   s.classList.add("on"); $("scrim").classList.add("on");
   document.querySelectorAll(".dock [data-open]").forEach((b) => b.classList.toggle("on", b.dataset.open === name));
-  if (name === "tel") { loadPhone(); refrescarAccionesPc(); }
+  if (name === "tel") { loadEscenas(); loadPhone(); refrescarAccionesPc(); }
   if (name === "cola") { loadPhone(); }
   if (name === "mas") renderMas();
   if (name === "musica") abrirMusica();
@@ -300,6 +300,29 @@ $("phsay").addEventListener("submit", (e) => {
 });
 
 syncColaBadge();
+
+/* ---------- Escenas (hoja Control) ---------- */
+const escMsg = (t) => { $("escmsg").textContent = t || ""; };
+async function lanzarEscena(id, boton) {
+  boton.disabled = true; escMsg("Lanzando…");
+  try { escMsg((await api(`/escenas/${encodeURIComponent(id)}`, { method: "POST", body: {} })).resumen); }
+  catch (e) { escMsg("No se pudo: " + (e.data?.error || e.message)); }
+  boton.disabled = false;
+  loadPhone(); refrescarAccionesPc();
+}
+async function loadEscenas() {
+  const g = $("escgrid");
+  if (!getToken() || g.childElementCount) return;
+  try {
+    const { escenas } = await api("/escenas");
+    g.replaceChildren(...escenas.map((x) => {
+      const b = el("button", "", x.nombre); b.type = "button";
+      b.append(el("small", "", `${x.pasos} pasos`));
+      b.onclick = () => lanzarEscena(x.id, b);
+      return b;
+    }));
+  } catch { escMsg("No pude cargar las escenas."); }
+}
 
 /* ---------- Música: buscador, playlists y conexión con Google ---------- */
 let yt = { disponible: false, permiso: false, unidades_hoy: 0, tope: 0 };

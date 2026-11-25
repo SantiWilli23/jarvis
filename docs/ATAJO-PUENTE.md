@@ -186,3 +186,52 @@ Instale Jarvis en la pantalla de inicio (Safari, Compartir, Añadir a pantalla d
 ábralo desde el icono, y en Más pulse "Activar notificaciones". Recibirá "Aprobación pendiente" (sin contenido privado)
 y al tocarla se abre la tarjeta. Las claves VAPID se generan solas la primera vez y se guardan en la base
 (o use `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`; `VAPID_SUBJECT` por defecto `mailto:jarvis@localhost`).
+
+## 8. Escenas y automatizaciones del iPhone
+Una **escena** hace varias cosas con una sola orden. Vienen tres:
+
+| Escena | Código para el iPhone | Qué hace |
+|---|---|---|
+| Modo estudio | `modo_estudio` | No molestar 60 min, temporizador de 50 min, volumen del PC al 20 % |
+| Buenas noches | `buenas_noches` | No molestar, brillo al 10 %, volumen del PC a 0 y PC bloqueado |
+| Llego a casa | `llego_a_casa` | Quita No molestar, enciende Wi-Fi, volumen al 50 %, estado del PC |
+
+Se lanzan diciendo a Jarvis "activa modo estudio" o "buenas noches", con los botones de la hoja **Control**,
+o solas con una automatización. Si el PC está apagado, sus pasos se omiten y no quedan en cola.
+
+> **No verificado en iPhone.** Nada de este apartado se ha probado en un teléfono: los nombres de menús y
+> bloques pueden cambiar según la versión de iOS.
+
+### 8.1 Qué necesita
+- La clave (token) del apartado 1, la misma que usa "Jarvis Puente".
+- El Atajo "Jarvis Puente" ya armado: la escena solo deja las acciones en cola; quien las hace en el iPhone es él.
+
+### 8.2 Crear la automatización
+1. Abra **Atajos**, pestaña **Automatización**, y pulse **+**.
+2. Elija cuándo debe ocurrir (una de estas):
+   - **Llegar a casa**: toque **Llegada** y elija la dirección de su casa. Código `llego_a_casa`.
+   - **Conectar el cargador**: toque **Cargador** y marque **Está conectado**. Por ejemplo `buenas_noches`
+     (ojo: se lanzará cada vez que lo conecte, también de día).
+   - **A una hora**: toque **Hora del día**, ponga la hora y los días. Por ejemplo `modo_estudio` a las 17:00.
+3. Elija **Ejecutar inmediatamente** (si no aparece, desactive "Solicitar confirmación").
+4. Pulse **Siguiente** y **Nueva automatización en blanco**.
+5. Añada el bloque **URL** y escriba `https://TU-SERVIDOR/api/phone/disparador`.
+6. Añada **Obtener contenido de URL** y despliegue sus opciones (flecha):
+   - Método: **POST**
+   - Cabeceras, añadir una: clave `Authorization`, valor `Bearer TU_TOKEN` (con un espacio entre ambas).
+   - Cuerpo de la solicitud: **JSON**, con **un solo campo**: clave `escena`, tipo Texto, valor el código de la
+     tabla (p. ej. `llego_a_casa`). Si añade cualquier otro campo, Jarvis lo rechaza.
+7. Opcional, para ver qué pasó: **Obtener valor del diccionario** clave `resumen` y **Mostrar notificación** con él.
+8. Añada **Ejecutar atajo** y elija **Jarvis Puente**, para que el iPhone haga sus pasos en ese momento.
+9. Pulse **OK**.
+
+### 8.3 Probar y entender los errores
+Toque la automatización y pulse el botón de reproducir. La respuesta trae `resumen` con lo que se lanzó y lo que no.
+- `no_autorizado`: la clave está mal copiada o fue revocada.
+- `escena_desconocida` o `cuerpo_invalido`: revise el campo `escena`.
+- `tope_disparador`: máximo 10 lanzamientos por hora desde el iPhone.
+- Si Jarvis estaba dormido puede tardar cerca de 1 minuto o dar error la primera vez.
+
+La automatización de llegada depende de la ubicación de iOS y puede pedir confirmación; no está verificado.
+Con esa clave solo se pueden lanzar escenas de la lista, nunca acciones sueltas. Para cambiarlas o añadir otras
+se edita `config/escenas.json`: solo admite pasos automáticos (nada que pida aprobación, privado ni capturas).
