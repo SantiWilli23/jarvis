@@ -1,10 +1,10 @@
 // WebSocket /ws. Se autentica con el PRIMER mensaje {type:"auth", token} (nunca en la URL).
 // Eventos hacia el cliente: state, chat.delta, chat.done, task.update, approval.request,
-// approval.resolved, providers.update, pc.status, phone.update, pro.status, pro.message, pro.delta, pro.round, conn.using. Solo dispositivos "web" (lista blanca).
+// approval.resolved, providers.update, pc.status, phone.update, pro.status, pro.message, pro.delta, pro.round, conn.using, nav.done. Solo dispositivos "web" (lista blanca).
 import { WebSocketServer } from "ws";
 import { cookieValue } from "./auth/middleware.js";
 
-const EVENTOS = ["state", "chat.delta", "chat.done", "task.update", "approval.request", "approval.resolved", "providers.update", "pc.status", "task.progress", "phone.update", "pro.status", "pro.message", "pro.delta", "pro.round", "conn.using"];
+const EVENTOS = ["state", "chat.delta", "chat.done", "task.update", "approval.request", "approval.resolved", "providers.update", "pc.status", "task.progress", "phone.update", "pro.status", "pro.message", "pro.delta", "pro.round", "conn.using", "nav.done"];
 const AUTH_TIMEOUT_MS = 5000;
 
 export function createHub({ server, sessions, bus, initial = async () => [] }) {

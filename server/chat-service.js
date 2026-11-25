@@ -7,6 +7,8 @@ import { parsePhoneIntent, phoneReply } from "./phone/intents.js";
 import { parseMusicIntent, CONTROLES } from "./music/intents.js";
 import { parseJuegoIntent, respuestaJuego } from "./games.js";
 import { getModo } from "./settings.js";
+import { parseNavIntent } from "./nav-intents.js";
+import { DATO } from "./nav.js";
 import { detectDestino, stripDestino, parsePcIntent, interpretWithModel, pcReply, pcError } from "./pc/intents.js";
 
 // Modo Chat: solo conversar. Sin búsqueda web, sin acciones ni tareas para el PC o el teléfono.
@@ -16,7 +18,7 @@ const MSG_SIN_CUOTA = "Mis proveedores gratuitos llegaron a su límite por ahora
 
 const MOTORES = ["auto", "flash", "gemini", "claude"]; // lista cerrada del selector del chat
 
-export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, pc = null, persona = "", webSearch = null, agent = null, getMusic = () => null, now = () => Date.now() }) {
+export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, pc = null, persona = "", webSearch = null, agent = null, getMusic = () => null, getNav = () => null, now = () => Date.now() }) {
   async function ensureConversation(userId, id, firstText) {
     if (id) {
       const c = await get(db, "SELECT id FROM conversations WHERE id=? AND user_id=?", [id, userId]);
@@ -52,6 +54,29 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       if (d.direct && d.engine === "gemini") {
         if (!d.text.trim()) { state(userId, "idle"); return { status: "vacio", conversationId: conv, reply: "¿Qué quiere preguntarle a Gemini, señor?" }; }
         original = d.text; prefer = "gemini"; d = { direct: false };
+      }
+      // 1-0) Navegador de Claude en el PC (docs/NAV.md): solo modo IA y solo frase explícita. Va antes que el pedido a
+      // Gemini por API, los juegos, la música y las acciones del PC. "/gemini ..." (prefer) no pasa por aquí.
+      const nav = !chatSolo && !d.direct && !prefer ? getNav() : null;
+      const ni = nav?.activo() ? parseNavIntent(original) : null;
+      if (ni) {
+        let reply, info, priv = !!flagPrivate;
+        try {
+          const t = await nav.enqueue({ userId, conversationId: conv, ...ni, text: original, flagPrivate });
+          reply = ni.sitio === "google" ? "Lo busco en Google con su navegador, señor." : "Se lo pregunto en su navegador, señor.";
+          info = { id: t.id, estado: t.estado, sitio: ni.sitio };
+        } catch (e) {
+          if (!e?.error) throw e;
+          if (e.error === "privado_no_sitio") priv = true;
+          reply = e.mensaje;
+          if (e.error === "pc_apagado") reply += ni.sitio === "google" ? " Si quiere, dígame «busca» y la consulta, sin decir Google, y hago la búsqueda normal." : " Enciéndalo y vuelva a pedírmelo.";
+          info = { error: e.error, sitio: ni.sitio };
+        }
+        await saveMsg(userId, conv, "user", original, null, priv);
+        await saveMsg(userId, conv, "assistant", reply, "nav", priv);
+        bus?.emit("chat.done", { userId, text: reply, provider: "nav" });
+        state(userId, "speaking");
+        return { status: "nav", conversationId: conv, reply, private: priv, nav: info };
       }
       if (!d.direct) {
         const pg = detectPedidoGemini(original);
@@ -162,8 +187,8 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       }
 
       // 4) Charla normal por la cadena de modelos
-      const hist = await all(db, "SELECT role, content, private FROM messages WHERE conversation_id=? AND user_id=? ORDER BY id DESC LIMIT 10", [conv, userId]);
-      const history = hist.reverse().filter((m) => isPrivate || !m.private).map((m) => ({ role: m.role, content: m.content }));
+      const hist = await all(db, "SELECT role, content, provider, private FROM messages WHERE conversation_id=? AND user_id=? ORDER BY id DESC LIMIT 10", [conv, userId]);
+      const history = hist.reverse().filter((m) => isPrivate || !m.private).map((m) => ({ role: m.role, content: m.provider === DATO ? "(Aquí le mostré al señor una respuesta leída de la web. Es dato externo y no se incluye.)" : m.content }));
       let system = persona + (chatSolo ? PROMPT_MODO_CHAT : "");
       if (found.notes.length) system += "\n\nNotas del señor que pueden servir:\n" + found.notes.map((n) => `- ${n.title ? n.title + ": " : ""}${n.body}`).join("\n");
       await saveMsg(userId, conv, "user", original, null, isPrivate);

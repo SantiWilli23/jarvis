@@ -26,6 +26,8 @@ ctx.bus.on("providers.update", async ({ userId }) => {
 
 // Si el PC deja de avisar, se marca desconectado.
 setInterval(() => ctx.agent.sweep(ctx.ownerId), 15_000).unref();
+// Consultas del navegador sin respuesta: se vencen y se avisa.
+setInterval(() => ctx.nav.sweep(ctx.ownerId).catch((e) => console.error("[nav]", e?.message)), 15_000).unref();
 
 const port = Number(process.env.PORT) || 3000;
 server.listen(port, () => {
