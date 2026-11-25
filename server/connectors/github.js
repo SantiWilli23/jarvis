@@ -6,6 +6,7 @@ import { redact } from "../pro/redact.js";
 const API = "https://api.github.com";
 const TTL_REPOS = 5 * 60 * 1000;
 const MAX_PAGINAS = 3;
+const MAX_PAGINAS_LISTA = 10;
 
 const OWNER_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 const REPO_RE = /^(?!\.{1,2}$)[A-Za-z0-9._-]{1,100}$/;
@@ -61,6 +62,17 @@ export function createGitHub({ env = process.env, fetch: f = globalThis.fetch, n
     return { full, token: tokens[i] };
   };
   const r = async (full, sub) => { const x = await tokenDe(full); return get(`/repos/${x.full}${sub}`, x.token); };
+  // lista paginada por número de página (per_page=100): corta en la primera página parcial o en el tope
+  const rPag = async (full, sub) => {
+    const x = await tokenDe(full); const out = [];
+    for (let p = 1; p <= MAX_PAGINAS_LISTA; p++) {
+      const page = await get(`/repos/${x.full}${sub}&page=${p}`, x.token);
+      if (!Array.isArray(page)) break;
+      out.push(...page);
+      if (page.length < 100) break;
+    }
+    return out;
+  };
 
   const api = {
     enabled: tokens.length > 0, rechazadas,
@@ -90,9 +102,9 @@ export function createGitHub({ env = process.env, fetch: f = globalThis.fetch, n
       cacheRepos = { at: now(), lista };
       return lista;
     },
-    ramas: (full) => r(full, "/branches?per_page=100"),
+    ramas: (full) => rPag(full, "/branches?per_page=100"),
     rama: async (full, name) => r(full, `/branches/${refPath(name)}`),
-    prs: (full) => r(full, "/pulls?state=all&sort=created&direction=desc&per_page=20"),
+    prs: (full) => rPag(full, "/pulls?state=all&sort=created&direction=desc&per_page=100"),
     pr: async (full, n) => r(full, `/pulls/${num(n)}`),
     async compare(full, base, head) {
       const j = await r(full, `/compare/${refPath(base)}...${refPath(head)}`);
