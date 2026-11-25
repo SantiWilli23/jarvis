@@ -87,7 +87,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   let ext = null; // conectores de las fases 4-6 (se arman al final)
   const studio = createStudio({ db, config: config.estudio, providers, chat, privacy, now });
   const browser = createBrowser({ db, config: loadJson("browser-sites.json"), agent, chat, privacy, bus, audit, now });
-  const nav = createNav({ db, config: loadJson("nav.json"), agent, chat, privacy, bus, audit, now });
+  const nav = createNav({ db, config: loadJson("nav.json"), agent, chat, privacy, bus, audit, websearch, now });
   const tts = createTts({ db, env, fetch: f, config: config.voz, privacy, now,
     phrasesDir: fileURLToPath(new URL("../web/audio/phrases", import.meta.url)),
     cacheDir: fileURLToPath(new URL("../data/cache/tts", import.meta.url)) });

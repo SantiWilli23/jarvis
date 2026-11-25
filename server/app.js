@@ -25,7 +25,7 @@ import { pushRoutes } from "./routes/push.js";
 import { studioRoutes } from "./routes/studio.js";
 import { githubRoutes } from "./routes/github.js";
 import { browserRoutes, agentBrowserRoutes } from "./routes/browser.js";
-import { agentNavRoutes } from "./routes/nav.js";
+import { agentNavRoutes, navRoutes } from "./routes/nav.js";
 
 const WEB = fileURLToPath(new URL("../web", import.meta.url));
 
@@ -72,6 +72,7 @@ export function createApp(ctx) {
   api.use("/devices", auth, deviceRoutes(ctx));
   api.use("/studio", auth, studioRoutes(ctx));
   api.use("/browser", auth, browserRoutes(ctx));
+  api.use("/nav", auth, navRoutes(ctx));        // historial y cancelar del navegador de Claude
   api.use("/github", auth, githubRoutes(ctx));
   api.use("/pro", auth, proRoutes(ctx));
   api.use("/chat", auth, chatRoutes(ctx));

@@ -58,12 +58,12 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       // 1-0) Navegador de Claude en el PC (docs/NAV.md): solo modo IA y solo frase explícita. Va antes que el pedido a
       // Gemini por API, los juegos, la música y las acciones del PC. "/gemini ..." (prefer) no pasa por aquí.
       const nav = !chatSolo && !d.direct && !prefer ? getNav() : null;
-      const ni = nav?.activo() ? parseNavIntent(original) : null;
+      let ni = nav?.activo() ? parseNavIntent(original) : null;
+      let reply, info, priv = !!flagPrivate;
       if (ni) {
-        let reply, info, priv = !!flagPrivate;
         try {
           const t = await nav.enqueue({ userId, conversationId: conv, ...ni, text: original, flagPrivate });
-          reply = ni.sitio === "google" ? "Lo busco en Google con su navegador, señor." : "Se lo pregunto en su navegador, señor.";
+          reply = ni.tipo === "investigar" ? "Lo investigo con su navegador, señor." : ni.sitio === "google" ? "Lo busco en Google con su navegador, señor." : "Se lo pregunto en su navegador, señor.";
           info = { id: t.id, estado: t.estado, sitio: ni.sitio };
         } catch (e) {
           if (!e?.error) throw e;
@@ -71,7 +71,11 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
           reply = e.mensaje;
           if (e.error === "pc_apagado") reply += ni.sitio === "google" ? " Si quiere, dígame «busca» y la consulta, sin decir Google, y hago la búsqueda normal." : " Enciéndalo y vuelva a pedírmelo.";
           info = { error: e.error, sitio: ni.sitio };
+          // "investiga X" sin navegador (apagado, tope, privado) sigue el camino normal: búsqueda por API o charla.
+          if (ni.tipo === "investigar") { ni = null; priv = false; }
         }
+      }
+      if (ni) {
         await saveMsg(userId, conv, "user", original, null, priv);
         await saveMsg(userId, conv, "assistant", reply, "nav", priv);
         bus?.emit("chat.done", { userId, text: reply, provider: "nav" });

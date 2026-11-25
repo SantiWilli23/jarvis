@@ -1,14 +1,23 @@
 {
-  "nota": "Navegador de Claude en el PC (docs/NAV.md). El worker aborta si se navega fuera de `hosts`. Lo privado nunca va a estos sitios.",
+  "nota": "Navegador de Claude en el PC (docs/NAV.md). `hosts` es la lista del perfil ia; lectura admite cualquier https salvo `hosts_negados`; escolar usa los `hosts` de su sitio. Lo privado nunca va a estos sitios.",
   "activo": true,
   "limites": { "timeout_s": 180, "margen_s": 60, "max_turnos": 25, "por_hora": 10, "por_dia": 30 },
+  "perfiles": { "ia": { "max_paginas": 3 }, "lectura": { "max_paginas": 5 }, "escolar": { "max_paginas": 5 } },
   "hosts": ["chatgpt.com", "gemini.google.com", "perplexity.ai", "www.perplexity.ai", "grok.com", "claude.ai", "www.google.com"],
+  "hosts_negados": [
+    "accounts.google.com", "pay.google.com", "payments.google.com", "wallet.google.com",
+    "*.paypal.com", "*.stripe.com", "*.mercadopago.com", "*.mercadopago.cl", "*.webpay.cl", "*.transbank.cl",
+    "*.bancoestado.cl", "*.bancochile.cl", "*.santander.cl", "*.bci.cl", "*.scotiabank.cl", "*.itau.cl",
+    "localhost", "*.localhost", "*.local", "*.internal", "127.0.0.1", "0.0.0.0", "[::1]"
+  ],
   "sitios": {
-    "chatgpt": { "nombre": "ChatGPT", "url_inicial": "https://chatgpt.com/" },
-    "gemini": { "nombre": "Gemini", "url_inicial": "https://gemini.google.com/app" },
-    "perplexity": { "nombre": "Perplexity", "url_inicial": "https://www.perplexity.ai/" },
-    "grok": { "nombre": "Grok", "url_inicial": "https://grok.com/" },
-    "claude": { "nombre": "Claude", "url_inicial": "https://claude.ai/new" },
-    "google": { "nombre": "Google", "url_inicial": "https://www.google.com/" }
+    "chatgpt": { "nombre": "ChatGPT", "perfil": "ia", "url_inicial": "https://chatgpt.com/", "patron_conversacion": "^https://chatgpt\\.com/(g/[\\w-]+/)?c/[\\w-]+$" },
+    "gemini": { "nombre": "Gemini", "perfil": "ia", "url_inicial": "https://gemini.google.com/app", "patron_conversacion": "^https://gemini\\.google\\.com/(u/\\d/)?app/[\\w-]+$" },
+    "perplexity": { "nombre": "Perplexity", "perfil": "ia", "url_inicial": "https://www.perplexity.ai/", "patron_conversacion": "^https://(www\\.)?perplexity\\.ai/search/[\\w.%~-]+$" },
+    "grok": { "nombre": "Grok", "perfil": "ia", "url_inicial": "https://grok.com/", "patron_conversacion": "^https://grok\\.com/(c|chat)/[\\w-]+$" },
+    "claude": { "nombre": "Claude", "perfil": "ia", "url_inicial": "https://claude.ai/new", "patron_conversacion": "^https://claude\\.ai/chat/[\\w-]+$" },
+    "google": { "nombre": "Google", "perfil": "lectura", "url_inicial": "https://www.google.com/" },
+    "classroom": { "nombre": "Classroom", "perfil": "escolar", "url_inicial": "https://classroom.google.com/", "hosts": ["classroom.google.com", "docs.google.com", "drive.google.com"] },
+    "lirmi": { "nombre": "Lirmi", "perfil": "escolar", "url_inicial": "https://global-sso.lirmi.com/", "hosts": ["*.lirmi.com"] }
   }
 }
