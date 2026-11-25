@@ -2,6 +2,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, delimiter } from "node:path";
+import { urlsDeHerramienta, urlPermitida } from "./nav-guard.js";
 
 // Busca el ejecutable real de Claude Code. En Windows evita .cmd (haría falta un shell): usa claude.exe
 // (instalador nativo) o el cli.js del paquete npm ejecutado con node.
@@ -15,7 +16,10 @@ export function resolveClaude({ env = process.env, platform = process.platform, 
     const home = env.USERPROFILE || "";
     const nativo = join(home, ".local", "bin", "claude.exe");
     if (exists(nativo)) return { command: nativo, prefix: [] };
-    const cli = join(env.APPDATA || "", "npm", "node_modules", "@anthropic-ai", "claude-code", "cli.js");
+    const pkg = join(env.APPDATA || "", "npm", "node_modules", "@anthropic-ai", "claude-code");
+    const binNpm = join(pkg, "bin", "claude.exe"); // versiones nuevas del paquete npm
+    if (exists(binNpm)) return { command: binNpm, prefix: [] };
+    const cli = join(pkg, "cli.js");
     if (exists(cli)) return { command: process.execPath, prefix: [cli], nodeAsElectron: !!process.versions.electron };
   }
   return null;
@@ -39,30 +43,8 @@ export function classifyClaudeError(text) {
   return null;
 }
 
-// --- Límite de hosts del navegador (docs/NAV.md) ---
-// URLs que una llamada de herramienta quiere abrir (navigate, tabs_create_mcp y lo mismo dentro de browser_batch).
-export function urlsDeHerramienta(name, input) {
-  const corto = String(name || "").replace(/^mcp__claude-in-chrome__/, "");
-  if (corto === "browser_batch") return (Array.isArray(input?.actions) ? input.actions : []).flatMap((a) => urlsDeHerramienta(a?.name, a?.input));
-  if (corto !== "navigate" && corto !== "tabs_create_mcp") return [];
-  return typeof input?.url === "string" && input.url.trim() ? [input.url.trim()] : [];
-}
-
-// Host exacto (con o sin "www."); subdominios solo si la lista dice "*.dominio". Solo http(s).
-export function urlPermitida(url, hosts = []) {
-  const t = String(url || "").trim();
-  if (t === "back" || t === "forward" || t === "about:blank") return true;
-  let u;
-  try { u = new URL(/^[a-z][a-z0-9+.-]*:(?!\d)/i.test(t) ? t : `https://${t}`); } catch { return false; }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return false;
-  const limpio = (h) => String(h).toLowerCase().replace(/\.$/, "").replace(/^www\./, "");
-  const host = limpio(u.hostname);
-  return hosts.some((h) => {
-    if (!String(h).startsWith("*.")) return host === limpio(h);
-    const base = limpio(String(h).slice(2));
-    return host === base || host.endsWith(`.${base}`);
-  });
-}
+// --- Límite de hosts del navegador: las reglas viven en nav-guard.js (el hook); aquí queda el corte de respaldo.
+export { urlsDeHerramienta, urlPermitida };
 
 // Mata el proceso y todos sus hijos (en Windows child.kill() deja vivos los nietos).
 export function killTreeOf(child, platform = process.platform) {
@@ -94,9 +76,10 @@ export function normalizeEvent(m) {
 
 // Devuelve { result, isError, errorKind, subtype, model, models, sessionId, usage:{tokens_in,tokens_out}, denials, aborted, exitCode }.
 // `signal` (AbortSignal): al cancelar se mata el proceso (aborted = "cancelado").
-// `hosts` (lista): si Claude intenta abrir una URL fuera de ella se mata (aborted = "bloqueado", blockedUrl).
+// `hosts` (lista) y `negados`: si Claude intenta abrir una URL no permitida se mata (aborted = "bloqueado", blockedUrl).
+// `onMessage`: cada mensaje crudo del stream-json (el navegador saca de ahí pasos, capturas y direcciones).
 // `killTree`: al abortar se mata el árbol de procesos entero.
-export function runClaude({ command, prefix = [], args, stdin, cwd, env = process.env, onEvents = () => {}, maxTokens = null, timeoutMs = 30 * 60_000, spawnFn = spawn, signal = null, hosts = null, killTree = false }) {
+export function runClaude({ command, prefix = [], args, stdin, cwd, env = process.env, onEvents = () => {}, maxTokens = null, timeoutMs = 30 * 60_000, spawnFn = spawn, signal = null, hosts = null, negados = [], onMessage = null, killTree = false }) {
   return new Promise((resolve) => {
     if (signal?.aborted) return resolve({ result: "", isError: false, errorKind: null, subtype: null, model: null, models: [], sessionId: null, usage: { tokens_in: 0, tokens_out: 0 }, denials: [], aborted: "cancelado", exitCode: null, stderr: "" });
     const child = spawnFn(command, [...prefix, ...args], { cwd, env: { ...claudeEnv(env), ...(prefix.length && process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}) }, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, shell: false, ...(killTree && process.platform !== "win32" ? { detached: true } : {}) });
@@ -113,11 +96,12 @@ export function runClaude({ command, prefix = [], args, stdin, cwd, env = proces
       if (m.session_id) out.sessionId = m.session_id;
       if (hosts && m.type === "assistant") {
         for (const b of m.message?.content || []) {
-          const mala = b.type === "tool_use" ? urlsDeHerramienta(b.name, b.input).find((u) => !urlPermitida(u, hosts)) : undefined;
+          const mala = b.type === "tool_use" ? urlsDeHerramienta(b.name, b.input).find((u) => !urlPermitida(u, hosts, negados)) : undefined;
           if (mala !== undefined) { out.blockedUrl = mala.slice(0, 500); kill("bloqueado"); break; }
         }
       }
       if (m.type === "system" && m.subtype === "init" && m.model) out.model = String(m.model);
+      try { onMessage?.(m); } catch { /* mirar el stream nunca rompe la tarea */ }
       const ev = normalizeEvent(m);
       if (ev) onEvents([].concat(ev));
       if (m.type === "assistant" && m.message?.usage) {
