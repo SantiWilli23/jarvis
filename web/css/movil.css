@@ -230,3 +230,7 @@ body.movil .mus-lista button small { color: var(--dim); font-size: 11px; }
 body.movil .mus-lista button:active { border-color: var(--accent); }
 body.movil.con-musica .orbwrap { width: min(36vw, 20dvh); height: min(36vw, 20dvh); }
 body.movil.con-musica .stage { overflow-y: auto; overscroll-behavior: contain; }
+body.movil .mpro-say button.mic { min-width: 44px; display: grid; place-items: center; }
+body.movil .mic svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+body.movil .mpro-say button.mic[aria-pressed="true"] { border-color: var(--red); color: var(--used); }
+body.movil .pro-leer { display: flex; gap: 8px; align-items: center; min-height: 44px; font-size: 13px; color: var(--dim); }

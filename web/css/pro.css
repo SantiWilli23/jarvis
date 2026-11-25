@@ -104,4 +104,9 @@
 .webrama { display: grid; gap: 4px; }
 .webrama small { color: var(--dim); font-family: var(--mono); font-size: 11px; }
 #pro-modo-box[hidden], #pro-gh-box[hidden], #pro-local-box[hidden] { display: none; }
+.say-form button.mic { min-width: 40px; min-height: 36px; display: grid; place-items: center; }
+.mic svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.say-form button.mic[aria-pressed="true"] { border-color: var(--red); color: var(--used); }
+.mic[aria-busy="true"] { animation: pulso 1.2s ease-in-out infinite; }
+.pro .pro-leer { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--dim); min-height: 28px; }
 @media (max-width: 760px) { .pro { grid-template-columns: minmax(0, 1fr); } }
