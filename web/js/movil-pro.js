@@ -2,6 +2,7 @@
 // Todo el HTML sale de pro-web.js (escapado); aquí solo hay cableado.
 import { api, getToken } from "./api.js";
 import { esc, renderRondaWeb, renderRamaSelect, opcionesRepos, opcionesRamas, ramaPorDefecto, motivosWebTexto, webHabilitado, createWebCtl, errWeb, nombreDestino } from "./pro-web.js";
+import { montarVoz } from "./voz-ui.js";
 
 const $ = (id) => document.getElementById(id);
 const S = { pro: null, repos: [], ramas: [], ramasHilo: [], hilos: [], actual: null, msgs: [], rondas: [], envios: [], error: "", abierto: false };
@@ -14,6 +15,8 @@ const ctl = createWebCtl({
   hilo: () => ({ id: S.actual?.id, envios: S.envios }),
   recargar: () => (S.actual ? abrir(S.actual.id) : pintar()), error: (t) => { S.error = t; pintar(); },
 });
+
+const voz = montarVoz({ mic: $("mpro-mic"), input: $("mpro-in"), leer: $("mpro-leer"), error: (t) => { S.error = t; pintar(); } });
 
 export const renderHilosM = (hilos, actual) => (hilos.length
   ? hilos.map((t) => `<button type="button" class="hilo${t.id === actual ? " sel" : ""}" data-m="hilo" data-id="${esc(t.id)}"><b>${esc(t.title || "Hilo " + t.id)}</b><small>${esc(t.gh_repo || "")}${t.gh_rama ? " · " + esc(t.gh_rama) : ""}</small></button>`).join("")
@@ -56,6 +59,8 @@ function pintar() {
   for (const [id, v] of guardados) { const t = id && document.getElementById(id); if (t && !t.readOnly && v && v !== t.defaultValue) t.value = v; }
   const puede = ok && !!S.actual && ronda()?.status !== "traduciendo";
   $("mpro-in").disabled = !puede; $("mpro-send").disabled = !puede;
+  voz.habilitar(puede);
+  voz.lector.revisar(S.actual?.id, S.msgs, S.abierto);
 }
 
 export async function proAbrir() {
@@ -66,7 +71,7 @@ export async function proAbrir() {
   pintar();
   if (!S.actual && S.hilos[0]) abrir(S.hilos[0].id);
 }
-export const proCerrar = () => { S.abierto = false; };
+export const proCerrar = () => { S.abierto = false; voz.parar(); };
 
 $("sh-pro").addEventListener("click", (e) => {
   const w = e.target.closest("[data-w]");
