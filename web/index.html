@@ -149,8 +149,10 @@
       <form class="say-form" id="pro-form">
         <label class="sr" for="pro-in">Mensaje para Claude</label>
         <input type="text" id="pro-in" placeholder="Describa la tarea…" autocomplete="off" maxlength="4000" disabled>
+        <button type="button" id="pro-mic" class="mic" aria-label="Dictar por voz" aria-pressed="false" title="Dictar por voz" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM6 11a6 6 0 0 0 12 0M12 17v4"/></svg></button>
         <button type="submit" id="pro-send" disabled>Enviar</button>
       </form>
+      <label class="pro-leer"><input type="checkbox" id="pro-leer"> Leer respuestas</label>
     </section>
   </div>
 </div>

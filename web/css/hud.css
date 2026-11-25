@@ -350,3 +350,8 @@ body.movil .juego-btn { min-height: 44px; padding: 0 14px; font-size: 12px; }
 .pcbtns { display: flex; gap: 8px; }
 .pcbtns button { flex: 1; min-height: 44px; border: 1px solid var(--amber); background: transparent; font-weight: 600; }
 .pcbtns .yes { background: var(--amber); color: #1a0f00; }
+
+/* Navegador de Claude: respuesta larga con desplazamiento y lista de fuentes */
+.say .txt.nav { max-height: 34vh; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.say .navfuentes { margin: 0; padding-left: 18px; font-size: 13px; max-height: 14vh; overflow-y: auto; overflow-wrap: anywhere; }
+.say .navfuentes a { color: var(--accent); }

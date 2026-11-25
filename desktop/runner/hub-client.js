@@ -26,6 +26,9 @@ export function createHubClient({ baseUrl, token, fetchFn = fetch }) {
     // Cola de acciones del PC (Ola 0): reclamar la siguiente y devolver el resultado
     pcNext: () => call("/pc/next", { body: {} }),
     pcResult: (id, out) => call(`/pc/${id}/result`, { body: out }),
+    // Navegador de Claude (docs/NAV.md)
+    navClaim: () => call("/nav/claim", { body: {} }),
+    navResult: (id, out) => call(`/nav/${id}/result`, { body: out }),
     // Modo Pro (docs/PRO.md §5 y "Ampliaciones P3")
     proClaim: () => call("/pro/claim", { body: {} }),
     proEvents: (id, events) => call(`/pro/jobs/${id}/events`, { body: { events } }),

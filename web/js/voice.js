@@ -39,7 +39,7 @@ function pickVoice() {
   const male = /jorge|diego|pablo|alvaro|enrique|raul|carlos|juan|miguel|andres|male|masculin/i;
   return vs.find((v) => male.test(v.name)) || vs[0] || null;
 }
-if (window.speechSynthesis) window.speechSynthesis.onvoiceschanged = () => { voice = pickVoice(); };
+if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.onvoiceschanged = () => { voice = pickVoice(); };
 
 // Voz del navegador (último recurso): tono bajo y calmado.
 function speakBrowser(msg, end) {
@@ -64,6 +64,9 @@ function getPlayer() {
   if (!player) { player = new Audio(); player.src = SILENCE; player.play().catch(() => {}); }
   return player;
 }
+
+// Para llamar dentro de un toque: deja el audio listo en iOS sin decir nada.
+export function desbloquearVoz() { try { getPlayer(); } catch { /* sin audio */ } }
 
 // Dice el texto: pide /api/tts (pregrabada > Gemini > MiniMax); si responde 204 o falla, usa la voz del navegador.
 // llama a onEnd al terminar (o enseguida si no hay nada con qué hablar).

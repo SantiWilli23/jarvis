@@ -1,0 +1,14 @@
+{
+  "nota": "Navegador de Claude en el PC (docs/NAV.md). El worker aborta si se navega fuera de `hosts`. Lo privado nunca va a estos sitios.",
+  "activo": true,
+  "limites": { "timeout_s": 180, "margen_s": 60, "max_turnos": 25, "por_hora": 10, "por_dia": 30 },
+  "hosts": ["chatgpt.com", "gemini.google.com", "perplexity.ai", "www.perplexity.ai", "grok.com", "claude.ai", "www.google.com"],
+  "sitios": {
+    "chatgpt": { "nombre": "ChatGPT", "url_inicial": "https://chatgpt.com/" },
+    "gemini": { "nombre": "Gemini", "url_inicial": "https://gemini.google.com/app" },
+    "perplexity": { "nombre": "Perplexity", "url_inicial": "https://www.perplexity.ai/" },
+    "grok": { "nombre": "Grok", "url_inicial": "https://grok.com/" },
+    "claude": { "nombre": "Claude", "url_inicial": "https://claude.ai/new" },
+    "google": { "nombre": "Google", "url_inicial": "https://www.google.com/" }
+  }
+}

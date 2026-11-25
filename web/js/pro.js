@@ -2,6 +2,7 @@
 // Las funciones de render son puras (devuelven HTML escapado) y se prueban sin navegador.
 import { api, getToken, decideApproval, pendingApprovals } from "./api.js";
 import { renderRondaWeb, renderRamaSelect, opcionesRepos, opcionesRamas, ramaPorDefecto, motivosWebTexto, proActivo, localVisible, webHabilitado, createWebCtl, errWeb } from "./pro-web.js";
+import { montarVoz } from "./voz-ui.js";
 
 export const MOTIVOS = {
   pc_apagado: "El PC está apagado o sin conexión.",
@@ -145,6 +146,7 @@ export function renderHilos(hilos, actual) {
 /* ---------------- UI (solo navegador) ---------------- */
 const S = { coord: null, pro: null, repos: [], ghRepos: [], ramas: [], ramasHilo: [], envios: [], hilos: [], actual: null, msgs: [], rondas: [], vivos: new Map(), ultimo: null, aprobs: [], error: "", cargado: false };
 const $ = (id) => document.getElementById(id);
+let voz = null;
 const ctl = createWebCtl({
   api, nav: typeof navigator !== "undefined" ? navigator : undefined, win: typeof window !== "undefined" ? window : undefined, doc: typeof document !== "undefined" ? document : undefined,
   root: () => $("pro-round"), hilo: () => ({ id: S.actual?.id, envios: S.envios }),
@@ -255,6 +257,8 @@ function pintar() {
   $("pro-send").disabled = !puede; $("pro-in").disabled = !puede;
   $("pro-in").placeholder = !ok ? "Pro no disponible" : sin ? "Cree un hilo primero" : "Describa la tarea…";
   $("pro-coord-box").hidden = web;
+  voz?.habilitar(puede);
+  voz?.lector.revisar(S.actual?.id, S.msgs, !$("vista-pro").hidden);
 }
 
 async function decidir(id, accion, text) {
@@ -344,6 +348,7 @@ function seleccionar(pro) {
   tc.tabIndex = pro ? -1 : 0; tp.tabIndex = pro ? 0 : -1;
   $("vista-clasico").hidden = pro; $("vista-pro").hidden = !pro;
   try { localStorage.setItem("jarvis_pestana", pro ? "pro" : "clasico"); } catch { /* modo privado */ }
+  if (!pro) voz?.parar();
   if (pro) { if (!S.cargado) { S.cargado = true; cargarHilos(); } pintar(); }
 }
 
@@ -364,6 +369,7 @@ function init() {
   $("pro-gh-repo").addEventListener("change", async () => { await ramasDe($("pro-gh-repo").value); $("pro-gh-rama").innerHTML = opcionesRamas(S.ramas, ramaPorDefecto(S.ghRepos, $("pro-gh-repo").value)); });
   $("pro-round").addEventListener("change", (e) => { if (e.target.dataset?.wChange === "rama") ctl.cambiarRama(e.target.value); });
   $("pro-form").addEventListener("submit", enviar);
+  if ($("pro-mic")) voz = montarVoz({ mic: $("pro-mic"), input: $("pro-in"), leer: $("pro-leer"), error: (t) => { S.error = t; pintar(); } });
   $("pro-coord")?.addEventListener("change", (e) => api("/pro/coordinador", { method: "POST", body: { activo: e.target.checked } }).then((c) => { S.coord = c; pintar(); }).catch((x) => { S.error = errTexto(x); cargarEstado(); }));
   const vistos = new WeakSet(); // main.js y ws.js despachan el mismo objeto: se procesa una sola vez
   window.addEventListener("jarvis:ws", (e) => { const d = e.detail; if (d && typeof d === "object") { if (vistos.has(d)) return; vistos.add(d); } onWsPro(d); });

@@ -238,8 +238,10 @@
       <form id="mpro-form" class="mpro-say">
         <label class="sr" for="mpro-in">Mensaje para Jarvis</label>
         <input type="text" id="mpro-in" placeholder="Cuente qué quiere hacer…" autocomplete="off" maxlength="4000" enterkeyhint="send" disabled>
+        <button type="button" id="mpro-mic" class="mic" aria-label="Dictar por voz" aria-pressed="false" title="Dictar por voz" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM6 11a6 6 0 0 0 12 0M12 17v4"/></svg></button>
         <button type="submit" id="mpro-send" disabled>Enviar</button>
       </form>
+      <label class="pro-leer"><input type="checkbox" id="mpro-leer"> Leer respuestas</label>
     </div>
   </div>
 </section>

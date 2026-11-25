@@ -25,6 +25,7 @@ import { pushRoutes } from "./routes/push.js";
 import { studioRoutes } from "./routes/studio.js";
 import { githubRoutes } from "./routes/github.js";
 import { browserRoutes, agentBrowserRoutes } from "./routes/browser.js";
+import { agentNavRoutes } from "./routes/nav.js";
 
 const WEB = fileURLToPath(new URL("../web", import.meta.url));
 
@@ -57,6 +58,7 @@ export function createApp(ctx) {
   api.use("/auth", authRoutes(ctx));
   api.use("/agent/pc", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentPcRoutes(ctx)); // cola de acciones del PC (antes de /agent)
   api.use("/agent/browser", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentBrowserRoutes(ctx)); // antes de /agent
+  api.use("/agent/nav", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentNavRoutes(ctx)); // antes de /agent
   api.use("/agent/pro", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentProRoutes(ctx)); // antes de /agent
   api.use("/agent", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentRoutes(ctx));
   api.use(stubRoutes());

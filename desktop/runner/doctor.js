@@ -51,6 +51,20 @@ export async function probeClaudeModel(cb, id, { ex = exec, env = process.env, n
   return r;
 }
 
+// Capacidad `chrome` (docs/NAV.md): el CLI conoce --chrome y hay sesión iniciada. No gasta cuota.
+// No comprueba que la extensión Claude in Chrome esté conectada: eso solo se sabe al ejecutar una tarea.
+export async function checkChrome(cb, { ex = exec, env = process.env } = {}) {
+  if (!cb) return { ok: false, error: "sin_claude" };
+  try {
+    if (!/(^|\s)--chrome\b/.test(await ex(cb, ["--help"], 15000, claudeEnv(env)))) return { ok: false, error: "sin_chrome" };
+    const t = String(await ex(cb, ["auth", "status"], 15000, claudeEnv(env)));
+    const j = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
+    return j.loggedIn === true ? { ok: true, error: null } : { ok: false, error: "sin_login" };
+  } catch (e) {
+    return { ok: false, error: /"loggedIn":\s*false/.test(String(e.stdout || "")) ? "sin_login" : "no_responde" };
+  }
+}
+
 export async function runDoctor({ folders = [], claudePath = null, exec: ex = exec, env = process.env, claudeModelos = null } = {}) {
   const cb = claudePath ? { command: claudePath, prefix: [] } : resolveClaude({ env });
   let claude = { ok: false, modelos: [], faltan: [], error: null };
@@ -68,5 +82,6 @@ export async function runDoctor({ folders = [], claudePath = null, exec: ex = ex
     }
   }
   const repos = await discoverRepos(folders);
-  return { claude, repos };
+  const chrome = await checkChrome(cb, { ex, env });
+  return { claude, chrome, repos };
 }

@@ -18,6 +18,7 @@ import { createDirect } from "./queue/direct.js";
 import { createPrepare } from "./queue/prepare.js";
 import { createStudio } from "./studio.js";
 import { createBrowser } from "./browser.js";
+import { createNav } from "./nav.js";
 import { createApprovals } from "./approvals.js";
 import { createAgent } from "./agent.js";
 import { createAudit } from "./audit.js";
@@ -82,10 +83,11 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const limiter = createLoginLimiter({ db, now });
   const stt = createStt({ apiKey: env.GROQ_API_KEY, fetch: f });
   const websearch = createWebSearch({ providers, quota, config: config.busqueda, fetch: f, env, now });
-  const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, phone, pc, escenas, persona, webSearch: websearch, agent, getMusic: () => ext?.music, now });
+  const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, phone, pc, escenas, persona, webSearch: websearch, agent, getMusic: () => ext?.music, getNav: () => nav, now });
   let ext = null; // conectores de las fases 4-6 (se arman al final)
   const studio = createStudio({ db, config: config.estudio, providers, chat, privacy, now });
   const browser = createBrowser({ db, config: loadJson("browser-sites.json"), agent, chat, privacy, bus, audit, now });
+  const nav = createNav({ db, config: loadJson("nav.json"), agent, chat, privacy, bus, audit, now });
   const tts = createTts({ db, env, fetch: f, config: config.voz, privacy, now,
     phrasesDir: fileURLToPath(new URL("../web/audio/phrases", import.meta.url)),
     cacheDir: fileURLToPath(new URL("../data/cache/tts", import.meta.url)) });
@@ -134,7 +136,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   }
 
   const base = { db, env, config, permissions, persona, ownerId, providers, chain, keyless, privacy, quota, bus, state, router,
-    notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, pc, escenas, agent, pro, github, sessions, limiter, stt, tts, studio, browser, chat, websearch, status, now, fts };
+    notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, pc, escenas, agent, pro, github, sessions, limiter, stt, tts, studio, browser, nav, chat, websearch, status, now, fts };
   ext = buildExtensions(base, { fetch: f });
   const despertador = createDespertador({ env, bus, audit, getGoogle: () => ext?.google, now });
   const push = createPush({ db, env, bus, audit, ownerId, webpush: webpushOverride === undefined ? await loadWebPush() : webpushOverride, now });

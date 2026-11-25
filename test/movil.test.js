@@ -46,8 +46,8 @@ test("GET /m responde 200 con la vista móvil; / sigue siendo el HUD de escritor
 
 test("service worker y manifiesto al día", () => {
   const sw = web("sw.js");
-  assert.match(sw, /jarvis-shell-v17/);
-  for (const p of ['"/m"', '"/css/movil.css"', '"/js/movil.js"', '"/js/musica.js"']) assert.ok(sw.includes(p), p);
+  assert.match(sw, /jarvis-shell-v18/);
+  for (const p of ['"/m"', '"/css/movil.css"', '"/js/movil.js"', '"/js/musica.js"', '"/js/nav.js"', '"/js/voz-ui.js"']) assert.ok(sw.includes(p), p);
   const mf = JSON.parse(web("manifest.webmanifest"));
   assert.equal(mf.id, "/"); assert.equal(mf.scope, "/"); assert.equal(mf.theme_color, "#080b10"); assert.equal(mf.background_color, "#080b10");
   assert.ok(mf.icons.some((i) => i.sizes === "180x180" && i.type === "image/png"));

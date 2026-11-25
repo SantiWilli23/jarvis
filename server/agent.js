@@ -10,6 +10,7 @@ function cleanCaps(c) {
   return {
     // modelos = ids de Claude que el PC VERIFICÓ con una llamada mínima; error = sin_login | modelo_no_disponible | texto
     claude: { ok: !!c.claude?.ok, modelos: strs(c.claude?.modelos), faltan: strs(c.claude?.faltan), error: err(c.claude?.error), ...(c.claude?.version ? { version: String(c.claude.version).slice(0, 20) } : {}) },
+    ...(c.chrome != null ? { chrome: { ok: c.chrome === true || c.chrome.ok === true } } : {}), // navegador de Claude (docs/NAV.md)
     repos: strs((c.repos || []).map((r) => (typeof r === "string" ? r : r?.ruta || ""))).filter(Boolean),
   };
 }
