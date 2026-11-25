@@ -11,9 +11,10 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="css/hud.css">
 <link rel="stylesheet" href="css/pro.css">
+<link rel="stylesheet" href="css/envivo.css">
 </head>
 <body data-state="idle">
 
@@ -30,92 +31,57 @@
 </div>
 
 <div class="app" id="app">
-  <header class="top">
-    <div class="brand">JARVIS</div>
-    <span class="chip"><i class="dot on"></i><span id="clock">--:--</span></span>
-    <span class="chip" id="pcchip"><i class="dot off" id="pcdot"></i><span id="pctext">PC apagado · modo nube</span></span>
-    <span class="sp"></span>
-    <button class="chip-btn" id="tomovil-btn" type="button" title="Cambiar a la vista móvil">Móvil</button>
-    <button class="chip-btn" id="logout" type="button">Salir</button>
-  </header>
+  <nav class="rail" aria-label="Secciones">
+    <div class="rail-tabs" id="tablist" role="tablist" aria-label="Secciones" aria-orientation="vertical">
+      <button type="button" role="tab" id="tab-clasico" aria-controls="vista-clasico" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg><span>Jarvis</span></button>
+      <button type="button" role="tab" id="tab-estudiar" aria-controls="vista-estudiar" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9l9-5 9 5-9 5z"/><path d="M7 11.5V17c3 2 7 2 10 0v-5.5"/></svg><span>Estudiar</span></button>
+      <button type="button" role="tab" id="tab-pro" aria-controls="vista-pro" aria-selected="false" aria-disabled="true" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6l-5 6 5 6M16 6l5 6-5 6"/></svg><span>Pro</span></button>
+      <button type="button" role="tab" id="tab-chats" aria-controls="vista-chats" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><span>Chats</span></button>
+    </div>
+    <button type="button" id="masbtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="mas"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg><span>Más</span><b class="badge" id="masbadge" hidden>0</b></button>
+  </nav>
 
-  <div class="tabs" id="tablist" role="tablist" aria-label="Vista de Jarvis">
-    <button type="button" role="tab" id="tab-clasico" aria-selected="true" aria-controls="vista-clasico">Clásico</button>
-    <button type="button" role="tab" id="tab-pro" aria-selected="false" aria-controls="vista-pro" aria-disabled="true" tabindex="-1">Pro</button>
-    <a class="tab-link" href="/estudio" style="display:inline-flex;align-items:center;color:var(--fg);padding:0 14px;min-height:44px;border:1px solid var(--line);text-decoration:none;font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase">Estudio</a>
-  </div>
+  <main class="main" id="main">
   <div class="pro-motivos" id="pro-motivos" role="status" hidden></div>
 
   <div id="vista-clasico" role="tabpanel" aria-labelledby="tab-clasico">
-  <div class="layout">
-    <section class="col" aria-label="Conexiones y memoria">
-      <div class="panel">
-        <h2>Conexiones</h2>
-        <div class="conn" id="conn"></div>
-      </div>
-      <div class="panel">
-        <h2>Memoria <em id="membd">local</em></h2>
-        <div class="mem">
-          <b id="memtotal">0</b> notas · <b id="mempriv">0</b> privadas · <b id="memrev">0</b> por revisar<br>
-          Última sincronización con el PC: <b id="memsync">nunca</b><br>
-          Leídas en esta consulta: <b id="memread">0</b>
-        </div>
-      </div>
-    </section>
-
     <section class="stage" aria-label="Orbe de Jarvis">
       <div class="orbwrap">
         <canvas id="orb" aria-label="Orbe de Jarvis, toque para hablar" role="img"></canvas>
-        <div class="readout"><b id="slabel">En espera</b><span id="smodel">toque el orbe</span><i class="modo-tag" id="modotag" hidden>Chat</i></div>
-        <div class="perm" id="perm" role="alertdialog" aria-label="Pedido de permiso">
-          <div class="k" id="permk">Claude pide permiso</div>
-          <code id="permcode"></code>
-          <p id="permp"></p>
-          <div class="btns"><button type="button" id="no">Rechazar</button><button type="button" class="yes" id="yes">Aprobar</button></div>
-        </div>
       </div>
+      <div class="readout"><b id="slabel">En espera</b><span id="smodel">toque el orbe</span><i class="modo-tag" id="modotag" hidden>Chat</i></div>
+      <p class="tu" id="tu" hidden></p>
       <div class="say" aria-live="polite">
         <div class="who" id="who">Jarvis</div>
         <div class="txt" id="txt"></div>
       </div>
+      <div class="msgacc" id="msgacc"></div>
       <div id="musica" hidden></div>
+      <div class="hint" id="hint">Toque el orbe para saludar.</div>
       <form class="say-form" id="sayform">
         <label class="sr" for="sayin">Escribir a Jarvis</label>
-        <input type="text" id="sayin" placeholder="o escriba aquí…" autocomplete="off" maxlength="4000">
-        <select id="saymotor" class="motor" aria-label="Motor de Jarvis" title="Motor: Auto, Nube, Gemini o Claude (PC)">
-        <option value="auto">Auto</option><option value="flash">Nube</option><option value="gemini">Gemini</option><option value="claude">Claude</option>
-      </select>
-      <label><input type="checkbox" id="saypriv"> privado</label>
-        <button type="submit">Enviar</button>
+        <input type="text" id="sayin" placeholder="Hable o escriba" autocomplete="off" maxlength="4000">
+        <label class="priv"><input type="checkbox" id="saypriv"> privado</label>
+        <button type="submit" class="enviar" aria-label="Enviar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+        <button type="button" class="micbig" id="saymic" aria-label="Hablar" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
       </form>
-      <div id="juegos" class="juegos" aria-label="Juegos"></div>
-      <div class="hint" id="hint">Toque el orbe para saludar. Después, un toque para hablar y otro para enviar.</div>
-    </section>
-
-    <section class="col" aria-label="Cola y voz">
-      <div class="panel">
-        <h2>Cola para el PC <em id="qcount">0</em></h2>
-        <div id="queue"></div>
-      </div>
-      <div class="panel" id="panel-pc">
-        <h2>PC <em>acciones</em></h2>
-        <div class="pcacc" id="pcacc"></div>
-      </div>
-      <div class="panel" id="panel-config">
-        <h2 id="cfg-titulo">Configuración</h2>
-        <div class="cfg-modo" role="group" aria-labelledby="cfg-modo-lbl">
-          <span class="cfg-lbl" id="cfg-modo-lbl">Modo de Jarvis</span>
-          <div class="cfg-opts">
-            <button type="button" id="modo-ia" data-modo="ia" aria-pressed="true">IA</button>
-            <button type="button" id="modo-chat" data-modo="chat" aria-pressed="false">Chat</button>
-          </div>
-          <p class="cfg-nota" id="cfg-nota">IA: con búsqueda web, herramientas y tareas para el PC.</p>
-        </div>
-      </div>
-      <div id="voz" hidden></div><!-- panels.js lo rellena; el panel visible se quitó -->
     </section>
   </div>
-  <div class="foot">Jarvis · Fase 1 · iPhone: Safari, un toque para hablar · <a href="/m" id="tomovil" style="color:inherit">Vista móvil</a></div>
+
+  <div id="vista-estudiar" class="vista" role="tabpanel" aria-labelledby="tab-estudiar" hidden>
+    <div class="vcol">
+      <h1 class="vt">Estudiar</h1>
+      <div class="esc-botones">
+        <button type="button" class="big" data-esc="classroom">Revisar Classroom</button>
+        <button type="button" class="big" data-esc="lirmi">Revisar Lirmi</button>
+      </div>
+      <p class="vmsg" id="esc-msg" role="status"></p>
+      <ul class="tarjetas" id="esc-lista" aria-label="Pendientes"></ul>
+      <form class="esc-form" id="esc-form">
+        <label for="esc-correo">Correo de Classroom</label>
+        <div><input type="email" id="esc-correo" placeholder="ejemplo@example.com" autocomplete="email" maxlength="200" required><button type="submit">Guardar</button></div>
+      </form>
+    </div>
   </div>
 
   <div id="vista-pro" class="pro" role="tabpanel" aria-labelledby="tab-pro" hidden>
@@ -155,9 +121,102 @@
       <label class="pro-leer"><input type="checkbox" id="pro-leer"> Leer respuestas</label>
     </section>
   </div>
+
+  <div id="vista-chats" class="vista" role="tabpanel" aria-labelledby="tab-chats" hidden>
+    <div class="vcol">
+      <h1 class="vt">Chats</h1>
+      <p class="vmsg" id="chats-msg" role="status"></p>
+      <ul class="tarjetas" id="chats-lista" aria-label="Historial"></ul>
+    </div>
+  </div>
+  </main>
+
+  <aside class="envivo" id="envivo" aria-labelledby="ev-titulo" hidden>
+    <div class="ev-top">
+      <h2 id="ev-titulo">En vivo</h2>
+      <button type="button" class="ev-stop" id="ev-stop">Detener</button>
+    </div>
+    <p class="ev-consulta" id="ev-consulta"></p>
+    <div class="ev-pantalla">
+      <div class="ev-sitio" id="ev-sitio"></div>
+      <img id="ev-img" alt="Captura del navegador" hidden>
+    </div>
+    <ol class="ev-pasos" id="ev-pasos" aria-live="polite"></ol>
+    <p class="vmsg" id="ev-msg" role="status"></p>
+  </aside>
+
+  <div class="scrim" id="masscrim" hidden></div>
+  <div class="drawer" id="mas" role="dialog" aria-modal="true" aria-labelledby="mas-titulo" hidden>
+    <div class="mas-top">
+      <h2 id="mas-titulo">Más</h2>
+      <button type="button" id="mascerrar">Cerrar</button>
+    </div>
+    <div class="mas-estado">
+      <span class="chip"><i class="dot on"></i><span id="clock">--:--</span></span>
+      <span class="chip" id="pcchip"><i class="dot off" id="pcdot"></i><span id="pctext">PC apagado · modo nube</span></span>
+    </div>
+    <div class="menu">
+      <a href="/estudio">Estudio de código</a>
+      <button type="button" id="tomovil-btn" title="Cambiar a la vista móvil">Móvil</button>
+    </div>
+      <div class="panel" id="panel-config">
+        <h2 id="cfg-titulo">Configuración</h2>
+        <div class="cfg-modo" role="group" aria-labelledby="cfg-modo-lbl">
+          <span class="cfg-lbl" id="cfg-modo-lbl">Modo de Jarvis</span>
+          <div class="cfg-opts">
+            <button type="button" id="modo-ia" data-modo="ia" aria-pressed="true">IA</button>
+            <button type="button" id="modo-chat" data-modo="chat" aria-pressed="false">Chat</button>
+          </div>
+          <p class="cfg-nota" id="cfg-nota">Busca en la web y hace tareas.</p>
+        </div>
+        <label class="cfg-lbl" for="saymotor">Motor</label>
+        <select id="saymotor" class="motor" aria-label="Motor de Jarvis" title="Motor: Auto, Nube, Gemini o Claude (PC)">
+          <option value="auto">Auto</option><option value="flash">Nube</option><option value="gemini">Gemini</option><option value="claude">Claude</option>
+        </select>
+      </div>
+      <div class="panel">
+        <h2>Juegos</h2>
+        <div id="juegos" class="juegos" aria-label="Juegos"></div>
+      </div>
+      <div class="panel">
+        <h2>Cola para el PC <em id="qcount">0</em></h2>
+        <div id="queue"></div>
+      </div>
+      <div class="panel" id="panel-pc">
+        <h2>Control del PC</h2>
+        <div class="pcacc" id="pcacc"></div>
+      </div>
+      <div class="panel">
+        <h2>Conexiones</h2>
+        <div class="conn" id="conn"></div>
+      </div>
+      <div class="panel">
+        <h2>Memoria <em id="membd">local</em></h2>
+        <div class="mem">
+          <b id="memtotal">0</b> notas · <b id="mempriv">0</b> privadas · <b id="memrev">0</b> por revisar<br>
+          Última sincronización con el PC: <b id="memsync">nunca</b><br>
+          Leídas en esta consulta: <b id="memread">0</b>
+        </div>
+      </div>
+      <div id="voz" hidden></div><!-- panels.js lo rellena; el panel visible se quitó -->
+    <div class="menu"><button type="button" class="danger" id="logout">Salir</button></div>
+  </div>
+
+<div class="permwrap" id="permwrap">
+  <div class="perm" id="perm" role="alertdialog" aria-label="Pedido de permiso">
+    <div class="k" id="permk">Claude pide permiso</div>
+    <code id="permcode"></code>
+    <p id="permp"></p>
+    <div class="btns"><button type="button" id="no">Rechazar</button><button type="button" class="yes" id="yes">Aprobar</button></div>
+  </div>
+</div>
 </div>
 
 <script type="module" src="js/main.js"></script>
+<script type="module" src="js/secciones.js"></script>
+<script type="module" src="js/envivo.js"></script>
+<script type="module" src="js/chats.js"></script>
+<script type="module" src="js/estudiar.js"></script>
 <script type="module" src="js/acciones-pc.js"></script>
 <script type="module" src="js/pro.js"></script>
 </body>

@@ -3,7 +3,7 @@
 import { api, getToken, getConnect, runTool, googleStart } from "./api.js";
 import { store, setState } from "./state.js";
 import { showApproval } from "./panels.js";
-import { proAbrir, proCerrar } from "./movil-pro.js";
+import { proAbrir, proCerrar, proElegir } from "./movil-pro.js";
 import { initAccionesPc, refrescarAccionesPc } from "./acciones-pc.js";
 
 const $ = (id) => document.getElementById(id);
@@ -13,8 +13,10 @@ const safe = (fn) => { try { return fn(); } catch { /* API no disponible */ } };
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 
 /* ---------- hojas inferiores (una sola abierta) ---------- */
-const sheets = { cola: $("sh-cola"), tel: $("sh-tel"), musica: $("sh-musica"), estado: $("sh-estado"), mas: $("sh-mas"), pro: $("sh-pro") };
+const sheets = { cola: $("sh-cola"), tel: $("sh-tel"), musica: $("sh-musica"), estado: $("sh-estado"), mas: $("sh-mas"), pro: $("sh-pro"), estudiar: $("sh-estudiar"), chats: $("sh-chats") };
+const EN_MAS = new Set(["cola", "tel", "musica", "estado"]);
 let current = null;
+const avisarVista = (vista) => window.dispatchEvent(new CustomEvent("jarvis:vista", { detail: { vista } })); // chats.js y estudiar.js cargan al abrirse
 
 function closeSheet() {
   if (!current) return;
@@ -24,6 +26,7 @@ function closeSheet() {
   $("scrim").classList.remove("on");
   document.querySelectorAll(".dock [data-open]").forEach((b) => b.classList.remove("on"));
   setTimeout(() => { if (!s.classList.contains("on")) s.hidden = true; if (!current) $("scrim").hidden = true; }, 260);
+  avisarVista("clasico");
 }
 function openSheet(name) {
   closeKeyboard();
@@ -35,7 +38,8 @@ function openSheet(name) {
   $("scrim").hidden = false;
   void s.offsetHeight; // reflujo para que corra la transición
   s.classList.add("on"); $("scrim").classList.add("on");
-  document.querySelectorAll(".dock [data-open]").forEach((b) => b.classList.toggle("on", b.dataset.open === name));
+  document.querySelectorAll(".dock [data-open]").forEach((b) => b.classList.toggle("on", b.dataset.open === name || (b.dataset.open === "mas" && EN_MAS.has(name))));
+  avisarVista(name);
   if (name === "tel") { loadEscenas(); loadPhone(); refrescarAccionesPc(); }
   if (name === "cola") { loadPhone(); }
   if (name === "mas") renderMas();
@@ -62,25 +66,10 @@ for (const s of Object.values(sheets)) {
 $("scrim").addEventListener("click", closeSheet);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeSheet(); closeKeyboard(); } });
 
-document.querySelectorAll(".dock [data-open]").forEach((b) => b.addEventListener("click", () => {
-  const k = b.dataset.open;
-  if (k === "kb") { closeSheet(); toggleKeyboard(); } else openSheet(k);
-}));
+document.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => openSheet(b.dataset.open)));
 
-/* ---------- teclado: el campo de texto sube con el teclado (visualViewport) ---------- */
-function closeKeyboard() {
-  const f = $("sayform");
-  if (!f.classList.contains("open")) return;
-  f.classList.remove("open");
-  safe(() => $("sayin").blur());
-  body.classList.remove("kbopen"); root.style.setProperty("--kb", "0px");
-}
-function toggleKeyboard() {
-  const f = $("sayform");
-  if (f.classList.contains("open")) return closeKeyboard();
-  f.classList.add("open");
-  setTimeout(() => $("sayin").focus(), 60);
-}
+/* ---------- teclado: la barra de entrada sube con el teclado (visualViewport) ---------- */
+function closeKeyboard() { safe(() => $("sayin").blur()); }
 function syncKb() {
   const vv = window.visualViewport;
   if (!vv) return;
@@ -91,11 +80,17 @@ function syncKb() {
 }
 safe(() => { window.visualViewport.addEventListener("resize", syncKb); window.visualViewport.addEventListener("scroll", syncKb); });
 $("sayform").addEventListener("submit", () => setTimeout(closeKeyboard, 0));
-$("sayform").addEventListener("focusout", (e) => {
-  if (e.relatedTarget && $("sayform").contains(e.relatedTarget)) return;
-  setTimeout(() => { if (!$("sayform").contains(document.activeElement)) closeKeyboard(); }, 200);
-});
-$("orb").addEventListener("click", () => { closeKeyboard(); closeSheet(); }, true);
+for (const id of ["orb", "saymic"]) $(id).addEventListener("click", () => { closeKeyboard(); closeSheet(); }, true);
+// "Abrir en Pro" (#pro/<id>) bajo un mensaje.
+function abrirProDeHash() {
+  const m = /^#pro\/(\d+)$/.exec(location.hash);
+  if (!m || !getToken()) return;
+  history.replaceState(null, "", location.pathname + location.search); // así el mismo enlace vuelve a funcionar
+  proElegir(Number(m[1]));
+  if (current !== "pro") openSheet("pro");
+}
+window.addEventListener("hashchange", abrirProDeHash);
+setTimeout(abrirProDeHash, 800);
 
 /* ---------- hoja Control: pestañas iPhone / PC ---------- */
 initAccionesPc({ visible: () => current === "tel" && !$("ctab-pc").hidden });
@@ -141,6 +136,7 @@ window.addEventListener("jarvis:ws", (ev) => {
     refreshApprovals();
     if (document.hidden) safe(() => { if (Notification.permission === "granted") new Notification("Jarvis pide permiso", { body: m.approval?.summary || "Hay una acción pendiente" }); });
   } else if (m.type === "approval.resolved") refreshApprovals();
+  else if (m.type === "nav.inicio") { if (current === "estudiar") closeSheet(); } // deja ver "En vivo"
   else if (m.type === "phone.update") { if (current === "tel" || current === "cola") loadPhone(); else phoneCounts(); }
 });
 // Tras iniciar sesión (o al abrir con sesión guardada) se cargan los pendientes.
@@ -183,7 +179,6 @@ async function renderDespertador() {
 // Abrir desde una notificación: /m#aprobacion-<id> muestra la tarjeta pendiente.
 window.addEventListener("hashchange", () => { if (/^#aprobacion-/.test(location.hash)) refreshApprovals(); });
 if (/^#aprobacion-/.test(location.hash)) setTimeout(refreshApprovals, 800);
-$("mpro").addEventListener("click", () => openSheet("pro"));
 $("mdesk").addEventListener("click", () => {
   safe(() => localStorage.setItem("jarvis_vista", "escritorio"));
   location.href = "/";

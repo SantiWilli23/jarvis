@@ -17,7 +17,7 @@ test("el contenedor #pcacc existe una sola vez en m.html (pestaña PC de Control
   assert.match(m, /aria-label="Control"/);
   assert.match(m, /data-ctab="ios"[^>]*>iPhone/); assert.match(m, /data-ctab="pc"[^>]*>PC/);
   assert.match(m, /<span>Control<\/span>/);
-  assert.equal((m.match(/<button type="button" data-open="/g) || []).length, 6, "la barra inferior no gana botones");
+  assert.equal((m.match(/<button type="button" data-open="/g) || []).length, 8, "barra inferior (4 + micrófono) y los 4 accesos de Más");
   assert.match(web("index.html"), /js\/acciones-pc\.js/);
   assert.match(web("js/movil.js"), /acciones-pc\.js/);
   for (const f of ["m.html", "index.html"]) { const l = ids(f); assert.equal(new Set(l).size, l.length, f); }
@@ -32,5 +32,5 @@ test("showApproval distingue al PC", () => {
 test("el service worker guarda acciones-pc.js y sube de versión", () => {
   const sw = web("sw.js");
   assert.ok(sw.includes('"/js/acciones-pc.js"'));
-  assert.match(sw, /jarvis-shell-v18/);
+  assert.match(sw, /jarvis-shell-v19/);
 });
