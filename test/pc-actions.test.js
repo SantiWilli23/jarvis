@@ -65,8 +65,8 @@ test("config/pc-actions.json coincide con la verdad del PC (pc-spec.js)", () => 
     assert.equal(!!d.privado, !!PC_ACTIONS[id].privado, id);
   }
   for (const a of cfg.apps) assert.ok(DEFAULT_APPS[a], `app sin comando en el PC: ${a}`);
-  for (const id of ["apagar", "reiniciar", "portapapeles_leer"]) assert.equal(cfg.acciones[id].nivel, "aprobacion");
-  assert.equal(cfg.acciones.suspender.nivel, "automatico");
+  for (const id of ["apagar", "reiniciar", "suspender", "portapapeles_leer", "archivos_leer"]) assert.equal(cfg.acciones[id].nivel, "aprobacion");
+  assert.equal(cfg.acciones.cancelar_apagado.nivel, "automatico");
 });
 
 // ---------- cola: PC apagado ----------
@@ -249,8 +249,9 @@ test("PC simulado: bloquear, suspender y apagar usan comandos fijos; apagar exig
   const { calls, ex } = fakePc();
   await ex.execute({ accion: "bloquear", params: {} });
   assert.deepEqual(calls.exec[0], ["rundll32.exe", ["user32.dll,LockWorkStation"]]);
-  await ex.execute({ accion: "suspender", params: {} });
-  assert.deepEqual(calls.exec[1], ["rundll32.exe", ["powrprof.dll,SetSuspendState", "0,1,0"]]);
+  assert.equal((await ex.execute({ accion: "suspender", params: {} })).ok, false); // sin aprobación no se ejecuta
+  await ex.execute({ accion: "suspender", params: {}, aprobada: true });
+  assert.equal(calls.exec[1][0], "powershell.exe"); assert.ok(Buffer.from(calls.exec[1][1].at(-1), "base64").toString("utf16le").includes("SetSuspendState('Suspend',$false,$false)"));
   const sin = await ex.execute({ accion: "apagar", params: {}, aprobada: false });
   assert.equal(sin.ok, false); assert.match(sin.texto, /aprobación/);
   assert.equal((await ex.execute({ accion: "reiniciar", params: {} })).ok, false);

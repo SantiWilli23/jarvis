@@ -14,6 +14,7 @@ export const DEFAULTS = {
   geminiPath: null,                  // compat: nombre antiguo de agyPath
   claudePath: null,                 // ruta a claude.exe si no está en el PATH
   pc_apps: null,                     // apps extra que Jarvis puede abrir: { "nombre": { "cmd": "C:\\ruta\\app.exe", "args": [] } } (se suman a las de pc-spec.js; el servidor también debe listar el nombre en config/pc-actions.json)
+  pc_carpetas: null,                 // carpetas que Jarvis puede listar/leer por nombre: { "documentos": "C:\Users\yo\Documents" } (el servidor solo manda el nombre + ruta relativa)
   workFolder: null,                 // carpeta de trabajo si config/permissions.json no define ninguna
   agentToken: null,                  // lo escribe la propia app al enrolarse
   agentTokenEnc: null,

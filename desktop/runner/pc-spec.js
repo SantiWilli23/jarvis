@@ -16,10 +16,24 @@ export const PC_ACTIONS = {
   estado_sistema: { nivel: "automatico", params: {} },
   portapapeles_escribir: { nivel: "automatico", params: { texto: { tipo: "texto", max: 2000 } } },
   portapapeles_leer: { nivel: "aprobacion", privado: true, params: {} },
-  suspender: { nivel: "automatico", params: {} },
+  suspender: { nivel: "aprobacion", params: {} },
   apagar: { nivel: "aprobacion", params: {} },
   reiniciar: { nivel: "aprobacion", params: {} },
+  cancelar_apagado: { nivel: "automatico", params: {} },
+  archivos_listar: { nivel: "automatico", params: { raiz: { tipo: "texto", max: 40 }, ruta: { tipo: "ruta_relativa", opcional: true } } },
+  archivos_leer: { nivel: "aprobacion", privado: true, params: { raiz: { tipo: "texto", max: 40 }, ruta: { tipo: "ruta_relativa" } } },
+  captura: { nivel: "automatico", privado: true, params: {} },
 };
+
+// Estas SIEMPRE piden aprobación, diga lo que diga el servidor o su config.
+export const SIEMPRE_APROBACION = ["apagar", "reiniciar", "suspender"];
+
+// Ruta RELATIVA a una raíz: sin unidad, sin UNC, sin "..", sin "." sueltos ni ADS (":"), sin caracteres de control.
+export function rutaRelativaValida(v) {
+  if (typeof v !== "string" || !v.trim() || v.length > 260 || CONTROL.test(v)) return false;
+  if (/^[\\/]|^[a-zA-Z]:|:|[<>"|?*]/.test(v)) return false;
+  return v.split(/[\\/]/).every((seg) => seg !== ".." && seg !== ".");
+}
 
 // Aplicaciones que el PC sabe abrir: nombre -> comando FIJO y argumentos FIJOS (sin shell). Editable en config.json del
 // escritorio (`pc_apps`), nunca desde el servidor. El servidor solo manda el nombre.
@@ -55,6 +69,8 @@ function checkSpec(spec, v, nombre, apps) {
       if (typeof v !== "string") return { ok: false, error: `${nombre}_invalido` };
       return v.trim() && v.length <= spec.max && !CONTROL.test(v) ? { ok: true, value: v } : { ok: false, error: `${nombre}_invalido` };
     }
+    case "ruta_relativa":
+      return rutaRelativaValida(v) ? { ok: true, value: v.trim() } : { ok: false, error: `${nombre}_invalido` };
     case "app": {
       const hit = (apps || []).find((a) => norm(a) === norm(v));
       return hit ? { ok: true, value: hit } : { ok: false, error: "app_no_permitida" };
@@ -80,5 +96,6 @@ export function validateParams(id, input, { defs = PC_ACTIONS, apps = Object.key
     if (params.accion !== "fijar") delete params.nivel;
     if (params.accion !== "subir" && params.accion !== "bajar") delete params.pasos;
   }
-  return { ok: true, params, def };
+  const forzada = SIEMPRE_APROBACION.includes(id) && def.nivel !== "aprobacion";
+  return { ok: true, params, def: forzada ? { ...def, nivel: "aprobacion" } : def };
 }

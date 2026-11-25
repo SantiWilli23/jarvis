@@ -1,7 +1,7 @@
 // Jarvis para Windows (Electron). Carga la web del hub, bandeja, atajo global, arranque con Windows,
 // saludo y el runner que pasa la cola a Claude Code.
 //   Prueba de arranque:  npm start -- --smoke-test   (abre, comprueba y cierra solo; usa datos temporales)
-import { app, BrowserWindow, Tray, Menu, globalShortcut, safeStorage, shell, nativeImage, clipboard, Notification } from "electron";
+import { app, BrowserWindow, Tray, Menu, globalShortcut, safeStorage, shell, nativeImage, clipboard, Notification, desktopCapturer, screen } from "electron";
 import { mkdtempSync } from "node:fs";
 import { tmpdir, hostname } from "node:os";
 import { join } from "node:path";
@@ -20,6 +20,9 @@ import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createPcWorker } from "./runner/pc-worker.js";
 import { createPcExecutor } from "./runner/pc-exec.js";
+import { createPcFiles } from "./runner/pc-files.js";
+import { createPcCapture, claudeDescriber } from "./runner/pc-capture.js";
+import { runClaude, resolveClaude } from "./runner/claude-runner.js";
 const execFileP = promisify(execFile);
 
 const smoke = process.argv.includes("--smoke-test") || process.env.JARVIS_SMOKE === "1";
@@ -123,11 +126,17 @@ function startWorker() {
   browserWorker = createBrowserWorker({ hub, win: ensureBrowserWin(), selectors, log: blog });
   browserWorker.start();
   // Acciones del PC (volumen, bloquear, apps...): bucle propio de 2,5 s, solo lista blanca y con validación local.
+  const pcNotify = (title, body) => { try { new Notification({ title, body }).show(); } catch { /* sin aviso */ } };
+  const capture = createPcCapture({
+    desktopCapturer, screen, dir: join(dataDir, "capturas"), notify: pcNotify,
+    describir: claudeDescriber({ claude: cfg.claudePath ? { command: cfg.claudePath, prefix: [] } : resolveClaude(), runClaude, cwd: join(dataDir, "capturas") }),
+  });
+  capture.limpiar(); // por si una captura anterior quedó a medias
   pcWorker = createPcWorker({
     hub, log: (m) => console.log("[jarvis:pc]", m),
     executor: createPcExecutor({
       execFile: (cmd, args) => execFileP(cmd, args, { windowsHide: true, timeout: 15_000 }), spawn, clipboard, os, statfs: statfsSync,
-      notify: (title, body) => { try { new Notification({ title, body }).show(); } catch { /* sin aviso */ } },
+      notify: pcNotify, files: createPcFiles({ roots: cfg.pc_carpetas }), capture,
       apps: cfg.pc_apps,
     }),
   });

@@ -15,8 +15,12 @@
     "estado_sistema": { "descripcion": "Batería, CPU, RAM y disco (solo lectura)", "nivel": "automatico", "params": {} },
     "portapapeles_escribir": { "descripcion": "Escribir texto en el portapapeles", "nivel": "automatico", "params": { "texto": { "tipo": "texto", "max": 2000 } } },
     "portapapeles_leer": { "descripcion": "Leer el portapapeles (privado)", "nivel": "aprobacion", "privado": true, "params": {} },
-    "suspender": { "descripcion": "Suspender el PC", "nivel": "automatico", "params": {} },
+    "suspender": { "descripcion": "Suspender el PC", "nivel": "aprobacion", "params": {} },
     "apagar": { "descripcion": "Apagar el PC (30 s de margen)", "nivel": "aprobacion", "params": {} },
-    "reiniciar": { "descripcion": "Reiniciar el PC (30 s de margen)", "nivel": "aprobacion", "params": {} }
+    "reiniciar": { "descripcion": "Reiniciar el PC (30 s de margen)", "nivel": "aprobacion", "params": {} },
+    "cancelar_apagado": { "descripcion": "Cancelar un apagado o reinicio en curso", "nivel": "automatico", "params": {} },
+    "archivos_listar": { "descripcion": "Listar una carpeta del PC (solo las carpetas permitidas)", "nivel": "automatico", "params": { "raiz": { "tipo": "texto", "max": 40 }, "ruta": { "tipo": "ruta_relativa", "opcional": true } } },
+    "archivos_leer": { "descripcion": "Leer un archivo de texto del PC (privado)", "nivel": "aprobacion", "privado": true, "params": { "raiz": { "tipo": "texto", "max": 40 }, "ruta": { "tipo": "ruta_relativa" } } },
+    "captura": { "descripcion": "Captura de pantalla descrita por Claude en el PC (privado, con aviso)", "nivel": "automatico", "privado": true, "params": {} }
   }
 }
