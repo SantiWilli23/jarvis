@@ -1,6 +1,7 @@
 // ÚNICO punto de control de privacidad. Lista blanca: lo privado solo puede ir a los
 // proveedores permitidos (por defecto claude y groq). Nada más decide esto en el código.
 //
+// El nivel "escolar" (contenido de Classroom y Lirmi) es más estricto: solo claude, sin excepciones.
 // `localSafe` son proveedores que no sacan datos de la máquina (solo el "fake" de pruebas);
 // el servidor los añade únicamente cuando corre sin claves.
 export function createPrivacy({ allowed = ["claude", "groq"], localSafe = [] } = {}) {
@@ -8,6 +9,7 @@ export function createPrivacy({ allowed = ["claude", "groq"], localSafe = [] } =
   return {
     allowed: [...white],
     isAllowed(providerId, isPrivate) {
+      if (isPrivate === "escolar") return providerId === "claude";
       return !isPrivate || white.has(providerId);
     },
     filter(ids, isPrivate) {

@@ -18,7 +18,7 @@ const MSG_SIN_CUOTA = "Mis proveedores gratuitos llegaron a su límite por ahora
 
 const MOTORES = ["auto", "flash", "gemini", "claude"]; // lista cerrada del selector del chat
 
-export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, pc = null, escenas = null, persona = "", webSearch = null, agent = null, getMusic = () => null, getNav = () => null, now = () => Date.now() }) {
+export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, pc = null, escenas = null, persona = "", webSearch = null, agent = null, getMusic = () => null, getNav = () => null, getEscolar = () => null, now = () => Date.now() }) {
   async function ensureConversation(userId, id, firstText) {
     if (id) {
       const c = await get(db, "SELECT id FROM conversations WHERE id=? AND user_id=?", [id, userId]);
@@ -31,6 +31,17 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
     run(db, "INSERT INTO messages (user_id, conversation_id, role, content, provider, private, created_at) VALUES (?,?,?,?,?,?,?)",
       [userId, conv, role, content, provider || null, priv ? 1 : 0, now()]);
   const state = (userId, s, extra = {}) => bus?.emit("state", { userId, state: s, ...extra });
+
+  // Lo escolar (server/escolar.js): sin modelo. El contenido se responde, pero no va a messages ni al bus.
+  async function escolar({ userId, conv, text, fase, source }) {
+    const e = await getEscolar()?.chat({ userId, conversationId: conv, text, fase, source });
+    if (!e) return null;
+    await saveMsg(userId, conv, "user", text, null, true);
+    await saveMsg(userId, conv, "assistant", e.guardar, "escolar", true);
+    bus?.emit("chat.done", { userId, text: e.guardar, provider: "escolar" });
+    state(userId, "speaking");
+    return { status: "escolar", conversationId: conv, reply: e.reply, private: true, ...(e.nav ? { nav: e.nav } : {}) };
+  }
 
   return {
     // ¿El texto es privado? (marca, clasificador o notas privadas). Se usa ANTES de encolar algo.
@@ -55,6 +66,9 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
         if (!d.text.trim()) { state(userId, "idle"); return { status: "vacio", conversationId: conv, reply: "¿Qué quiere preguntarle a Gemini, señor?" }; }
         original = d.text; prefer = "gemini"; d = { direct: false };
       }
+      // 1-00) Escolar ("revisa mi classroom", "qué tareas tengo"): solo modo IA.
+      const esc = !chatSolo && !d.direct && !prefer ? await escolar({ userId, conv, text: original, fase: "orden", source }) : null;
+      if (esc) return esc;
       // 1-0) Navegador de Claude en el PC (docs/NAV.md): solo modo IA y solo frase explícita. Va antes que el pedido a
       // Gemini por API, los juegos, la música y las acciones del PC. "/gemini ..." (prefer) no pasa por aquí.
       const nav = !chatSolo && !d.direct && !prefer ? getNav() : null;
@@ -163,6 +177,10 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
           return { status: "telefono", conversationId: conv, reply, phone: { id: out.item.id, status: out.item.status } };
         }
       }
+
+      // 1c) Seguimiento de lo escolar: nunca llega al router de modelos.
+      const seg = !prefer ? await escolar({ userId, conv, text: original, fase: "seguimiento", source }) : null;
+      if (seg) return seg;
 
       // 2) Memoria + privacidad
       const cls = classify(original, { flagPrivate });
