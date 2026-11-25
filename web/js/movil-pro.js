@@ -71,6 +71,8 @@ export async function proAbrir() {
   pintar();
   if (!S.actual && S.hilos[0]) abrir(S.hilos[0].id);
 }
+// Enlace #pro/<id> (botón "Abrir en Pro"): deja elegido ese hilo y lo carga; la hoja la abre movil.js.
+export function proElegir(id) { S.actual = { id }; S.msgs = []; S.rondas = []; S.envios = []; S.error = ""; abrir(id); }
 export const proCerrar = () => { S.abierto = false; voz.parar(); };
 
 $("sh-pro").addEventListener("click", (e) => {

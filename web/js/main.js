@@ -3,21 +3,24 @@ import { getSettings, putSettings, api, login, getToken, setToken, onAuthLost, g
 import { connectWs, closeWs } from "./ws.js";
 import { store, setState, subscribe, LABELS, VISUAL } from "./state.js";
 import { initOrb, setVisual } from "./orb.js";
-import { canRecord, startRecording, speak, stopSpeaking } from "./voice.js";
+import { canRecord, startRecording, speak, stopSpeaking, desbloquearVoz } from "./voice.js";
 import "./musica.js";
 import "./juegos.js";
-import { pintarNav, limpiarFuentes } from "./nav.js";
+import { pintarNav, limpiarFuentes, botonEnlace, botonPro } from "./nav.js";
 import { tickClock, renderMemory, renderQueue, renderConn, renderPc, showApproval } from "./panels.js";
 
 const $ = (id) => document.getElementById(id);
 const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-let typeTimer = null, recorder = null, busy = false, activeProvider = null, lastUsed = null, started = false;
+let typeTimer = null, recorder = null, busy = false, activeProvider = null, lastUsed = null, started = false, pedido = "";
 
 /* ---------- texto del recuadro "say" ---------- */
 function say(who, text) {
   $("who").textContent = who;
   clearInterval(typeTimer);
   limpiarFuentes();
+  $("msgacc").replaceChildren();
+  $("tu").textContent = pedido; // lo último que pidió, encima de la respuesta
+  $("tu").hidden = who === "Usted" || !pedido;
   const el = $("txt");
   if (reduce) { el.textContent = text; return; }
   let i = 0; el.textContent = "";
@@ -29,6 +32,9 @@ subscribe((what) => {
   if (what !== "state") return;
   const l = LABELS[store.state];
   setVisual(VISUAL[store.state]);
+  const oyendo = store.state === "listening";
+  $("saymic").setAttribute("aria-pressed", String(oyendo));
+  $("saymic").setAttribute("aria-label", oyendo ? "Enviar audio" : "Hablar");
   $("slabel").textContent = l.label;
   $("smodel").textContent = store.state === "thinking" && activeProvider ? activeProvider : l.model;
   renderConn(store.status, lastUsed, store.state === "thinking");
@@ -56,6 +62,10 @@ async function decide(approve) {
   setApproval(null);
   setState("idle");
   say("Jarvis", approve ? "Hecho, señor. Lo aprobé." : "Entendido, señor. Lo rechacé.");
+  if (!document.body.classList.contains("movil")) siguienteAprobacion(); // en /m lo hace movil.js
+}
+async function siguienteAprobacion() {
+  try { const { approvals } = await pendingApprovals(); if (approvals[0] && !store.approval) setApproval(approvals[0]); } catch { /* sin pendientes */ }
 }
 
 /* ---------- resultado de una acción del PC o del iPhone ---------- */
@@ -73,6 +83,7 @@ function mostrarResultado(m) {
 
 /* ---------- navegador de Claude: llega la respuesta ---------- */
 function onNav(task) {
+  if (!task.respuesta && !task.url_conversacion) return; // detenida sin nada que mostrar
   if (recorder || busy) return void setTimeout(() => onNav(task), 1500); // no pisar lo que el señor está haciendo
   stopSpeaking();
   say("Jarvis", ""); // detiene el tecleo y limpia las fuentes anteriores
@@ -132,6 +143,7 @@ function afterSpeech() {
 async function converse(text, priv) {
   if (!text.trim() || busy) return;
   busy = true;
+  pedido = text;
   say("Usted", text);
   setState("thinking");
   try {
@@ -155,11 +167,19 @@ async function converse(text, priv) {
       setState("speaking"); say("Jarvis", r.reply);
       speak(r.reply, afterSpeech, r.private);
     }
+    accionesDeMensaje(r);
   } catch (e) {
     setState("sin_cuota");
     say("Jarvis", e.status === 401 ? "Su sesión terminó, señor." : "No pude comunicarme con el servidor, señor.");
     setTimeout(() => { if (store.state === "sin_cuota") setState("idle"); }, 4000);
   } finally { busy = false; activeProvider = null; refreshStatus(); }
+}
+
+// Botones bajo la respuesta: abrir el hilo Pro o el juego (respaldo si el navegador bloqueó la pestaña).
+function accionesDeMensaje(r) {
+  const juegos = r.status === "juego" ? [...(r.juegos || []), ...(r.acciones || [])].map((j) => botonEnlace(j.url, "Abrir " + (j.nombre || "juego"))) : [];
+  const unicos = new Map([botonPro(r.pro?.thread_id), ...juegos].filter(Boolean).map((a) => [a.href, a]));
+  $("msgacc").replaceChildren(...unicos.values());
 }
 
 /* ---------- toque en el orbe ---------- */
@@ -170,7 +190,7 @@ async function onOrb() {
     say("Jarvis", "Hola señor.");
     setState("speaking");
     speak("Hola señor.", afterSpeech);
-    $("hint").textContent = "Toque el orbe para hablar y otra vez para enviar.";
+    $("hint").textContent = "Toque para hablar y otra vez para enviar.";
     return;
   }
   if (store.state === "speaking") { stopSpeaking(); setState("idle"); return; }
@@ -207,11 +227,11 @@ function showLogin() {
   $("pw").value = ""; setTimeout(() => $("pw").focus(), 50);
 }
 /* ---------- configuración: modo IA / Chat (se guarda en el servidor) ---------- */
-const NOTAS_MODO = { ia: "IA: con búsqueda web, herramientas y tareas para el PC.", chat: "Chat: solo conversar. Sin búsqueda web, acciones ni tareas." };
+const NOTAS_MODO = { ia: "Busca en la web y hace tareas.", chat: "Solo conversar." };
 function pintarModo(m) {
   const modo = m === "chat" ? "chat" : "ia";
   for (const b of document.querySelectorAll("#panel-config [data-modo]")) b.setAttribute("aria-pressed", String(b.dataset.modo === modo));
-  const nota = document.getElementById("cfg-nota"), tag = document.getElementById("modotag"); // solo existen en index.html (m.html no los trae)
+  const nota = document.getElementById("cfg-nota"), tag = document.getElementById("modotag");
   if (nota) nota.textContent = NOTAS_MODO[modo];
   if (tag) tag.hidden = modo !== "chat";
   document.body.dataset.modo = modo;
@@ -232,7 +252,7 @@ async function enter() {
   cargarModo();
   try { const { approvals } = await pendingApprovals(); if (approvals[0]) setApproval(approvals[0]); } catch { /* sin pendientes */ }
   connectWs(onWs);
-  say("Jarvis", "A su servicio, señor. Toque el orbe.");
+  say("Jarvis", "A su servicio, señor.");
 }
 
 $("loginform").addEventListener("submit", async (e) => {
@@ -247,7 +267,7 @@ $("loginform").addEventListener("submit", async (e) => {
 });
 $("logout").addEventListener("click", async () => {
   try { await logout(); } catch { /* ya caducó */ }
-  setToken(""); started = false; showLogin();
+  setToken(""); started = false; pedido = ""; showLogin();
 });
 $("sayform").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -255,6 +275,8 @@ $("sayform").addEventListener("submit", (e) => {
   store.greeted = true;
   converse(t, $("saypriv").checked);
 });
+// Botón de micrófono: graba directo (sin el saludo del primer toque del orbe).
+$("saymic").addEventListener("click", () => { store.greeted = true; desbloquearVoz(); onOrb(); });
 $("yes").addEventListener("click", () => decide(true));
 $("no").addEventListener("click", () => decide(false));
 onAuthLost(() => { started = false; showLogin(); });
