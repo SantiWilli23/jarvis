@@ -13,6 +13,9 @@ let actual = null, ocultar = null, vigilante = null;
 const msg = (t) => { $("ev-msg").textContent = t || ""; };
 function host(url) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; } }
 
+// En lo escolar la consulta es una instrucción interna: se muestra algo corto.
+const textoConsulta = (t) => (t.tipo === "estudio" ? "Revisión escolar" : String(t.consulta || ""));
+
 function cerrar() {
   clearTimeout(ocultar); clearTimeout(vigilante);
   actual = null;
@@ -28,7 +31,7 @@ function abrir(task) {
   clearTimeout(ocultar);
   actual = { id: task.id };
   $("ev-sitio").textContent = nombreSitio(task);
-  $("ev-consulta").textContent = String(task.consulta || "");
+  $("ev-consulta").textContent = textoConsulta(task);
   $("ev-titulo").textContent = "En vivo";
   $("ev-stop").hidden = false; $("ev-stop").disabled = false;
   $("envivo").classList.add("activa");
@@ -45,7 +48,6 @@ function paso(texto, url) {
   const lista = $("ev-pasos");
   lista.append(li);
   while (lista.children.length > MAX_PASOS) lista.firstChild.remove();
-  li.scrollIntoView?.({ block: "nearest" });
 }
 
 function frame(mime, data) {
@@ -67,9 +69,19 @@ function onWs(m) {
   if (m.type === "nav.inicio" && m.task) return abrir(m.task);
   if (m.type === "nav.done") { if (actual && m.task?.id === actual.id) terminar(m.task.estado); return; }
   if (m.type !== "nav.paso" && m.type !== "nav.frame") return;
-  if (actual?.id !== m.task_id) abrir({ id: m.task_id }); // la página se abrió a mitad de la tarea
+  if (actual?.id !== m.task_id) { abrir({ id: m.task_id }); completar(m.task_id); } // la página se abrió a mitad de la tarea
   else vigilar();
   if (m.type === "nav.paso") paso(m.texto, m.url); else frame(m.mime, m.data);
+}
+
+// Si la tarea ya iba empezada, se piden su nombre y su consulta.
+async function completar(id) {
+  try {
+    const { task } = await api(`/nav/tasks/${encodeURIComponent(id)}`);
+    if (!task || actual?.id !== id) return;
+    $("ev-sitio").textContent ||= nombreSitio(task);
+    $("ev-consulta").textContent = textoConsulta(task);
+  } catch { /* se queda solo con los pasos */ }
 }
 
 // Al entrar (o recargar) con una tarea en marcha, se muestra.

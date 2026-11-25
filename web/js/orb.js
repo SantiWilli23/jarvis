@@ -48,6 +48,7 @@ export function initOrb(cv) {
   
     function frame(now) {
       var dt = Math.min(0.05, (now - last) / 1000); last = now;
+      if (Math.min(W, H) < 40) { requestAnimationFrame(frame); return; } // oculto o diminuto: un radio negativo detenía la animación
       var tg = P[state], k = 1 - Math.pow(0.02, dt);
       for (var q = 0; q < 3; q++) cur.c[q] = lerp(cur.c[q], tg.c[q], k);
       cur.spin = lerp(cur.spin, tg.spin, k); cur.amp = lerp(cur.amp, tg.amp, k);

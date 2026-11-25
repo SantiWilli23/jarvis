@@ -20,6 +20,7 @@ svg { flex: none; }
 /* ---------- orbe, estado y respuesta ---------- */
 /* orb.js se detiene para siempre si el lienzo mide 0: con otra sección abierta, Jarvis sale de pantalla pero conserva tamaño. */
 .orbwrap { min-width: 48px; min-height: 48px; }
+canvas#orb { -webkit-mask-image: radial-gradient(farthest-corner, #000 66%, transparent 75%); mask-image: radial-gradient(farthest-corner, #000 66%, transparent 75%); } /* sin bordes rectos en el halo */
 body:not(.movil) #vista-clasico[hidden] { display: flex !important; position: fixed; top: 0; left: -200vw; width: 640px; height: 100dvh; visibility: hidden; pointer-events: none; }
 .readout { position: static; transform: none; text-align: center; }
 .readout b { font-size: 15px; font-weight: 600; letter-spacing: 0.04em; text-transform: none; }
@@ -66,6 +67,8 @@ select.motor { width: 100%; min-height: 48px; font: inherit; font-size: 16px; pa
 .ev-pantalla img { display: block; width: 100%; max-height: 46vh; object-fit: contain; background: #000; }
 .ev-pasos { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; font-size: 16px; }
 .ev-pasos li { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 12px; align-items: center; overflow-wrap: anywhere; }
+.ev-pasos li:not(:nth-last-child(-n+8)) { display: none; }
+body.movil .ev-pasos li:not(:nth-last-child(-n+3)) { display: none; }
 .ev-pasos li::before { content: ""; width: 14px; height: 14px; border-radius: 50%; background: var(--ok); }
 .envivo.activa .ev-pasos li:last-child::before { background: transparent; border: 2px solid var(--cyan); }
 

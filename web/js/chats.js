@@ -17,7 +17,7 @@ function fecha(v) {
 function tarjeta(t) {
   const li = el("li", "tarjeta");
   li.append(el("small", "", [nombreSitio(t), fecha(t.creado), ESTADOS[t.estado] || t.estado].filter(Boolean).join(" · ")));
-  li.append(el("b", "", String(t.consulta || "")));
+  li.append(el("b", "", t.tipo === "estudio" ? "Revisión escolar" : String(t.consulta || "")));
   if (t.respuesta) {
     const d = el("details"); d.open = abiertas.has(t.id);
     d.addEventListener("toggle", () => { if (d.open) abiertas.add(t.id); else abiertas.delete(t.id); });
