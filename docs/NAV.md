@@ -96,7 +96,7 @@ La respuesta del chat trae `pro:{thread_id}`; la web abre `#pro/<id>`.
 
 # Plan, repaso y calendario MDE
 
-Estado: Fase 0 (andamiaje): server/repaso.js, server/escolar-calendario.js, web/js/repaso.js.
+Estado: calendario hecho (server/escolar-calendario.js, botón en Estudiar). Andamiaje: server/repaso.js, web/js/repaso.js.
 
 ## Decisiones del usuario
 - Jarvis revisa todo Classroom y Lirmi (solo lectura) y crea en Google Calendar eventos por cada prueba.
@@ -112,6 +112,14 @@ Estado: Fase 0 (andamiaje): server/repaso.js, server/escolar-calendario.js, web/
 | `<materia> - Prueba` | el día | hora de la prueba; si no se sabe, día completo |
 
 colorId: Inglés 5, Matemáticas 9, Lenguaje 11, Historia 6; otras materias sin color.
+
+## Calendario (server/escolar-calendario.js)
+- Pruebas: lo escolar guardado con tipo o título de evaluación y fecha de hoy en adelante (AAAA-MM-DD, dd/mm, "3 de diciembre"; hora solo si viene en `fecha`, y dura 1 h). Las de fecha ilegible se cuentan y se avisa.
+- `GET /api/escolar/calendario` -> {conectado, eventos:[{id,titulo,dia,inicio,fin,colorId?,existe?}], sinFecha, mensaje}. `POST` {ids} -> {creados,omitidos,fallidos,mensaje} (solo los ids mostrados). El clic es el permiso: no pasa por approvals.
+- Duplicado = mismo título (sin tildes ni mayúsculas) y mismo día. Si no se puede consultar el calendario, no se crea.
+- Chat: "pon mis pruebas en el calendario" crea; "qué pondrías en el calendario" solo muestra. Modo Chat: no actúa. Con freno no crea. Atajo y Telegram no reciben la lista.
+- `intent()` puede devolver `guardar`: texto neutro que va a messages y al bus en lugar de `reply`. Audit: solo conteos.
+- Zona horaria: `CALENDARIO_ZONA` (por defecto America/Santiago).
 
 ## Cableado
 - `/api/escolar/calendario` y `/api/repaso` (sesión web). Tabla `repaso_items` (datos cifrados).

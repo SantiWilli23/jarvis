@@ -82,10 +82,12 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
         if (!out) continue;
         const priv = !!(out.private ?? flagPrivate);
         await saveMsg(userId, conv, "user", original, null, priv);
-        await saveMsg(userId, conv, "assistant", out.reply, out.status, priv);
-        bus?.emit("chat.done", { userId, text: out.reply, provider: out.status });
+        // `guardar` (opcional): texto neutro que va a messages y al bus en vez de la respuesta (lo escolar).
+        const { guardar = out.reply, ...resto } = out;
+        await saveMsg(userId, conv, "assistant", guardar, out.status, priv);
+        bus?.emit("chat.done", { userId, text: guardar, provider: out.status });
         state(userId, "speaking");
-        return { ...out, conversationId: conv, private: priv };
+        return { ...resto, conversationId: conv, private: priv };
       }
       // 1-00) Sesión Pro desde Clásico: solo modo IA y solo frase explícita.
       const pro = !chatSolo && !d.direct && !prefer ? getPro() : null;

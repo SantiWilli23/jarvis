@@ -105,7 +105,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const rutinas = createRutinas({ db, bus, audit, approvals, escenas, pc, phone, getChat: () => chat, getControl: () => control, now });
   const repaso = createRepaso({ db, crypto, escolar, claudeTextos, audit, now });
   const memoriaReparto = createMemoriaReparto({ db, notes, inbox, privacy, nav, claudeTextos, audit, bus, agent, getControl: () => control, now });
-  const escolarCalendario = createEscolarCalendario({ db, escolar, crypto, approvals, audit, getGoogle: () => ext?.google, now });
+  const escolarCalendario = createEscolarCalendario({ db, escolar, crypto, approvals, audit, getGoogle: () => ext?.google, getControl: () => control, now });
   const mcp = createMcp({ db, notes, search, privacy, sessions, limiter, audit, env, now });
   const tts = createTts({ db, env, fetch: f, config: config.voz, privacy, now,
     phrasesDir: fileURLToPath(new URL("../web/audio/phrases", import.meta.url)),
