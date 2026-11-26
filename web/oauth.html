@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Autorizar conector - Jarvis</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px; background: #080b10; color: #f2f4f7; font: 15px/1.5 system-ui, sans-serif; }
+  main { width: min(440px, 100%); background: #1c1f24; border: 1px solid #50555f; border-radius: 12px; padding: 22px; box-sizing: border-box; }
+  h1 { font-size: 19px; margin: 0 0 12px; }
+  dt { color: #b4bac3; margin-top: 10px; }
+  dd { margin: 0; overflow-wrap: anywhere; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+  input, button { font: inherit; padding: 9px 14px; border-radius: 8px; border: 1px solid #6a707b; background: #31353d; color: inherit; }
+  input { width: 100%; box-sizing: border-box; margin-bottom: 10px; }
+  button { cursor: pointer; }
+  #si { border-color: #3fd8ff; }
+  .fila { display: flex; gap: 10px; margin-top: 18px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Conectar con la memoria de Jarvis</h1>
+  <p id="msg" role="status">Comprobando sesión...</p>
+  <form id="login" hidden>
+    <label for="pw">Contraseña de Jarvis</label>
+    <input id="pw" type="password" autocomplete="current-password" required>
+    <button type="submit">Entrar</button>
+  </form>
+  <section id="consent" hidden>
+    <p>Podrá buscar notas no privadas ni escolares y proponer recuerdos para que usted los revise. Apruebe solo si acaba de iniciar esta conexión.</p>
+    <dl>
+      <dt>Cliente (nombre que él mismo declara)</dt><dd id="cliente"></dd>
+      <dt>Identificador</dt><dd id="cid"></dd>
+      <dt>Volverá a</dt><dd id="redir"></dd>
+    </dl>
+    <div class="fila"><button id="si" type="button">Aprobar</button><button id="no" type="button">Rechazar</button></div>
+  </section>
+</main>
+<script src="/js/oauth.js"></script>
+</body>
+</html>
