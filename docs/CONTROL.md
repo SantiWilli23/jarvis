@@ -41,6 +41,15 @@ Un módulo (control, rutinas, repaso, escolarCalendario) puede exponer
 `{status, reply, private?, ...}` o null. Va antes que los demás intents; no se usa en "directo a Claude".
 Cada módulo decide qué hace en modo Chat (`chatSolo`), donde no se ejecutan acciones.
 
-## Claude sin herramientas (pendiente: server/claude-textos.js)
-Cola `claude_textos` (carga y resultado cifrados). Rutas `/api/agent/textos/claim` y `/:id/result`
-(runner: `textosClaim()`, `textosResult(id, out)`).
+## Claude sin herramientas (server/claude-textos.js, desktop/runner/textos-worker.js)
+- Cola `claude_textos`: `carga` y `resultado` cifrados (sin CONNECTIONS_KEY no se encola). Estados: `pendiente`,
+  `en_curso`, `ok`, `error`, `vencida`, `cancelado`. Vence a los 30 min sin que el PC la tome o a los 7 min en curso.
+  Se borra a los 30 días. Tope: 40 pedidos al día. Con el PC apagado o en pausa no se encola (`pc_apagado`).
+- Uso interno: `claudeTextos.registrar(tipo, fn)` y `claudeTextos.encolar({userId, tipo, texto, meta})`.
+  `fn({id,userId,tipo,meta,estado,texto,error})` recibe `ok`, `error` o `vencida`; devolver false marca el resultado
+  como inservible. Lo cancelado no llega al manejador. El texto devuelto es DATO, nunca orden.
+- Freno: no encola, no entrega y rechaza resultados (409). El PC mata el Claude en marcha y no envía nada.
+- Rutas: `/api/agent/textos/claim` y `/:id/result` (pc; runner `textosClaim()`, `textosResult(id, out)`);
+  `GET /api/textos` (estados, sin contenido) y `POST /api/textos/:id/cancel` (web).
+- PC: `buildTextosArgs()`: sin herramientas, ajustes del usuario, MCP, skills, Chrome ni sesión guardada; pedido por
+  stdin y carpeta temporal vacía. Si aun así intenta usar una herramienta, se corta.

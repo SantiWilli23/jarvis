@@ -6,6 +6,7 @@ import { buildArgs, buildStdin } from "./claude-args.js";
 import { classifyDenial, allowRule } from "./danger.js";
 import { runClaude as realRun, resolveClaude } from "./claude-runner.js";
 import { controlState } from "./control-state.js";
+import { createTextosWorker } from "./textos-worker.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MAX_RONDAS = 3; // veces que una tarea puede pedir aprobaciones y continuar
@@ -22,6 +23,7 @@ export function createWorker({
   getCapabilities = null,        // () => capabilities del doctor (se manda en hello y heartbeat)
   nav = null,                    // navegador de Claude ({tick}); solo cuando las colas clásica y Pro están vacías
   control = controlState,        // freno de emergencia
+  textos = typeof hub?.textosClaim === "function" ? createTextosWorker({ hub, claude, control, log }) : null, // Claude sin herramientas
 }) {
   let running = false, paused = false, current = null, serverCfg = { caps: {}, permissions: {} };
   const status = (extra = {}) => onStatus({ running, paused, current, ...extra });
@@ -130,6 +132,10 @@ export function createWorker({
         if (out === "tarea") continue; // sigue de inmediato con la siguiente
         if (pro && (out === "vacia" || out === "tope_diario") && !paused) { const j = await pro.tick().catch((e) => { log(`Pro: ${e.message}`); if (e.status === 401 || e.status === 403) throw e; return "vacio"; }); if (j === "job") continue; }
         if (nav && (out === "vacia" || out === "tope_diario") && !paused) { const n = await nav.tick().catch((e) => { log(`Navegador: ${e.message}`); if (e.status === 401 || e.status === 403) throw e; return "vacio"; }); if (n === "tarea") continue; }
+        if (textos && (out === "vacia" || out === "tope_diario") && !paused) {
+          const x = await textos.tick().catch((e) => { log(`Textos: ${e.message}`); if (e.status === 401 || e.status === 403) throw e; return "vacio"; });
+          if (x === "tarea") continue;
+        }
         await sleep(out === "tope_diario" ? tapeWaitMs : pollMs);
       } catch (e) {
         said = false; status({ online: false, error: e.message });
