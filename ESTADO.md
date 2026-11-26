@@ -7,4 +7,5 @@
 **Del usuario:** iniciar sesión en Classroom (cuenta del colegio) y Lirmi, elegir voz, sí/no a descargar Vosk.
 **Sin probar:** lectura de Classroom y Lirmi, calendario, reparto de memoria, iPhone real, app empaquetada.
 **Menor:** aviso dice "en Escolar" y la sección es "Estudiar".
+**Plan pendiente de "ya" (otro chat):** micrófono permanente en /m (orbe prende/apaga, "Jarvis", 3 s silencio, 8 s para seguir) y Atajo+widget con Algenib; sin código; cruzarlo con "Hey Jarvis".
 **Verificar:** `npm test`.
