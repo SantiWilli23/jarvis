@@ -7,5 +7,5 @@
 **Sin probar:** Classroom, Lirmi, calendario, recoger/repartir con IA reales, MCP con Claude, .mcpb, freno en Windows e iPhone, app empaquetada.
 **Pendiente técnico:** claude-textos no consulta el freno; Calendar sin color, día completo ni sin duplicar.
 **Menor:** aviso dice "en Escolar" y la sección es "Estudiar".
-**Plan pendiente de "ya" (otro chat):** micrófono permanente en /m (orbe prende/apaga, "Jarvis", 3 s silencio, 8 s para seguir) y Atajo+widget con Algenib; sin código; cruzarlo con "Hey Jarvis".
+**Micrófono permanente (otro chat, sin código):** el usuario eligió hacerlo allí cuando acaben estas fases; dejar fuera la escucha en /m (orbe, "Jarvis", 3 s, 8 s) y el Atajo+widget.
 **Verificar:** `npm test`.
