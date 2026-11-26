@@ -87,3 +87,26 @@ tipo suma `investigar`, `estudio`. sitio suma `classroom`, `lirmi`. estado suma 
 ## Pro desde Clásico
 "crea (una) sesión Pro [en <repo>]: <pedido>" -> hilo Pro web (repo: el dicho, o el del último hilo; si no hay, preguntar). Lo privado se rechaza.
 La respuesta del chat trae `pro:{thread_id}`; la web abre `#pro/<id>`.
+
+# Plan, repaso y calendario MDE
+
+Estado: Fase 0 (andamiaje): server/repaso.js, server/escolar-calendario.js, web/js/repaso.js.
+
+## Decisiones del usuario
+- Jarvis revisa todo Classroom y Lirmi (solo lectura) y crea en Google Calendar eventos por cada prueba.
+- Se muestran antes de crearse, salvo que el usuario haya pedido crearlos explícitamente. Sin duplicados.
+- Seguir el mismo chat de claude.ai; plan de estudio, repaso y rutinas.
+
+## Regla MDE: 4 eventos por prueba
+| Título | Día | Hora |
+|---|---|---|
+| `Repaso y Resumen - <materia>` | 3 días antes | 17:00-18:00 |
+| `Ejercitación - <materia>` | 2 días antes | 17:00-18:00 |
+| `Repaso Corto - <materia>` | 1 día antes | 17:00-18:00 |
+| `<materia> - Prueba` | el día | hora de la prueba; si no se sabe, día completo |
+
+colorId: Inglés 5, Matemáticas 9, Lenguaje 11, Historia 6; otras materias sin color.
+
+## Cableado
+- `/api/escolar/calendario` y `/api/repaso` (sesión web). Tabla `repaso_items` (datos cifrados).
+- Lo escolar nunca va a la memoria repartida ni sale por MCP (docs/MEMORIA.md).

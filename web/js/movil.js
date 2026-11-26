@@ -42,7 +42,7 @@ function openSheet(name) {
   avisarVista(name);
   if (name === "tel") { loadEscenas(); loadPhone(); refrescarAccionesPc(); }
   if (name === "cola") { loadPhone(); }
-  if (name === "mas") renderMas();
+  if (name === "mas") { renderMas(); window.dispatchEvent(new CustomEvent("jarvis:mas")); }
   if (name === "musica") abrirMusica();
   if (name === "pro") proAbrir();
 }
@@ -239,6 +239,7 @@ async function sendPhone(spec) {
   try {
     const out = await api("/phone/actions", { method: "POST", body: spec });
     say(out.action.status === "aprobacion" ? "pide su aprobación" : "en cola");
+    window.dispatchEvent(new CustomEvent("jarvis:respuesta", { detail: out }));
   } catch (e) { say("no se pudo: " + (e.data?.error || e.message)); }
   loadPhone();
 }
@@ -300,7 +301,11 @@ syncColaBadge();
 const escMsg = (t) => { $("escmsg").textContent = t || ""; };
 async function lanzarEscena(id, boton) {
   boton.disabled = true; escMsg("Lanzando…");
-  try { escMsg((await api(`/escenas/${encodeURIComponent(id)}`, { method: "POST", body: {} })).resumen); }
+  try {
+    const out = await api(`/escenas/${encodeURIComponent(id)}`, { method: "POST", body: {} });
+    escMsg(out.resumen);
+    window.dispatchEvent(new CustomEvent("jarvis:respuesta", { detail: out }));
+  }
   catch (e) { escMsg("No se pudo: " + (e.data?.error || e.message)); }
   boton.disabled = false;
   loadPhone(); refrescarAccionesPc();

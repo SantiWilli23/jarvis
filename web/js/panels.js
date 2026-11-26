@@ -26,7 +26,7 @@ export function renderMemory(status) {
 
 const motorDe = () => "Claude";
 const etiqueta = (q) => (q.mode === "directo" ? `Directo a ${motorDe(q)}` : `Preparada · ${motorDe(q)}`);
-const estadoDe = (q) => ({ pendiente: "en cola", por_revisar: "por revisar", reclamada: `enviada a ${motorDe(q)}`, en_curso: "en ejecución", fallida: "falló", rechazada: "sin permiso", interrumpida: "interrumpida" }[q.status] || q.status);
+const estadoDe = (q) => ({ pendiente: "en cola", por_revisar: "por revisar", reclamada: `enviada a ${motorDe(q)}`, en_curso: "en ejecución", fallida: "falló", rechazada: "sin permiso", interrumpida: "interrumpida", cancelada: "cancelada" }[q.status] || q.status);
 const REASIGNABLES = ["pendiente", "por_revisar", "fallida", "rechazada", "interrumpida"];
 
 // onAction(kind, id): "borrar" | "enviar"

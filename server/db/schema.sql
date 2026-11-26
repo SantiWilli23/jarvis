@@ -355,3 +355,82 @@ CREATE TABLE IF NOT EXISTS nav_tasks (
   cuenta TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_nav_tasks_user ON nav_tasks (user_id, estado, id);
+
+-- Servidor MCP (docs/MEMORIA.md). De códigos y secretos solo se guarda el hash.
+CREATE TABLE IF NOT EXISTS oauth_clients (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL DEFAULT '',
+  secret_hash TEXT,
+  redirect_uris TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  revoked_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS oauth_codes (
+  code_hash TEXT PRIMARY KEY,
+  client_id TEXT NOT NULL,
+  user_id INTEGER NOT NULL,
+  redirect_uri TEXT NOT NULL,
+  code_challenge TEXT NOT NULL,
+  scope TEXT,
+  expires_at INTEGER NOT NULL,
+  used_at INTEGER,
+  created_at INTEGER NOT NULL
+);
+
+-- Rutinas (docs/CONTROL.md).
+CREATE TABLE IF NOT EXISTS rutinas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  nombre TEXT NOT NULL,
+  frase TEXT,
+  pasos TEXT NOT NULL DEFAULT '[]',
+  horario TEXT,
+  activa INTEGER NOT NULL DEFAULT 1,
+  ultima INTEGER,
+  creado INTEGER NOT NULL,
+  actualizado INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rutinas_user ON rutinas (user_id, activa, id);
+
+-- Cola del PC para Claude sin herramientas. carga y resultado van cifrados.
+CREATE TABLE IF NOT EXISTS claude_textos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  tipo TEXT NOT NULL,
+  carga TEXT NOT NULL,
+  estado TEXT NOT NULL DEFAULT 'pendiente',
+  resultado TEXT,
+  error TEXT,
+  device_id INTEGER,
+  creado INTEGER NOT NULL,
+  tomado INTEGER,
+  terminado INTEGER,
+  expira INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_claude_textos_user ON claude_textos (user_id, estado, id);
+
+-- Repaso. datos va cifrado.
+CREATE TABLE IF NOT EXISTS repaso_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  datos TEXT NOT NULL,
+  proximo INTEGER,
+  nivel INTEGER NOT NULL DEFAULT 0,
+  creado INTEGER NOT NULL,
+  actualizado INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_repaso_items_user ON repaso_items (user_id, proximo);
+
+-- Registro de cada recolección o reparto de memoria. Sin contenido.
+CREATE TABLE IF NOT EXISTS memoria_repartos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  tipo TEXT NOT NULL,
+  destino TEXT NOT NULL,
+  estado TEXT NOT NULL DEFAULT 'pendiente',
+  cantidad INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  creado INTEGER NOT NULL,
+  terminado INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_memoria_repartos_user ON memoria_repartos (user_id, tipo, id);

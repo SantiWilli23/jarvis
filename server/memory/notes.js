@@ -16,13 +16,13 @@ export function createNotes({ db, fts = false, now = () => Date.now() }) {
   return {
     fts,
     // source: "usuario" (activa al instante) | "modelo" (va a la zona de revisión, ver inbox.js)
-    async add({ userId, title = "", body, level = "normal", source = "usuario", status }) {
+    async add({ userId, title = "", body, level = "normal", source = "usuario", status, origen = "" }) {
       if (String(level).toLowerCase().startsWith("secret")) return { saved: false, reason: "secreta" };
       if (!NIVELES.has(level)) return { saved: false, reason: "nivel_invalido" };
       if (!body || !String(body).trim()) return { saved: false, reason: "vacia" };
       const st = status || (source === "modelo" ? "revision" : "activa");
-      const r = await run(db, "INSERT INTO notes (user_id, title, body, level, source, status, tokens, created_at) VALUES (?,?,?,?,?,?,?,?)",
-        [userId, title, body, level, source, st, estimateTokens(title + " " + body), now()]);
+      const r = await run(db, "INSERT INTO notes (user_id, title, body, level, source, status, tokens, created_at, origen) VALUES (?,?,?,?,?,?,?,?,?)",
+        [userId, title, body, level, source, st, estimateTokens(title + " " + body), now(), origen]);
       if (st === "activa") await indexNote(r.id, userId, title, body);
       return { saved: true, id: r.id, status: st };
     },
@@ -39,7 +39,7 @@ export function createNotes({ db, fts = false, now = () => Date.now() }) {
       return (await run(db, "DELETE FROM notes WHERE id=? AND user_id=?", [id, userId])).changes > 0;
     },
     async list(userId, { status = "activa", limit = 100 } = {}) {
-      return all(db, "SELECT id, title, body, level, source, status, tokens, created_at FROM notes WHERE user_id=? AND status=? ORDER BY id DESC LIMIT ?", [userId, status, limit]);
+      return all(db, "SELECT id, title, body, level, source, status, tokens, created_at, origen FROM notes WHERE user_id=? AND status=? ORDER BY id DESC LIMIT ?", [userId, status, limit]);
     },
     async counts(userId) {
       const r = await get(db, `SELECT

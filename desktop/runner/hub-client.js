@@ -26,6 +26,11 @@ export function createHubClient({ baseUrl, token, fetchFn = fetch }) {
     // Cola de acciones del PC (Ola 0): reclamar la siguiente y devolver el resultado
     pcNext: () => call("/pc/next", { body: {} }),
     pcResult: (id, out) => call(`/pc/${id}/result`, { body: out }),
+    // Claude sin herramientas, memoria y registro de acciones (docs/CONTROL.md, docs/MEMORIA.md)
+    textosClaim: () => call("/textos/claim", { body: {} }),
+    textosResult: (id, out) => call(`/textos/${id}/result`, { body: out }),
+    memoriaProponer: (nota) => call("/memoria/proponer", { body: nota }),
+    controlLog: (entrada) => call("/control/log", { body: entrada }),
     // Navegador de Claude (docs/NAV.md)
     navClaim: () => call("/nav/claim", { body: {} }),
     navResult: (id, out) => call(`/nav/${id}/result`, { body: out }),

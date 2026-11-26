@@ -1,6 +1,6 @@
 // Service worker mínimo: guarda la "cáscara" de la app para que abra rápido. Nunca toca /api ni /ws.
-const CACHE = "jarvis-shell-v19";
-const SHELL = ["/", "/m", "/css/hud.css", "/css/movil.css", "/css/pro.css", "/css/envivo.css", "/estudio", "/css/estudio.css", "/js/estudio.js", "/js/pro.js", "/js/pro-web.js", "/js/movil-pro.js", "/js/vista.js", "/js/movil.js", "/js/musica.js", "/js/juegos.js", "/js/nav.js", "/js/envivo.js", "/js/chats.js", "/js/estudiar.js", "/js/secciones.js", "/js/acciones-pc.js", "/js/main.js", "/js/api.js", "/js/sesion.js", "/js/ws.js", "/js/state.js", "/js/orb.js", "/js/voice.js", "/js/voz-ui.js", "/js/panels.js", "/icon.svg", "/apple-touch-icon.png"];
+const CACHE = "jarvis-shell-v20";
+const SHELL = ["/", "/m", "/css/hud.css", "/css/movil.css", "/css/pro.css", "/css/envivo.css", "/estudio", "/css/estudio.css", "/js/estudio.js", "/js/pro.js", "/js/pro-web.js", "/js/movil-pro.js", "/js/vista.js", "/js/movil.js", "/js/musica.js", "/js/juegos.js", "/js/nav.js", "/js/envivo.js", "/js/chats.js", "/js/estudiar.js", "/js/secciones.js", "/js/acciones-pc.js", "/js/bandeja.js", "/js/freno.js", "/js/registro.js", "/js/rutinas.js", "/js/repaso.js", "/js/memoria.js", "/js/main.js", "/js/api.js", "/js/sesion.js", "/js/ws.js", "/js/state.js", "/js/orb.js", "/js/voice.js", "/js/voz-ui.js", "/js/panels.js", "/icon.svg", "/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => {
@@ -24,7 +24,7 @@ self.addEventListener("notificationclick", (e) => {
 });
 self.addEventListener("fetch", (e) => {
   const u = new URL(e.request.url);
-  if (e.request.method !== "GET" || u.origin !== location.origin || u.pathname.startsWith("/api") || u.pathname === "/health" || u.pathname === "/ws") return;
+  if (e.request.method !== "GET" || u.origin !== location.origin || u.pathname.startsWith("/api") || u.pathname === "/health" || u.pathname === "/ws" || /^\/(mcp|oauth|\.well-known)(\/|$)/.test(u.pathname)) return;
   // Red primero; si no hay red, la copia guardada.
   e.respondWith(fetch(e.request).then((r) => { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return r; }).catch(() => caches.match(e.request)));
 });

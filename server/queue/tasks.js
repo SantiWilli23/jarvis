@@ -102,6 +102,13 @@ export function createTasks({ db, bus, now = () => Date.now() }) {
       const task = await api.get(userId, id); emit(task);
       return task;
     },
+    // Estado "cancelada" (freno): solo lo que aún no terminó. agent.finish ya no la pisa.
+    async cancel(userId, id) {
+      const r = await run(db, "UPDATE tasks SET status='cancelada', updated_at=? WHERE id=? AND user_id=? AND status IN ('pendiente','por_revisar','reclamada','en_curso')", [now(), id, userId]);
+      if (!r.changes) return { ok: false, reason: "no_cancelable" };
+      const task = await api.get(userId, id); emit(task);
+      return { ok: true, task };
+    },
     async counts(userId) {
       const r = await all(db, "SELECT status, COUNT(*) AS n FROM tasks WHERE user_id=? GROUP BY status", [userId]);
       return Object.fromEntries(r.map((x) => [x.status, Number(x.n)]));

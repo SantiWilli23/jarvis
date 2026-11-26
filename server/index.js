@@ -31,6 +31,13 @@ setInterval(() => ctx.escolar.purge().catch((e) => console.error("[escolar]", e?
 // Consultas del navegador sin respuesta: se vencen y se avisa.
 setInterval(() => ctx.nav.sweep(ctx.ownerId).catch((e) => console.error("[nav]", e?.message)), 15_000).unref();
 
+// Módulos de la Fase 0: rutinas cada minuto, cola de textos cada 15 s, memoria y repaso cada hora.
+const cada = (ms, nombre, fn) => setInterval(() => fn().catch((e) => console.error(`[${nombre}]`, e?.message)), ms).unref();
+cada(60_000, "rutinas", () => ctx.rutinas.tick(ctx.ownerId));
+cada(15_000, "textos", () => ctx.claudeTextos.tick(ctx.ownerId));
+cada(3_600_000, "memoria", () => ctx.memoriaReparto.tick(ctx.ownerId));
+cada(3_600_000, "repaso", () => ctx.repaso.tick(ctx.ownerId));
+
 const port = Number(process.env.PORT) || 3000;
 server.listen(port, () => {
   console.log(`[jarvis] Escuchando en http://localhost:${port}`);

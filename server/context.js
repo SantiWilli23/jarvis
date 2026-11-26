@@ -37,6 +37,13 @@ import { createGitHub } from "./connectors/github.js";
 import { createPush, loadWebPush } from "./push.js";
 import { createResultados } from "./acciones/resultados.js";
 import { createEscenas } from "./escenas.js";
+import { createControl } from "./control.js";
+import { createRutinas } from "./rutinas.js";
+import { createRepaso } from "./repaso.js";
+import { createClaudeTextos } from "./claude-textos.js";
+import { createMemoriaReparto } from "./memoria-reparto.js";
+import { createEscolarCalendario } from "./escolar-calendario.js";
+import { createMcp } from "./mcp/index.js";
 
 const cfgPath = (f) => fileURLToPath(new URL(`../config/${f}`, import.meta.url));
 export const loadJson = (f) => JSON.parse(readFileSync(cfgPath(f), "utf8"));
@@ -85,12 +92,21 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const limiter = createLoginLimiter({ db, now });
   const stt = createStt({ apiKey: env.GROQ_API_KEY, fetch: f });
   const websearch = createWebSearch({ providers, quota, config: config.busqueda, fetch: f, env, now });
-  const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, phone, pc, escenas, persona, webSearch: websearch, agent, getMusic: () => ext?.music, getNav: () => nav, getPro: () => pro, getGithub: () => github, getEscolar: () => escolar, now });
+  const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, phone, pc, escenas, persona, webSearch: websearch, agent, getMusic: () => ext?.music, getNav: () => nav, getPro: () => pro, getGithub: () => github, getEscolar: () => escolar, getExtras: () => [control, rutinas, repaso, escolarCalendario], now });
   let ext = null; // conectores de las fases 4-6 (se arman al final)
   const studio = createStudio({ db, config: config.estudio, providers, chat, privacy, now });
   const browser = createBrowser({ db, config: loadJson("browser-sites.json"), agent, chat, privacy, bus, audit, now });
   const nav = createNav({ db, config: loadJson("nav.json"), agent, chat, privacy, bus, audit, websearch, now });
-  const escolar = createEscolar({ db, config: loadJson("escolar.json"), crypto: createCrypto(env.CONNECTIONS_KEY), nav, audit, now });
+  const crypto = createCrypto(env.CONNECTIONS_KEY);
+  const escolar = createEscolar({ db, config: loadJson("escolar.json"), crypto, nav, audit, now });
+  // Módulos de la Fase 0 (docs/CONTROL.md, docs/MEMORIA.md, docs/NAV.md).
+  const control = createControl({ db, bus, audit, approvals, tasks, agent, pc, now });
+  const claudeTextos = createClaudeTextos({ db, crypto, bus, agent, audit, now });
+  const rutinas = createRutinas({ db, bus, audit, approvals, escenas, pc, phone, getChat: () => chat, getControl: () => control, now });
+  const repaso = createRepaso({ db, crypto, escolar, claudeTextos, audit, now });
+  const memoriaReparto = createMemoriaReparto({ db, notes, inbox, privacy, nav, claudeTextos, audit, getControl: () => control, now });
+  const escolarCalendario = createEscolarCalendario({ db, escolar, crypto, approvals, audit, getGoogle: () => ext?.google, now });
+  const mcp = createMcp({ db, notes, search, privacy, sessions, limiter, audit, env, now });
   const tts = createTts({ db, env, fetch: f, config: config.voz, privacy, now,
     phrasesDir: fileURLToPath(new URL("../web/audio/phrases", import.meta.url)),
     cacheDir: fileURLToPath(new URL("../data/cache/tts", import.meta.url)) });
@@ -139,7 +155,8 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   }
 
   const base = { db, env, config, permissions, persona, ownerId, providers, chain, keyless, privacy, quota, bus, state, router,
-    notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, pc, escenas, agent, pro, github, sessions, limiter, stt, tts, studio, browser, nav, escolar, chat, websearch, status, now, fts };
+    notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, pc, escenas, agent, pro, github, sessions, limiter, stt, tts, studio, browser, nav, escolar, chat, websearch, status, now, fts,
+    control, rutinas, repaso, claudeTextos, memoriaReparto, escolarCalendario, mcp };
   ext = buildExtensions(base, { fetch: f });
   const despertador = createDespertador({ env, bus, audit, getGoogle: () => ext?.google, now });
   const push = createPush({ db, env, bus, audit, ownerId, webpush: webpushOverride === undefined ? await loadWebPush() : webpushOverride, now });

@@ -152,6 +152,7 @@ async function converse(text, priv) {
     activeProvider = r.provider || null;
     if (r.status === "ok" && r.provider) lastUsed = r.provider;
     $("memread").textContent = r.notes_read ?? 0;
+    window.dispatchEvent(new CustomEvent("jarvis:respuesta", { detail: r }));
     if (r.status === "musica") {                 // orden musical: solo texto, sin voz
       say("Jarvis", r.reply || "");
       window.dispatchEvent(new CustomEvent("jarvis:musica", { detail: r.musica }));

@@ -15,6 +15,7 @@ async function addColumn(db, table, column, ddl) {
 }
 export async function migrate(db) {
   await addColumn(db, "approvals", "pro_job_id", "INTEGER");
+  await addColumn(db, "notes", "origen", "TEXT NOT NULL DEFAULT ''"); // de qué IA vino (docs/MEMORIA.md)
   await addColumn(db, "tasks", "engine", "TEXT NOT NULL DEFAULT 'claude'"); // motor del PC: claude | gemini
   await addColumn(db, "pro_jobs", "model_real", "TEXT"); // modelo que de verdad atendió el job (puede ser el de reserva)
   await addColumn(db, "pro_threads", "resumen", "TEXT"); // resumen del hilo que mantiene el coordinador (Groq)

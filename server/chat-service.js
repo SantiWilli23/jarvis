@@ -19,7 +19,7 @@ const MSG_SIN_CUOTA = "Mis proveedores gratuitos llegaron a su límite por ahora
 
 const MOTORES = ["auto", "flash", "gemini", "claude"]; // lista cerrada del selector del chat
 
-export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, pc = null, escenas = null, persona = "", webSearch = null, agent = null, getMusic = () => null, getNav = () => null, getPro = () => null, getGithub = () => null, getEscolar = () => null, now = () => Date.now() }) {
+export function createChatService({ db, router, privacy, search, tasks, prepare, bus, phone = null, pc = null, escenas = null, persona = "", webSearch = null, agent = null, getMusic = () => null, getNav = () => null, getPro = () => null, getGithub = () => null, getExtras = () => [], getEscolar = () => null, now = () => Date.now() }) {
   async function ensureConversation(userId, id, firstText) {
     if (id) {
       const c = await get(db, "SELECT id FROM conversations WHERE id=? AND user_id=?", [id, userId]);
@@ -66,6 +66,17 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       if (d.direct && d.engine === "gemini") {
         if (!d.text.trim()) { state(userId, "idle"); return { status: "vacio", conversationId: conv, reply: "¿Qué quiere preguntarle a Gemini, señor?" }; }
         original = d.text; prefer = "gemini"; d = { direct: false };
+      }
+      // 1-000) Enganche de módulos (docs/CONTROL.md): cada uno puede atender la frase con intent().
+      for (const m of d.direct ? [] : getExtras()) {
+        const out = await m?.intent?.({ userId, conversationId: conv, text: original, flagPrivate: !!flagPrivate, chatSolo, source, deviceId });
+        if (!out) continue;
+        const priv = !!(out.private ?? flagPrivate);
+        await saveMsg(userId, conv, "user", original, null, priv);
+        await saveMsg(userId, conv, "assistant", out.reply, out.status, priv);
+        bus?.emit("chat.done", { userId, text: out.reply, provider: out.status });
+        state(userId, "speaking");
+        return { ...out, conversationId: conv, private: priv };
       }
       // 1-00) Sesión Pro desde Clásico: solo modo IA y solo frase explícita.
       const pro = !chatSolo && !d.direct && !prefer ? getPro() : null;

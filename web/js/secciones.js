@@ -42,6 +42,7 @@ function mas(abrir) {
   $("masbtn").setAttribute("aria-expanded", String(abrir));
   for (const x of fondo) x.inert = abrir;
   (abrir ? $("mascerrar") : $("masbtn")).focus();
+  if (abrir) window.dispatchEvent(new CustomEvent("jarvis:mas")); // los paneles de "Más" cargan al abrirse; sin contenido siguen ocultos
 }
 $("masbtn").addEventListener("click", () => mas(true));
 $("mascerrar").addEventListener("click", () => mas(false));

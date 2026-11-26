@@ -27,6 +27,7 @@ import { githubRoutes } from "./routes/github.js";
 import { browserRoutes, agentBrowserRoutes } from "./routes/browser.js";
 import { agentNavRoutes, navRoutes } from "./routes/nav.js";
 import { escolarRoutes } from "./routes/escolar.js";
+import { agentMemoriaRoutes } from "./routes/agent-memoria.js";
 
 const WEB = fileURLToPath(new URL("../web", import.meta.url));
 
@@ -36,6 +37,9 @@ export const csp = (host = "") => [
   "img-src 'self' data: blob: https://i.ytimg.com", "media-src 'self' blob: data:", `connect-src 'self'${host ? ` wss://${host} ws://${host}` : ""}`,
   "worker-src 'self'", "manifest-src 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'",
 ].join("; ");
+
+// Router de un módulo; si el contexto no lo trae (pruebas con contexto parcial), deja pasar.
+const de = (mod, metodo = "routes") => mod?.[metodo]() ?? ((_req, _res, next) => next());
 
 export function createApp(ctx) {
   const app = express();
@@ -61,6 +65,9 @@ export function createApp(ctx) {
   api.use("/agent/browser", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentBrowserRoutes(ctx)); // antes de /agent
   api.use("/agent/nav", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentNavRoutes(ctx)); // antes de /agent
   api.use("/agent/pro", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentProRoutes(ctx)); // antes de /agent
+  api.use("/agent/memoria", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentMemoriaRoutes(ctx)); // antes de /agent
+  api.use("/agent/control", requireAuth(ctx.sessions, { kinds: ["pc"] }), de(ctx.control, "agentRoutes")); // antes de /agent
+  api.use("/agent/textos", requireAuth(ctx.sessions, { kinds: ["pc"] }), de(ctx.claudeTextos, "agentRoutes")); // antes de /agent
   api.use("/agent", requireAuth(ctx.sessions, { kinds: ["pc"] }), agentRoutes(ctx));
   api.use(stubRoutes());
   const auth = requireAuth(ctx.sessions);
@@ -73,7 +80,13 @@ export function createApp(ctx) {
   api.use("/devices", auth, deviceRoutes(ctx));
   api.use("/studio", auth, studioRoutes(ctx));
   api.use("/browser", auth, browserRoutes(ctx));
+  api.use("/escolar/calendario", auth, de(ctx.escolarCalendario, "routes")); // antes de /escolar
   api.use("/escolar", auth, escolarRoutes(ctx));
+  api.use("/control", auth, de(ctx.control, "routes"));
+  api.use("/rutinas", auth, de(ctx.rutinas, "routes"));
+  api.use("/repaso", auth, de(ctx.repaso, "routes"));
+  api.use("/textos", auth, de(ctx.claudeTextos, "routes"));
+  api.use("/memoria-reparto", auth, de(ctx.memoriaReparto, "routes"));
   api.use("/nav", auth, navRoutes(ctx));        // historial y cancelar del navegador de Claude
   api.use("/github", auth, githubRoutes(ctx));
   api.use("/pro", auth, proRoutes(ctx));
@@ -88,6 +101,7 @@ export function createApp(ctx) {
   api.use((_req, res) => res.status(404).json({ error: "no_encontrado" }));
   app.use("/api", api);
 
+  app.use(de(ctx.mcp, "routes"));                  // /mcp, /.well-known/*, /oauth/* (antes del estático)
   app.use(express.static(WEB, { index: "index.html", extensions: ["html"] }));
   // eslint-disable-next-line no-unused-vars
   app.use((err, _req, res, _next) => {
