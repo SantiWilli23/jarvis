@@ -90,6 +90,9 @@ export const NAV_SISTEMAS = {
   ].join("\n"),
 };
 
+// Recoger o repartir la memoria (docs/MEMORIA.md): única excepción a "no escribas datos personales".
+const EXCEPCION_MEMORIA = "Excepción de esta tarea, aprobada por el usuario: la consulta es un texto sobre su propia memoria (puede llevar datos personales suyos). Escríbela en el chat EXACTAMENTE como está y envíala una vez. Siguen prohibidos las contraseñas, los códigos, iniciar sesión, aceptar términos, abrir ajustes y salir de los hosts permitidos.";
+
 // Ajustes de la sesión: el guardia (nav-guard.js) como hook PreToolUse de TODAS las herramientas.
 // Forma `args` (sin shell) y onFailure "block": si el hook falla o tarda, la herramienta no se ejecuta.
 export function navSettings({ node, guard, politica }) {
@@ -101,9 +104,9 @@ export function navSettings({ node, guard, politica }) {
 // --tools ToolSearch: de las herramientas propias solo queda la que carga las de Chrome.
 // Las de Chrome NO se pre-aprueban: solo las permite el guardia; sin él quedan denegadas.
 // --setting-sources "": sin ajustes del usuario (permisos, hooks o plugins que pudieran aflojar esto).
-export function buildNavArgs({ perfil = "ia", capturas = false, settings = null, maxTurns = 25, model = "sonnet" } = {}) {
-  const sistema = NAV_SISTEMAS[perfil];
-  if (!sistema) throw new Error(`perfil desconocido: ${perfil}`);
+export function buildNavArgs({ perfil = "ia", capturas = false, settings = null, maxTurns = 25, model = "sonnet", memoria = false } = {}) {
+  if (!NAV_SISTEMAS[perfil]) throw new Error(`perfil desconocido: ${perfil}`);
+  const sistema = NAV_SISTEMAS[perfil] + (memoria && perfil === "ia" ? `\n${EXCEPCION_MEMORIA}` : "");
   const prohibidas = [...NAV_PROHIBIDAS, ...(perfil === "ia" ? [] : [chrome("form_input"), ...(capturas ? [] : [chrome("computer")])])];
   return [
     "-p", "--chrome", "--output-format", "stream-json", "--verbose", "--model", model,

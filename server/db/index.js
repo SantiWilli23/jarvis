@@ -33,6 +33,7 @@ export async function migrate(db) {
     ["capturas", "INTEGER NOT NULL DEFAULT 0"], ["url_inicial", "TEXT"], ["cuenta", "TEXT"]]) await addColumn(db, "nav_tasks", col, ddl);
   // Registro de uso del PC (capturas): solo fecha, tipo, dispositivo y ok (1/0, NULL = en curso). Nunca imagen ni descripción.
   for (const [col, ddl] of [["tipo", "TEXT"], ["device_id", "INTEGER"], ["ok", "INTEGER"], ["action_id", "INTEGER"]]) await addColumn(db, "claude_usage", col, ddl);
+  await addColumn(db, "memoria_repartos", "nav_id", "INTEGER"); // tarea del navegador que lo atiende
   await addColumn(db, "devices", "expires_at", "INTEGER"); // caducidad: solo sesiones web (90 días); pc/phone/shortcut = NULL
   await db.execute({ sql: "UPDATE devices SET expires_at = ? WHERE kind = 'web' AND expires_at IS NULL", args: [Date.now() + 90 * 24 * 60 * 60 * 1000] });
 }

@@ -67,6 +67,21 @@ export function urlPermitida(url, hosts = [], negados = []) {
   });
 }
 
+// Memoria (docs/MEMORIA.md): con texto_exacto solo se puede teclear ese texto; ni pegar ni otras teclas.
+const ACCIONES_MEMORIA = ["screenshot", "left_click", "scroll", "scroll_to", "wait", "zoom", "hover", "type", "key"];
+const TECLAS = /^(return|enter|escape|backspace|delete|end|page_down|ctrl\+a|cmd\+a)$/i;
+
+function fueraDelTexto(exacto, n, i) {
+  const igual = (v) => typeof v === "string" && v.trim() === exacto.trim();
+  const motivo = "solo se puede escribir el texto aprobado, completo y sin cambios";
+  if (n === "form_input") return igual(i?.value) ? null : motivo;
+  if (n !== "computer") return null;
+  if (!ACCIONES_MEMORIA.includes(i?.action)) return `acción no permitida en esta tarea: ${i?.action}`;
+  if (i.action === "type" && !igual(i.text)) return motivo;
+  if (i.action === "key" && !String(i.text || "").trim().split(/\s+/).every((k) => TECLAS.test(k))) return "tecla no permitida en esta tarea";
+  return null;
+}
+
 // --- Decisión ---
 // politica = {perfil, hosts, negados, capturas, max_paginas}; usadas = páginas ya abiertas.
 // Devuelve {ok, motivo, paginas} (paginas = las que abre esta llamada).
@@ -81,6 +96,10 @@ export function decidir(politica, name, input, usadas = 0) {
     if (n === "computer" && politica.perfil !== "ia") {
       if (!politica.capturas || i?.action !== "screenshot") return "en este perfil computer solo sirve para capturas de pantalla";
     } else if (!POR_PERFIL[politica.perfil].includes(n)) return `herramienta no permitida en el perfil ${politica.perfil}: ${n}`;
+    if (typeof politica.texto_exacto === "string") {
+      const motivo = fueraDelTexto(politica.texto_exacto, n, i);
+      if (motivo) return motivo;
+    }
     if (n === "navigate" || n === "tabs_create_mcp") {
       const url = i?.url;
       if (url !== undefined && url !== null && url !== "") {

@@ -64,6 +64,12 @@ tipo suma `investigar`, `estudio`. sitio suma `classroom`, `lirmi`. estado suma 
 - cwd fijo y vacío %LOCALAPPDATA%/jarvis/nav (permite `claude --resume`). En `ia`, no usar chat temporal ni borrar; anotar la URL
   de la conversación (se valida con `patron_conversacion` por sitio en config/nav.json).
 
+## Seguir el mismo chat (claude.ai)
+- "háblale a Claude", "dile a Claude" o "sigue con Claude" (y "pregúntale a Claude") continúan la conversación; "chat nuevo con Claude" abre otra.
+- Solo sitios con `continuar` en config/nav.json: último `url_conversacion` válido de la misma conversación de Jarvis o de las últimas `continuar_horas`.
+- Se revalida al reclamar; la tarea lleva `continuacion:true` (escribir al final y copiar solo la respuesta nueva).
+- Tipos `memoria_recoger` y `memoria_repartir`: docs/MEMORIA.md.
+
 ## Web
 - `GET /api/nav/tasks?limit=50` -> {tasks:[{id,tipo,sitio,sitio_nombre,consulta,estado,respuesta,fuentes,url_conversacion,pasos,creado,terminado}]}
 - `GET /api/nav/tasks/:id` -> {task}; `POST /api/nav/tasks/:id/cancel` -> {ok:true}
