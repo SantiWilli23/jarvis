@@ -23,6 +23,39 @@ function tarjeta(i) {
   return li;
 }
 
+// Vista previa de los eventos de las pruebas: solo se crea lo que se mostró.
+let porCrear = [];
+const calMsg = (t) => { $("esc-cal-msg").textContent = t || ""; };
+function pintarEventos(eventos) {
+  porCrear = eventos.filter((e) => !e.existe).map((e) => e.id);
+  $("esc-cal-lista").replaceChildren(...eventos.map((e) => {
+    const li = el("li", "tarjeta");
+    const hora = e.inicio.length > 10 ? e.inicio.slice(11, 16) + " a " + e.fin.slice(11, 16) : "Día completo";
+    li.append(el("small", "", [e.dia, hora, e.existe ? "Ya está en Calendar" : ""].filter(Boolean).join(" · ")), el("b", "", String(e.titulo)));
+    return li;
+  }));
+}
+async function verEventos() {
+  calMsg("Buscando…"); $("esc-cal-acc").hidden = true;
+  try {
+    const r = await api("/escolar/calendario");
+    pintarEventos(r.eventos || []);
+    $("esc-cal-acc").hidden = !(r.conectado && porCrear.length);
+    const sin = r.sinFecha ? `Pruebas sin fecha clara: ${r.sinFecha}.` : "";
+    calMsg([r.mensaje || (porCrear.length ? "Revise la lista antes de crear." : "Ya está todo en Calendar."), sin].filter(Boolean).join(" "));
+  } catch (e) { pintarEventos([]); calMsg(errorTexto(e)); }
+}
+async function crearEventos() {
+  $("esc-cal-crear").disabled = true; calMsg("Creando…");
+  try {
+    const r = await api("/escolar/calendario", { method: "POST", body: { ids: porCrear } });
+    await verEventos();
+    calMsg(r.mensaje);
+  } catch (e) { calMsg(errorTexto(e)); }
+  $("esc-cal-crear").disabled = false;
+}
+const limpiarEventos = () => { pintarEventos([]); calMsg(""); $("esc-cal-acc").hidden = true; };
+
 async function cargar() {
   if (!getToken()) return;
   try {
@@ -49,6 +82,8 @@ if (typeof document !== "undefined" && $("esc-lista")) {
       msg("Guardado.");
     } catch (x) { msg(errorTexto(x)); }
   });
+  $("esc-cal-ver").addEventListener("click", verEventos);
+  $("esc-cal-crear").addEventListener("click", crearEventos);
   for (const b of document.querySelectorAll("[data-esc]")) {
     b.addEventListener("click", async () => {
       b.disabled = true; msg("Pidiendo…");
@@ -61,6 +96,6 @@ if (typeof document !== "undefined" && $("esc-lista")) {
   }
   new MutationObserver(() => {
     if ($("login").hidden) return;
-    $("esc-lista").replaceChildren(); $("esc-correo").value = ""; delete $("esc-correo").dataset.editado; msg("");
+    $("esc-lista").replaceChildren(); $("esc-correo").value = ""; delete $("esc-correo").dataset.editado; msg(""); limpiarEventos();
   }).observe($("login"), { attributes: true, attributeFilter: ["hidden"] });
 }

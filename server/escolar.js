@@ -105,7 +105,7 @@ export function createEscolar({ db, config, crypto, nav, audit = null, now = () 
     if (!f) throw err(400, "fuente_desconocida", "Solo reviso Classroom y Lirmi, señor.");
     if (!crypto.enabled) throw err(409, "sin_cifrado", "Falta la clave de cifrado (CONNECTIONS_KEY) en el servidor, señor: no leo nada que no pueda guardar cifrado.");
     const c = f.requiere_correo ? await correo(userId) : null;
-    if (f.requiere_correo && !c) throw err(409, "falta_correo", `Antes configure el correo de ${f.nombre} en Escolar, señor.`);
+    if (f.requiere_correo && !c) throw err(409, "falta_correo", `Antes configure el correo de ${f.nombre} en Estudiar, señor.`);
     await purge();
     // La consulta y el texto los arma el servidor: nada de lo que dijo el señor viaja al sitio.
     const t = await nav.enqueue({ userId, conversationId, tipo: "estudio", sitio: fuente, consulta: f.consulta, text: f.consulta, flagPrivate: false, urlInicial: f.url_inicial, cuenta: c ? { correo: c } : null });
@@ -119,7 +119,7 @@ export function createEscolar({ db, config, crypto, nav, audit = null, now = () 
     if (!items.length) return "No tengo nada guardado, señor. Pídame «revisa mi classroom» o «revisa lirmi».";
     const tareas = items.filter((i) => /tarea|evaluaci|prueba|entrega|assignment/i.test(i.tipo));
     if (tareas.length) items = tareas;
-    const resto = items.length > 12 ? `\nY ${items.length - 12} más en Escolar.` : "";
+    const resto = items.length > 12 ? `\nY ${items.length - 12} más en Estudiar.` : "";
     return `Esto tengo, señor:\n${items.slice(0, 12).map(linea).join("\n")}${resto}`;
   }
 
@@ -128,7 +128,7 @@ export function createEscolar({ db, config, crypto, nav, audit = null, now = () 
     const palabras = plano(text).split(" ").filter((w) => w.length > 3 && !VACIAS.includes(w));
     const items = (await filas(userId)).map((x) => x.item);
     const hits = items.filter((i) => { const t = plano(`${i.curso} ${i.titulo}`).split(" "); return palabras.some((w) => t.includes(w)); }).slice(0, 5);
-    if (!hits.length) return `${SOLO_CLAUDE} Puede pedirme «qué tareas tengo» o abrir Escolar.`;
+    if (!hits.length) return `${SOLO_CLAUDE} Puede pedirme «qué tareas tengo» o abrir Estudiar.`;
     return `${SOLO_CLAUDE} Esto es lo que tengo guardado:\n${hits.map((i) => linea(i) + (i.resumen ? `\n  ${i.resumen}` : "") + (i.url ? `\n  ${i.url}` : "")).join("\n")}`;
   }
 
@@ -172,7 +172,7 @@ export function createEscolar({ db, config, crypto, nav, audit = null, now = () 
         reply = await detalle(userId, text);
       }
       // El Atajo del teléfono no recibe contenido escolar.
-      if (source === "atajo") reply = "Véalo en Jarvis, en Escolar, señor.";
+      if (source === "atajo") reply = "Véalo en Jarvis, en Estudiar, señor.";
       return { reply, guardar: GUARDADO };
     },
   };

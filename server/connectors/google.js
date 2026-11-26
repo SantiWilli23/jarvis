@@ -10,11 +10,15 @@ export const GOOGLE_SCOPES = [
 ];
 export const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
 const NAME = "google";
+const CALENDARIO = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+// Fecha sola = día completo; hora sin offset = en la zona configurada.
+const momento = (v, timeZone) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? { date: v } : /(Z|[+-]\d{2}:?\d{2})$/i.test(v) ? { dateTime: v } : { dateTime: v, timeZone });
 const clean = (s) => String(s ?? "").replace(/[\r\n]+/g, " ").trim(); // evita inyectar cabeceras
 
 export function createGoogle({ env = process.env, fetch: f = globalThis.fetch, connections, crypto, now = () => Date.now() }) {
   const id = env.GOOGLE_CLIENT_ID || "", secret = env.GOOGLE_CLIENT_SECRET || "";
   const enabled = !!(id && secret && crypto?.enabled);
+  const zona = env.CALENDARIO_ZONA || "America/Santiago";
 
   async function token(body) {
     const res = await f("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: id, client_secret: secret, ...body }) });
@@ -37,7 +41,7 @@ export function createGoogle({ env = process.env, fetch: f = globalThis.fetch, c
   const hdr = (m, n) => m.payload?.headers?.find((h) => h.name.toLowerCase() === n)?.value || "";
 
   return {
-    enabled, name: NAME,
+    enabled, name: NAME, zona,
     connected: (userId) => (enabled ? connections.connected(userId, NAME) : false),
     authUrl({ state, redirectUri }) {
       const p = new URLSearchParams({ client_id: id, redirect_uri: redirectUri, response_type: "code", scope: GOOGLE_SCOPES.join(" "), access_type: "offline", prompt: "consent", include_granted_scopes: "true", state });
@@ -74,6 +78,24 @@ export function createGoogle({ env = process.env, fetch: f = globalThis.fetch, c
       const j = await api(userId, `https://www.googleapis.com/calendar/v3/calendars/primary/events?${p}`);
       return (j.items || []).map((e) => ({ id: e.id, summary: e.summary || "(sin título)", start: e.start?.dateTime || e.start?.date, end: e.end?.dateTime || e.end?.date, location: e.location || "" }));
     },
+    // Eventos entre dos días (AAAA-MM-DD, inclusive) como {summary, dia}, para no duplicar.
+    async findEvents(userId, { desde, hasta }) {
+      const t = (dia, n) => new Date(Date.parse(`${dia}T00:00:00Z`) + n * 86_400_000).toISOString();
+      const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: zona, year: "numeric", month: "2-digit", day: "2-digit" });
+      const out = [];
+      let pagina = "";
+      do {
+        // Un día de margen a cada lado cubre el desfase horario.
+        const p = new URLSearchParams({ timeMin: t(desde, -1), timeMax: t(hasta, 2), singleEvents: "true", maxResults: "250", timeZone: zona, ...(pagina ? { pageToken: pagina } : {}) });
+        const j = await api(userId, `${CALENDARIO}?${p}`);
+        for (const e of j.items || []) {
+          const dia = e.start?.date || (e.start?.dateTime ? fmt.format(new Date(e.start.dateTime)) : "");
+          if (dia) out.push({ summary: e.summary || "", dia });
+        }
+        pagina = j.nextPageToken || "";
+      } while (pagina);
+      return out;
+    },
     async listFiles(userId, { q = "", max = 10 } = {}) {
       const p = new URLSearchParams({ pageSize: String(Math.min(Number(max) || 10, 25)), orderBy: "modifiedTime desc", fields: "files(id,name,mimeType,modifiedTime,webViewLink)" });
       if (q) p.set("q", `name contains '${String(q).replace(/['\\]/g, " ")}'`);
@@ -84,8 +106,8 @@ export function createGoogle({ env = process.env, fetch: f = globalThis.fetch, c
       const raw = [`To: ${clean(to)}`, `Subject: =?UTF-8?B?${Buffer.from(clean(subject)).toString("base64")}?=`, "MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8", "", String(body ?? "")].join("\r\n");
       return api(userId, "https://gmail.googleapis.com/gmail/v1/users/me/messages/send", { method: "POST", body: JSON.stringify({ raw: Buffer.from(raw).toString("base64url") }) });
     },
-    async createEvent(userId, { summary, start, end, description = "" }) {
-      return api(userId, "https://www.googleapis.com/calendar/v3/calendars/primary/events", { method: "POST", body: JSON.stringify({ summary: clean(summary), description, start: { dateTime: start }, end: { dateTime: end } }) });
+    async createEvent(userId, { summary, start, end, description = "", colorId, timeZone = zona }) {
+      return api(userId, CALENDARIO, { method: "POST", body: JSON.stringify({ summary: clean(summary), description, start: momento(start, timeZone), end: momento(end, timeZone), ...(colorId ? { colorId: String(colorId) } : {}) }) });
     },
   };
 }
