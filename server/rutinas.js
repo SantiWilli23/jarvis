@@ -92,7 +92,8 @@ export function parseCrear(text) {
   if ((x = toma(/^(?:llamada|que se llame) +["“']?[^:,"”']+?["”']?(?=\s*[:,]| (?:cada|cuando|al decir|con la frase)\b)/))) nombre = x.trozo.replace(/^(?:llamada|que se llame) +/i, "").replace(/["“”']/g, "").trim();
   for (let n = 0; n < 2; n++) {
     salta();
-    toma(/^(?:que |para que )/);
+    // Tras ":" ya empiezan los pasos: «qué tengo en classroom» no pierde el «qué».
+    if (!/:s*$/.test(p.slice(0, i)) && !/^qué /i.test(orig.slice(i))) toma(/^(?:que |para que )/);
     if (!horario && (x = toma(CUANDO))) {
       let h = Number(x.x[2]);
       if (/tarde|noche/.test(x.x[4] || "") && h < 12) h += 12;

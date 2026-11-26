@@ -136,3 +136,8 @@ test("'revisa mis tareas' va por lo escolar sin pedir permiso", async () => {
   await ctx.rutinas.tick(uid);
   assert.equal((await ctx.approvals.pending(uid)).length, 0);
 });
+
+test("los pasos conservan el «qué» inicial", async () => {
+  const { parseCrear } = await import("../server/rutinas.js");
+  assert.deepEqual(parseCrear("crea una rutina cuando diga hola: qué tengo en classroom; sube el volumen").pasos, ["qué tengo en classroom", "sube el volumen"]);
+});
