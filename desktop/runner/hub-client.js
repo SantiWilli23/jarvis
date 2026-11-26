@@ -31,6 +31,8 @@ export function createHubClient({ baseUrl, token, fetchFn = fetch }) {
     textosResult: (id, out) => call(`/textos/${id}/result`, { body: out }),
     memoriaProponer: (nota) => call("/memoria/proponer", { body: nota }),
     controlLog: (entrada) => call("/control/log", { body: entrada }),
+    controlFreno: () => call("/control/freno", { body: {} }),   // freno puesto desde el PC
+    controlApagar: () => call("/control/apagar", { body: {} }), // apagar control amplio y de ratón
     // Navegador de Claude (docs/NAV.md)
     navClaim: () => call("/nav/claim", { body: {} }),
     navResult: (id, out) => call(`/nav/${id}/result`, { body: out }),

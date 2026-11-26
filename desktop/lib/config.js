@@ -6,6 +6,7 @@ import { join } from "node:path";
 export const DEFAULTS = {
   hubUrl: "http://localhost:3055",   // configurable: en config.json o JARVIS_HUB_URL (p. ej. https://jarvis-6pjr.onrender.com)
   hotkey: "Control+Alt+J",           // abre/enfoca Jarvis y activa el micrófono
+  hotkeyFreno: "Control+Alt+F",      // freno de emergencia: detiene todo lo que Jarvis hace en el PC
   autoStart: true,                   // arrancar con Windows
   alwaysOnTop: false,
   greeting: true,                    // decir "Hola señor." al arrancar

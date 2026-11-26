@@ -1,6 +1,7 @@
 // Worker del Modo Pro: reclama jobs de /api/agent/pro, los ejecuta con Claude Code dentro de un
 // repo permitido, calcula el diff real (git-snapshot) y manda informe + diff. Contrato: docs/PRO.md §5-§7.
 import { existsSync } from "node:fs";
+import { controlState } from "./control-state.js";
 import { buildProArgs } from "./claude-args.js";
 import { classifyDenial, allowRule } from "./danger.js";
 import { runClaude as realRunClaude, resolveClaude as realResolveClaude, classifyClaudeError } from "./claude-runner.js";
@@ -25,7 +26,7 @@ export function createProWorker({
   hub, outbox = null, allowedFolders = () => [], log = () => {},
   claude = null,                                  // { command, prefix } o función que lo resuelve
   runClaude = realRunClaude, resolveClaude = realResolveClaude,
-  snap = gitSnap, diffMax = 200000, approvalPollMs = 3000, approvalTtlMs = 30 * 60_000, onStatus = () => {}, cancelPollMs = 5000,
+  snap = gitSnap, diffMax = 200000, approvalPollMs = 3000, approvalTtlMs = 30 * 60_000, onStatus = () => {}, cancelPollMs = 5000, control = controlState,
 }) {
   const bin = (b, fallback) => { const v = typeof b === "function" ? b() : b; return v || (fallback ? fallback() : null); };
 
@@ -41,9 +42,10 @@ export function createProWorker({
   }
   const fail = (job, error) => { log(`Job ${job.id} falló: ${String(error).slice(0, 120)}`); return deliver(`fail-${job.id}`, "fail", job.id, error); };
 
-  async function waitApproval(id) {
+  async function waitApproval(id, signal) {
     const t0 = Date.now();
     while (Date.now() - t0 <= approvalTtlMs) {
+      if (signal?.aborted) return "cancelada";
       const s = await hub.approvalStatus(id);
       if (s.status !== "pendiente") return s.status;
       await sleep(approvalPollMs);
@@ -74,7 +76,7 @@ export function createProWorker({
     let modelo = job.model, fallback = null;
     for (let ronda = 0; ronda <= MAX_RONDAS; ronda++) {
       last = await runClaude({
-        ...b, args: buildProArgs({ role: job.role, model: modelo, repo: job.repo, approved, resume, fallbackModel: !fallback && reservas[0] ? reservas[0] : null }), stdin, cwd: job.repo, timeoutMs, signal,
+        ...b, args: buildProArgs({ role: job.role, model: modelo, repo: job.repo, approved, resume, fallbackModel: !fallback && reservas[0] ? reservas[0] : null }), stdin, cwd: job.repo, timeoutMs, signal, killTree: true,
         onEvents: (e) => { for (const x of e) if (x.kind === "herramienta" && /^Bash: /.test(x.text)) commands.push(x.text.slice(6)); ev.push(e); },
       });
       total.tokens_in += last.usage.tokens_in; total.tokens_out += last.usage.tokens_out;
@@ -92,9 +94,10 @@ export function createProWorker({
         const c = classifyDenial(d);
         const a = (await hub.proApproval(job.id, c)).approval;
         onStatus({ waiting: c.summary });
-        dec.push({ d, c, estado: await waitApproval(a.id) });
+        dec.push({ d, c, estado: await waitApproval(a.id, signal) });
       }
       onStatus({ waiting: null });
+      if (signal.aborted) return { cancelado: true };
       const ok = dec.filter((x) => x.estado === "aprobada");
       if (!ok.length) return { error: `aprobacion_${dec[0].estado}`, text: last.result, usage: total };
       approved = [...approved, ...ok.map((x) => allowRule(x.d))];
@@ -113,6 +116,7 @@ export function createProWorker({
 
   // Rol "commit" (docs/PRO.md "Ampliaciones P2"): el prompt es el mensaje; commit local, nunca push.
   async function processCommit(job) {
+    if (control.frenado()) return;
     const repo = job.repo;
     if (!repo || !snap.isInsideAllowed(repo, allowedFolders()) || !existsSync(repo) || !(await snap.isGitRepo(repo))) return fail(job, "repo_invalido");
     try {
@@ -141,6 +145,7 @@ export function createProWorker({
     if (!existsSync(repo) || !(await snap.isGitRepo(repo))) return fail(job, "repo_invalido");
 
     const controller = new AbortController();
+    const soltar = control.onFreno(() => controller.abort());
     const ev = eventSender(job, controller);
     const edita = job.role === "programar" && job.mode === "editar";
     let treeA = null;
@@ -166,11 +171,12 @@ export function createProWorker({
     } catch (e) {
       ev.flush(); ev.stop();
       return fail(job, `error_runner: ${e.message}`.slice(0, 300));
-    }
+    } finally { soltar(); }
   }
 
   // Un ciclo: reenvía el buzón, reclama un job y lo procesa. Devuelve "job" | "vacio".
   async function tick() {
+    if (control.frenado()) return "vacio";
     if (outbox) await outbox.flush((e) => (e.kind === "report" ? hub.proReport(e.jobId, e.body) : hub.proFail(e.jobId, e.body))).catch(() => {});
     const r = await hub.proClaim();
     if (!r?.job) return "vacio";

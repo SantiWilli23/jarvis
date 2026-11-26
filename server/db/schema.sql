@@ -434,3 +434,12 @@ CREATE TABLE IF NOT EXISTS memoria_repartos (
   terminado INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_memoria_repartos_user ON memoria_repartos (user_id, tipo, id);
+
+-- Freno y permisos de control del PC (server/control.js). *_hasta: caducidad en ms; NULL = apagado.
+CREATE TABLE IF NOT EXISTS control_estado (
+  user_id INTEGER PRIMARY KEY,
+  frenado INTEGER NOT NULL DEFAULT 0,
+  frenado_at INTEGER,
+  amplio_hasta INTEGER,
+  raton_hasta INTEGER
+);

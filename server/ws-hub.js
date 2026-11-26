@@ -4,7 +4,7 @@
 import { WebSocketServer } from "ws";
 import { cookieValue } from "./auth/middleware.js";
 
-const EVENTOS = ["state", "chat.delta", "chat.done", "task.update", "approval.request", "approval.resolved", "providers.update", "pc.status", "task.progress", "phone.update", "pro.status", "pro.message", "pro.delta", "pro.round", "conn.using", "accion.resultado", "pc.actions", "nav.done", "nav.inicio", "nav.paso", "nav.frame"];
+const EVENTOS = ["state", "chat.delta", "chat.done", "task.update", "approval.request", "approval.resolved", "providers.update", "pc.status", "task.progress", "phone.update", "pro.status", "pro.message", "pro.delta", "pro.round", "conn.using", "accion.resultado", "pc.actions", "nav.done", "nav.inicio", "nav.paso", "nav.frame", "control.estado"];
 const AUTH_TIMEOUT_MS = 5000;
 
 export function createHub({ server, sessions, bus, initial = async () => [] }) {

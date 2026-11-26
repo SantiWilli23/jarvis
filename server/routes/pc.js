@@ -4,7 +4,7 @@ import { Router } from "express";
 //  - Con sesión web (/api/pc/*): ver catálogo e historial, encolar, aprobar/rechazar.
 //  - Con token "pc" (/api/agent/pc/*): el PC reclama la siguiente acción y devuelve su resultado.
 const wrap = (fn) => async (req, res, next) => { try { await fn(req, res); } catch (e) { next(e); } };
-const STATUS_ERR = { accion_desconocida: 400, no_encontrada: 404, estado_invalido: 409, pc_apagado: 409, accion_no_soportada: 409, tope_capturas: 429 };
+const STATUS_ERR = { accion_desconocida: 400, no_encontrada: 404, estado_invalido: 409, pc_apagado: 409, frenado: 409, accion_no_soportada: 409, tope_capturas: 429 };
 const codeOf = (e) => STATUS_ERR[e] || 400;
 
 export function pcRoutes(ctx) {
@@ -32,7 +32,9 @@ export function pcRoutes(ctx) {
 export function agentPcRoutes(ctx) {
   const r = Router();
   r.post("/next", wrap(async (req, res) => {
-    res.json({ accion: await ctx.pc.next(Number(req.user.id), { deviceId: req.device?.id ?? null }) });
+    const uid = Number(req.user.id);
+    const accion = await ctx.pc.next(uid, { deviceId: req.device?.id ?? null });
+    res.json({ accion, control: await ctx.control.paraPc(uid) });
   }));
   r.post("/:id/result", wrap(async (req, res) => {
     const b = req.body && typeof req.body === "object" ? req.body : {};

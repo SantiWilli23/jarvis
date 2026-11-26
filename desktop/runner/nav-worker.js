@@ -8,6 +8,7 @@ import { buildNavArgs, navSettings } from "./claude-args.js";
 import { runClaude as realRun, resolveClaude as realResolve } from "./claude-runner.js";
 import { urlPermitida, urlsDeHerramienta, PERFILES } from "./nav-guard.js";
 import { isRetryable } from "./outbox.js";
+import { controlState } from "./control-state.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const NAV_TIMEOUT_S = 180;
@@ -172,7 +173,7 @@ export function createNavWorker({
   hub, log = () => {}, claude = null, runClaude = realRun, resolveClaude = realResolve,
   timeoutMs = null,           // solo para pruebas; si no, el de la tarea
   retryMs = 2000, navDir = navDirPorDefecto(), latidoMs = 3000,
-  nodePath = process.execPath, env = process.env,
+  nodePath = process.execPath, env = process.env, control = controlState,
 }) {
   let busy = false;
 
@@ -214,6 +215,7 @@ export function createNavWorker({
     const abort = new AbortController();
     const obs = observador(task);
     let cerrar = async () => {};
+    const soltar = control.onFreno(() => abort.abort());
     try {
       const guard = join(ctl, "nav-guard.mjs"), politica = join(ctl, "politica.json"), settings = join(ctl, "settings.json");
       writeFileSync(guard, readFileSync(new URL("./nav-guard.js", import.meta.url))); // copia real (la app va en un .asar)
@@ -244,6 +246,7 @@ export function createNavWorker({
       if (pol.perfil === "ia" && !extra.url_conversacion && dicha && urlPermitida(dicha, pol.hosts, pol.negados)) extra.url_conversacion = dicha;
       return { ...resto, ...extra, error: j.estado === "ok" ? null : j.estado === "error" ? j.respuesta.slice(0, 300) || "error" : j.estado };
     } finally {
+      soltar();
       await cerrar();
       try { rmSync(ctl, { recursive: true, force: true }); } catch { /* Windows aún la tiene abierta */ }
     }
@@ -262,6 +265,7 @@ export function createNavWorker({
   // Devuelve "tarea" | "vacio" | "ocupado".
   async function tick() {
     if (busy) return "ocupado";
+    if (control.frenado()) return "vacio";
     busy = true;
     try {
       let r;
