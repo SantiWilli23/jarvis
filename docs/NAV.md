@@ -96,7 +96,15 @@ La respuesta del chat trae `pro:{thread_id}`; la web abre `#pro/<id>`.
 
 # Plan, repaso y calendario MDE
 
-Estado: Fase 0 (andamiaje): server/repaso.js, server/escolar-calendario.js, web/js/repaso.js.
+Estado: plan y repaso hechos (server/repaso.js, web/js/repaso.js). Calendario: server/escolar-calendario.js.
+
+## Plan de estudio y repaso
+- Chat (solo modo IA): "hazme un plan de estudio", "repasemos <materia>" (materia conocida o curso guardado).
+- Plan: 7 días, según lo escolar guardado con fecha en los próximos 14. Repaso: 8 tarjetas; sin material, generales.
+- Espaciado: niveles 0 a 5 (0, 1, 3, 7, 14, 30 días); fallar vuelve a 0 y reaparece en 10 minutos.
+- Solo Claude en el PC (cola de textos, docs/CONTROL.md). `repaso_items` cifrado, 30 días.
+- El chat solo dice avisos neutros (nada escolar en messages, voz ni Atajo); el contenido se ve en el panel Repaso.
+- Rutas: `GET /api/repaso`, `POST /plan`, `/materia`, `/tarjetas/:id {sabia}`, `DELETE /datos`.
 
 ## Decisiones del usuario
 - Jarvis revisa todo Classroom y Lirmi (solo lectura) y crea en Google Calendar eventos por cada prueba.
