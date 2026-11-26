@@ -1,11 +1,12 @@
 <!-- estado-proyecto -->
-# Estado de Jarvis (26-nov-2026) - fase 1 publicada, fase 2 en curso
-**Pedido:** memoria única que se reparte cada mes, freno, control que pregunta, mouse solo en lo autorizado, "Hey Jarvis" y "Llegó papi", voz de película, estudio + calendario MDE.
-**Hecho:** publicado y comprobado en Render (3ee0173, sw v21): reparto de memoria, freno, MCP apagado (responde 404).
-**Siguiente:** unir ramas f2-calendario, f2-repaso, f2-rutinas, f2-despertar (agentes en marcha), probar y subir sw a v22; luego 3 control amplio, 4 mouse. Push solo con permiso.
-**Del usuario:** elegir voz, sí/no a descargar Vosk, iniciar sesión en Classroom (cuenta del colegio) y Lirmi.
-**Sin probar:** Classroom, Lirmi, calendario, recoger/repartir con IA reales, MCP con Claude, .mcpb, freno en Windows e iPhone, app empaquetada.
-**Pendiente técnico:** claude-textos no consulta el freno; Calendar sin color, día completo ni sin duplicar.
-**Menor:** aviso dice "en Escolar" y la sección es "Estudiar".
+# Estado de Jarvis (26-nov-2026) - fase 2 unida y SIN publicar
+**Pedido:** memoria única mensual, freno, control que pregunta, mouse solo en lo autorizado, "Hey Jarvis" y "Llegó papi", voz de película, estudio + calendario MDE.
+**Publicado:** fase 1 (3ee0173, sw v21).
+**Hecho local:** calendario MDE, plan y repaso, rutinas, "Hey Jarvis" en el escritorio (apagado por defecto); sw v22; 459 pruebas.
+**Siguiente:** publicar solo con permiso; luego micrófono (otro chat), fase 3 control amplio, fase 4 mouse.
+**Del usuario:** elegir voz, sí/no a Vosk ("Llegó papi"), sesión en Classroom y Lirmi, conectar Google (guía §14).
+**Sin probar:** Classroom, Lirmi, crear eventos reales, repaso con material real, micrófono real, app empaquetada, recoger/repartir, MCP, freno en Windows e iPhone.
+**Probado:** Claude real sin herramientas (0 herramientas, 0 conectores); paneles en web local.
+**Pendiente técnico:** al cambiar fecha de una prueba no se borra el evento viejo; rutina por horario se pierde si Render duerme >10 min.
 **Micrófono permanente (otro chat, sin código):** el usuario eligió hacerlo allí cuando acaben estas fases; dejar fuera la escucha en /m (orbe, "Jarvis", 3 s, 8 s) y el Atajo+widget.
 **Verificar:** `npm test`.
