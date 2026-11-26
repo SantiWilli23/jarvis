@@ -102,7 +102,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   // Módulos de la Fase 0 (docs/CONTROL.md, docs/MEMORIA.md, docs/NAV.md).
   const control = createControl({ db, bus, audit, approvals, tasks, agent, pc, nav, browser, pro, now });
   const claudeTextos = createClaudeTextos({ db, crypto, bus, agent, audit, now });
-  const rutinas = createRutinas({ db, bus, audit, approvals, escenas, pc, phone, getChat: () => chat, getControl: () => control, now });
+  const rutinas = createRutinas({ db, bus, audit, approvals, escenas, pc, phone, getChat: () => chat, getControl: () => control, getPush: () => push, zona: env.ZONA_HORARIA, now });
   const repaso = createRepaso({ db, crypto, escolar, claudeTextos, audit, now });
   const memoriaReparto = createMemoriaReparto({ db, notes, inbox, privacy, nav, claudeTextos, audit, bus, agent, getControl: () => control, now });
   const escolarCalendario = createEscolarCalendario({ db, escolar, crypto, approvals, audit, getGoogle: () => ext?.google, now });
