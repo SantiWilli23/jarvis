@@ -92,7 +92,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const limiter = createLoginLimiter({ db, now });
   const stt = createStt({ apiKey: env.GROQ_API_KEY, fetch: f });
   const websearch = createWebSearch({ providers, quota, config: config.busqueda, fetch: f, env, now });
-  const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, phone, pc, escenas, persona, webSearch: websearch, agent, getMusic: () => ext?.music, getNav: () => nav, getPro: () => pro, getGithub: () => github, getEscolar: () => escolar, getExtras: () => [control, rutinas, repaso, escolarCalendario], now });
+  const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, phone, pc, escenas, persona, webSearch: websearch, agent, getMusic: () => ext?.music, getNav: () => nav, getPro: () => pro, getGithub: () => github, getEscolar: () => escolar, getExtras: () => [control, rutinas, repaso, escolarCalendario, memoriaReparto], now });
   let ext = null; // conectores de las fases 4-6 (se arman al final)
   const studio = createStudio({ db, config: config.estudio, providers, chat, privacy, now });
   const browser = createBrowser({ db, config: loadJson("browser-sites.json"), agent, chat, privacy, bus, audit, now });
@@ -104,7 +104,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const claudeTextos = createClaudeTextos({ db, crypto, bus, agent, audit, now });
   const rutinas = createRutinas({ db, bus, audit, approvals, escenas, pc, phone, getChat: () => chat, getControl: () => control, now });
   const repaso = createRepaso({ db, crypto, escolar, claudeTextos, audit, now });
-  const memoriaReparto = createMemoriaReparto({ db, notes, inbox, privacy, nav, claudeTextos, audit, getControl: () => control, now });
+  const memoriaReparto = createMemoriaReparto({ db, notes, inbox, privacy, nav, claudeTextos, audit, bus, agent, getControl: () => control, now });
   const escolarCalendario = createEscolarCalendario({ db, escolar, crypto, approvals, audit, getGoogle: () => ext?.google, now });
   const mcp = createMcp({ db, notes, search, privacy, sessions, limiter, audit, env, now });
   const tts = createTts({ db, env, fetch: f, config: config.voz, privacy, now,

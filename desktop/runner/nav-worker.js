@@ -22,14 +22,17 @@ const SIEMPRE_NEGADOS = ["accounts.google.com"];
 export const navDirPorDefecto = (env = process.env) => join(env.LOCALAPPDATA || join(homedir(), ".local", "share"), "jarvis", "nav");
 export const perfilDe = (task) => task.perfil || (task.tipo === "preguntar_ia" ? "ia" : task.tipo === "estudio" ? "escolar" : "lectura");
 
+const esMemoria = (task) => String(task.tipo || "").startsWith("memoria_");
+
 export function politicaDe(task) {
   const lim = task.limites || {};
   const perfil = perfilDe(task);
+  const exacto = esMemoria(task) ? { texto_exacto: String(task.consulta ?? "") } : {};
   const lista = (v) => (Array.isArray(v) ? v.map(String).filter(Boolean) : []);
   let hosts = lista(lim.hosts);
   if (perfil !== "lectura") hosts = hosts.filter((h) => h !== "*"); // "*" solo en lectura
   return {
-    perfil, hosts,
+    perfil, hosts, ...exacto,
     negados: [...lista(lim.hosts_negados), ...(perfil === "lectura" ? SIEMPRE_NEGADOS : [])],
     capturas: !!task.capturas,
     max_paginas: Number(lim.max_paginas) || (perfil === "lectura" ? 5 : perfil === "escolar" ? 15 : 0),
@@ -48,7 +51,9 @@ export function navPrompt(task) {
   const abre = `Abre ${urlInicial(task)} en una pestaña nueva (tabs_create_mcp y luego navigate).`;
   let pasos;
   if (pol.perfil === "ia") {
-    pasos = [abre, "Escribe la consulta tal cual en el cuadro del chat y envíala (el envío está aprobado).",
+    pasos = [abre, ...(task.continuacion ? ["Es una conversación ya empezada: escribe al final y copia solo la respuesta nueva, nada de lo anterior."] : []),
+      ...(esMemoria(task) ? ["Escribe la consulta con una sola acción de escribir, completa y sin cambiar ni un carácter; el guardia bloquea cualquier otro texto."] : []),
+      "Escribe la consulta tal cual en el cuadro del chat y envíala (el envío está aprobado).",
       "Espera a que la respuesta termine por completo y cópiala en \"respuesta\" sin cambiarla.",
       "Pon en \"url_conversacion\" la dirección de la conversación que se ve en la pestaña."];
   } else if (pol.perfil === "escolar") {
@@ -228,7 +233,7 @@ export function createNavWorker({
       const r = await runClaude({
         ...bin, cwd: navDir, env: hijoEnv, hosts: pol.hosts, negados: pol.negados, killTree: true, timeoutMs: limiteMs,
         signal: abort.signal, onMessage: obs.ver,
-        args: buildNavArgs({ perfil: pol.perfil, capturas: pol.capturas, settings, maxTurns: Number(lim.max_turnos) || 25 }),
+        args: buildNavArgs({ perfil: pol.perfil, memoria: esMemoria(task), capturas: pol.capturas, settings, maxTurns: Number(lim.max_turnos) || 25 }),
         stdin: Buffer.from(navPrompt(task), "utf8"),
       });
       await cerrar();
@@ -243,6 +248,8 @@ export function createNavWorker({
       if (!j) return mal("error", "respuesta sin el bloque JSON esperado");
       const { url_conversacion: dicha, ...resto } = j;
       // La dirección vista en el navegador manda; la que diga el modelo solo si está en los hosts de la tarea.
+      // Al seguir un chat la pestaña no cambia de dirección: la conversación es la de partida.
+      if (pol.perfil === "ia" && !extra.url_conversacion && task.continuacion && j.estado === "ok") extra.url_conversacion = task.url_inicial;
       if (pol.perfil === "ia" && !extra.url_conversacion && dicha && urlPermitida(dicha, pol.hosts, pol.negados)) extra.url_conversacion = dicha;
       return { ...resto, ...extra, error: j.estado === "ok" ? null : j.estado === "error" ? j.respuesta.slice(0, 300) || "error" : j.estado };
     } finally {
