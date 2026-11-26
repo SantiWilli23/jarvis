@@ -17,6 +17,7 @@
       "lib/**",
       "runner/**",
       "browser/**",
+      "wake/**",
       "package.json"
     ],
     "win": {
@@ -30,5 +31,8 @@
   "devDependencies": {
     "electron": "^45.3.2",
     "electron-builder": "^26.18.0"
+  },
+  "dependencies": {
+    "onnxruntime-web": "^1.31.1"
   }
 }
