@@ -158,7 +158,7 @@ Responde SOLO con este JSON: {"tarjetas":[{"pregunta":"...","respuesta":"..."}]}
       let reply;
       try { reply = (i.accion === "plan" ? await planear(userId) : await repasar(userId, i.materia)).mensaje; }
       catch (e) { if (!e?.error) throw e; reply = e.mensaje; }
-      if (source === "atajo") reply = "Véalo en Jarvis, en Repaso, señor."; // el Atajo no recibe nada escolar
+      if (source === "atajo" || source === "telegram") reply = "Véalo en Jarvis, en Repaso, señor."; // nada escolar al Atajo ni a Telegram
       await audit?.log({ userId, action: "repaso.pedido", detail: i.accion });
       return { status: "repaso", reply, private: true };
     },

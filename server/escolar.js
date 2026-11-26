@@ -171,8 +171,8 @@ export function createEscolar({ db, config, crypto, nav, audit = null, now = () 
         if (!esSeguimiento(text) || !(await enContexto(userId, conversationId))) return null;
         reply = await detalle(userId, text);
       }
-      // El Atajo del teléfono no recibe contenido escolar.
-      if (source === "atajo") reply = "Véalo en Jarvis, en Estudiar, señor.";
+      // Al Atajo del teléfono y a Telegram no viaja contenido escolar.
+      if (source === "atajo" || source === "telegram") reply = "Véalo en Jarvis, en Estudiar, señor.";
       return { reply, guardar: GUARDADO };
     },
   };

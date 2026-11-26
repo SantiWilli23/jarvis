@@ -8,6 +8,8 @@ export function approvalRoutes(ctx) {
     try {
       const { kind, summary, detail, taskId } = req.body || {};
       if (!kind || !summary) return res.status(400).json({ error: "faltan_datos" });
+      // Los tipos con ":" (pc:, phone:, tool:, rutina:) ejecutan algo al aprobarse: solo los crea el servidor.
+      if (String(kind).includes(":")) return res.status(400).json({ error: "tipo_reservado" });
       res.status(201).json({ approval: await ctx.approvals.request({ userId: req.user.id, taskId, kind, summary: String(summary), detail: String(detail || "") }) });
     } catch (e) { next(e); }
   });
