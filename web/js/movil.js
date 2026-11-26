@@ -200,15 +200,18 @@ async function loadDevices() {
     }
   } catch { box.append(el("div", "empty", "No pude cargar los dispositivos.")); }
 }
-$("devnew").addEventListener("click", async () => {
+// Dos claves distintas: "phone" (Atajo Jarvis Puente) y "shortcut" (Atajo Jarvis, para hablarle).
+async function crearClave(name, kind) {
   const t = $("devtoken");
   try {
-    const out = await api("/devices", { method: "POST", body: { name: "iPhone (Atajo)", kind: "phone" } });
+    const out = await api("/devices", { method: "POST", body: { name, kind } });
     t.textContent = out.token; t.hidden = false;
     $("devmsg").textContent = "cópielo ahora: no se vuelve a mostrar";
     loadDevices();
   } catch { t.textContent = "No pude crear el token."; t.hidden = false; }
-});
+}
+$("devnew").addEventListener("click", () => crearClave("iPhone (Atajo)", "phone"));
+$("devvoz").addEventListener("click", () => crearClave("iPhone (hablar con Jarvis)", "shortcut"));
 
 /* ---------- Teléfono: cola de acciones para el iPhone ---------- */
 const TILES = [
