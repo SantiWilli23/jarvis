@@ -1,0 +1,30 @@
+{
+  "manifest_version": "0.3",
+  "name": "jarvis-memoria",
+  "display_name": "Memoria de Jarvis",
+  "version": "1.0.0",
+  "description": "Busca y propone recuerdos en la memoria de su propio Jarvis.",
+  "author": { "name": "Jarvis" },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": { "JARVIS_URL": "${user_config.jarvis_url}" }
+    }
+  },
+  "user_config": {
+    "jarvis_url": {
+      "type": "string",
+      "title": "Dirección de su Jarvis",
+      "description": "Por ejemplo https://mi-jarvis.example.com (sin barra final)",
+      "required": true
+    }
+  },
+  "tools": [
+    { "name": "memoria_buscar", "description": "Busca en la memoria (nada privado ni escolar)." },
+    { "name": "memoria_proponer", "description": "Propone un recuerdo para revisar en Jarvis." }
+  ],
+  "compatibility": { "runtimes": { "node": ">=18" } }
+}

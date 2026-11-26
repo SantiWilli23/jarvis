@@ -1,0 +1,4 @@
+{
+  "nota": "Servidor MCP de memoria (docs/MEMORIA.md). Con activo:false no responden ni /mcp ni OAuth.",
+  "activo": false
+}
