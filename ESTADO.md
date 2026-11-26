@@ -2,7 +2,7 @@
 # Estado de Jarvis (25-nov-2026) - fase 1 en curso
 **Pedido:** memoria única que se reparte cada mes, freno, control que pregunta, mouse solo en lo autorizado, "Hey Jarvis" y "Llegó papi", voz de película, estudio + calendario MDE.
 **Hecho:** versión anterior publicada (cd571a6). Fase 0 (06f8ef6, 410 tests ok, sin ver en navegador, sin push).
-**Fase 1 (sin revisar ni unir):** MCP y .mcpb listos en f1-mcp (06d74be, apagado); aún corren f1-memoria (w1) y f1-freno (w3).
+**Fase 1 (sin revisar ni unir):** MCP en f1-mcp (06d74be, apagado); freno en f1-freno (75bbc74; al unir subir sw a v21); aún corre f1-memoria (w1).
 **Siguiente:** revisar y unir las 3 ramas; luego fase 2 (estudio, rutinas, voz), 3 control, 4 mouse. Push solo con permiso.
 **Del usuario:** iniciar sesión en Classroom (cuenta del colegio) y Lirmi, elegir voz, sí/no a descargar Vosk.
 **Sin probar:** lectura de Classroom y Lirmi, calendario, reparto de memoria, iPhone real, app empaquetada.
