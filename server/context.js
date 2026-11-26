@@ -100,7 +100,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const crypto = createCrypto(env.CONNECTIONS_KEY);
   const escolar = createEscolar({ db, config: loadJson("escolar.json"), crypto, nav, audit, now });
   // Módulos de la Fase 0 (docs/CONTROL.md, docs/MEMORIA.md, docs/NAV.md).
-  const control = createControl({ db, bus, audit, approvals, tasks, agent, pc, now });
+  const control = createControl({ db, bus, audit, approvals, tasks, agent, pc, nav, browser, pro, now });
   const claudeTextos = createClaudeTextos({ db, crypto, bus, agent, audit, now });
   const rutinas = createRutinas({ db, bus, audit, approvals, escenas, pc, phone, getChat: () => chat, getControl: () => control, now });
   const repaso = createRepaso({ db, crypto, escolar, claudeTextos, audit, now });

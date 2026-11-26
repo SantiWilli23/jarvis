@@ -20,6 +20,7 @@ import * as os from "node:os";
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createPcWorker } from "./runner/pc-worker.js";
+import { controlState } from "./runner/control-state.js";
 import { createPcExecutor } from "./runner/pc-exec.js";
 import { PC_ACTIONS } from "./runner/pc-spec.js";
 import { createPcFiles } from "./runner/pc-files.js";
@@ -129,6 +130,7 @@ function startWorker() {
   const blog = (m) => { console.log("[jarvis:navegador]", m); try { appendFileSync(join(dataDir, "navegador.log"), `${new Date().toISOString()} ${m}\n`); } catch { /* sin registro */ } };
   browserWorker = createBrowserWorker({ hub, win: ensureBrowserWin(), selectors, log: blog });
   browserWorker.start();
+  controlState.onFreno(() => browserWorker?.detener());
   // Acciones del PC (volumen, bloquear, apps...): bucle propio de 2,5 s, solo lista blanca y con validación local.
   const pcNotify = (title, body) => { try { new Notification({ title, body }).show(); } catch { /* sin aviso */ } };
   const capture = createPcCapture({
@@ -150,6 +152,12 @@ function startWorker() {
   worker.start(); // al encender Windows la cola empieza de inmediato y el hub recibe pc_online
 }
 
+// Freno de emergencia: corta en el acto lo que haya en marcha, con o sin red. Se reanuda solo desde la web.
+function frenarTodo() {
+  controlState.frenar({ local: true });
+  updateTray();
+}
+
 // Ventana del Navegador de Jarvis: se crea la primera vez que hace falta (no antes).
 function ensureBrowserWin() {
   return (browserWin ||= createBrowserWindow({ log: (m) => console.log("[jarvis:navegador]", m), onDetener: () => browserWorker?.detener(), onLeer: () => browserWorker?.leerAhora() }));
@@ -168,6 +176,7 @@ function updateTray() {
   const estado = !lastStatus.online && lastStatus.online !== undefined ? "desconectado" : worker?.isPaused() ? "cola en pausa" : lastStatus.current ? `tarea #${lastStatus.current.seq}` : "en línea";
   tray.setToolTip(`Jarvis · ${estado}`);
   tray.setContextMenu(Menu.buildFromTemplate([
+    controlState.frenado() ? { label: "Frenado (reanude desde la web)", enabled: false } : { label: "Freno (detener todo)", click: frenarTodo },
     { label: "Abrir Jarvis", click: () => show(false) },
     { label: worker?.isPaused() ? "Reanudar cola" : "Pausar cola", enabled: !!worker, click: () => { worker.pause(!worker.isPaused()); updateTray(); } },
     { label: "Siempre visible", type: "checkbox", checked: !!cfg.alwaysOnTop, click: (i) => { cfg.alwaysOnTop = i.checked; win?.setAlwaysOnTop(i.checked); saveConfig(dataDir, cfg); } },
@@ -201,6 +210,9 @@ app.whenReady().then(async () => {
   tray = new Tray(iconImage());
   tray.on("click", () => show(false));
   updateTray();
+  controlState.onFreno(updateTray);
+  setInterval(updateTray, 5000).unref(); // para quitar "Frenado" cuando se reanude desde la web
+  if (!globalShortcut.register(cfg.hotkeyFreno, frenarTodo)) console.warn(`[jarvis] No pude registrar el atajo del freno ${cfg.hotkeyFreno}.`);
 
   const ok = globalShortcut.register(cfg.hotkey, () => show(true));
   if (!ok) console.warn(`[jarvis] No pude registrar el atajo ${cfg.hotkey} (otro programa lo usa).`);

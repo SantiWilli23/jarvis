@@ -32,6 +32,15 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
     run(db, "INSERT INTO messages (user_id, conversation_id, role, content, provider, private, created_at) VALUES (?,?,?,?,?,?,?)",
       [userId, conv, role, content, provider || null, priv ? 1 : 0, now()]);
   const state = (userId, s, extra = {}) => bus?.emit("state", { userId, state: s, ...extra });
+  // Freno puesto (server/control.js): la tarea para el PC no se encola; se dice y ya.
+  async function frenado(e, userId, conv, text, priv) {
+    if (e?.error !== "frenado") throw e;
+    await saveMsg(userId, conv, "user", text, null, priv);
+    await saveMsg(userId, conv, "assistant", e.mensaje, "cola", priv);
+    bus?.emit("chat.done", { userId, text: e.mensaje, provider: "cola" });
+    state(userId, "idle");
+    return { status: "frenado", conversationId: conv, reply: e.mensaje };
+  }
 
   // Lo escolar (server/escolar.js): sin modelo. El contenido se responde, pero no va a messages ni al bus.
   async function escolar({ userId, conv, text, fase, source }) {
@@ -126,7 +135,9 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       }
       if (d.direct) {
         if (!d.text.length) { state(userId, "idle"); return { status: "vacio", conversationId: conv, reply: "¿Qué quiere que le diga a Claude, señor?" }; }
-        const task = await tasks.create({ userId, rawText: d.text, mode: "directo", engine: d.engine, header: { source } });
+        let task;
+        try { task = await tasks.create({ userId, rawText: d.text, mode: "directo", engine: d.engine, header: { source } }); }
+        catch (e) { return frenado(e, userId, conv, original, false); }
         const reply = `Anotado, señor. Lo dejé en cola, palabra por palabra, y se lo entrego a Claude en cuanto encienda su PC.`;
         await saveMsg(userId, conv, "user", original, null, false);
         await saveMsg(userId, conv, "assistant", reply, "cola", false);
@@ -217,7 +228,9 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       // 3) Acción para el PC: modo Preparar, siempre para Claude. Flash = no actúa en el PC, responde la nube.
       // Con "/gemini" no se encola nada: se contesta como charla.
       if (!chatSolo && !prefer && cls.kind === "accion_pc" && !(motor === "flash" && !isPrivate)) {
-        const task = await prepare.prepare({ userId, text: original, isPrivate, reviewFirst: true, source, engine: "claude" });
+        let task;
+        try { task = await prepare.prepare({ userId, text: original, isPrivate, reviewFirst: true, source, engine: "claude" }); }
+        catch (e) { return frenado(e, userId, conv, original, isPrivate); }
         agent?.sweep?.();
         const reply = task.prepared?.sin_cuota
           ? "Lo anoté en la cola para el PC, señor, pero sin ordenarlo: mis modelos están sin cuota."

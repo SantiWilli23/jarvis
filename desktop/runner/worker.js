@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { buildArgs, buildStdin } from "./claude-args.js";
 import { classifyDenial, allowRule } from "./danger.js";
 import { runClaude as realRun, resolveClaude } from "./claude-runner.js";
+import { controlState } from "./control-state.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MAX_RONDAS = 3; // veces que una tarea puede pedir aprobaciones y continuar
@@ -20,6 +21,7 @@ export function createWorker({
   pro = null,                    // worker del Modo Pro ({tick}); se atiende cuando la cola clásica está vacía
   getCapabilities = null,        // () => capabilities del doctor (se manda en hello y heartbeat)
   nav = null,                    // navegador de Claude ({tick}); solo cuando las colas clásica y Pro están vacías
+  control = controlState,        // freno de emergencia
 }) {
   let running = false, paused = false, current = null, serverCfg = { caps: {}, permissions: {} };
   const status = (extra = {}) => onStatus({ running, paused, current, ...extra });
@@ -29,7 +31,7 @@ export function createWorker({
 
   async function waitApproval(approval, ttlMs) {
     const t0 = Date.now();
-    while (!stopped() && Date.now() - t0 <= ttlMs + 5000) {
+    while (!stopped() && !control.frenado() && Date.now() - t0 <= ttlMs + 5000) {
       const s = await hub.approvalStatus(approval.id);
       if (s.status !== "pendiente") return s.status;
       await sleep(approvalPollMs);
@@ -37,7 +39,17 @@ export function createWorker({
     return "caducada";
   }
 
+  // El freno mata el Claude en marcha (el árbol de procesos entero).
   async function processTask(task, caps) {
+    const abort = new AbortController();
+    const soltar = control.onFreno(() => abort.abort());
+    try { return await ejecutar(task, caps, abort.signal); } finally { soltar(); }
+  }
+
+  async function ejecutar(task, caps, signal) {
+    const frenada = (usage) => hub.finish(task.id, { status: "fallida", result: "Frenada: se detuvo con el freno.", ...(usage ? { usage } : {}) })
+      .catch((e) => { if (e.status !== 409) throw e; }); // 409: el servidor ya la dio por cancelada
+    if (signal.aborted) return frenada();
     const perm = serverCfg.permissions || {};
     const dirs = (folders ?? perm.carpetas_permitidas ?? []).filter(Boolean);
     const cwd = dirs[0] || fallbackCwd;
@@ -58,11 +70,12 @@ export function createWorker({
       const queue = []; let flush = null;
       const send = () => { flush = null; const ev = queue.splice(0); if (ev.length) hub.events(task.id, ev).catch(() => {}); };
       last = await runClaude({
-        ...bin, args: buildArgs({ task, folders: dirs, approved, resume, maxTurns, model }), stdin, cwd, maxTokens: restante,
+        ...bin, args: buildArgs({ task, folders: dirs, approved, resume, maxTurns, model }), stdin, cwd, maxTokens: restante, signal, killTree: true,
         onEvents: (ev) => { queue.push(...ev); flush ||= setTimeout(send, 800); },
       });
       if (flush) { clearTimeout(flush); send(); }
       total.tokens_in += last.usage.tokens_in; total.tokens_out += last.usage.tokens_out;
+      if (signal.aborted) return frenada(total);
       if (last.aborted === "tope_tarea") return hub.finish(task.id, { status: "tope_tarea", result: `Detenida: pasó el tope de ${caps.por_tarea_tokens} tokens por tarea.\n${last.result}`.trim(), usage: total });
       if (last.isError || !last.denials.length || ronda === MAX_RONDAS) break;
 
@@ -76,6 +89,7 @@ export function createWorker({
         dec.push({ d, c, estado: await waitApproval(a, ttl) });
       }
       status({ waiting: null });
+      if (signal.aborted) return frenada(total);
       const ok = dec.filter((x) => x.estado === "aprobada"), no = dec.filter((x) => x.estado !== "aprobada");
       notes.push(...no.map((x) => `${x.c.summary}: ${x.estado}`));
       if (!ok.length) return hub.finish(task.id, { status: "rechazada", result: `No se hizo: ${no.map((x) => `${x.c.summary} (${x.estado})`).join("; ")}`, usage: total });
@@ -94,6 +108,7 @@ export function createWorker({
   // Un ciclo: devuelve "tarea" | "vacia" | "tope_diario" | "pausada".
   async function tick() {
     if (paused) return "pausada";
+    if (control.frenado()) return "frenada";
     const r = await hub.claim();
     if (!r.task) return r.reason === "tope_diario" ? "tope_diario" : "vacia";
     current = { id: r.task.id, seq: r.task.seq };
@@ -106,7 +121,7 @@ export function createWorker({
 
   async function loop() {
     let hbTimer = null, said = false;
-    const beat = () => hub.heartbeat({ paused, current_task: current, ...capsBody() }).catch(() => { said = false; });
+    const beat = () => hub.heartbeat({ paused, current_task: current, ...capsBody() }).then((r) => control.servidor(r?.control)).catch(() => { said = false; });
     hbTimer = setInterval(beat, heartbeatMs); hbTimer.unref?.();
     while (running) {
       try {

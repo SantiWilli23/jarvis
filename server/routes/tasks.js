@@ -20,7 +20,7 @@ export function taskRoutes(ctx) {
       }
       const t = await ctx.direct.enqueue({ userId: req.user.id, text, engine });
       res.status(201).json({ task: view(t) });
-    } catch (e) { next(e); }
+    } catch (e) { if (e?.error === "frenado") return res.status(409).json({ error: e.error, mensaje: e.mensaje }); next(e); }
   });
   r.patch("/:id", async (req, res, next) => {
     try {
@@ -37,7 +37,7 @@ export function taskRoutes(ctx) {
   r.post("/:id/approve-review", async (req, res, next) => {
     try {
       const out = await ctx.tasks.approveReview(req.user.id, Number(req.params.id));
-      res.status(out.ok ? 200 : 409).json(out.ok ? { task: view(out.task) } : { error: "no_en_revision" });
+      res.status(out.ok ? 200 : 409).json(out.ok ? { task: view(out.task) } : { error: out.reason === "frenado" ? "frenado" : "no_en_revision" });
     } catch (e) { next(e); }
   });
   r.post("/:id/attachments", express.raw({ type: "image/*", limit: "5mb" }), async (req, res, next) => {

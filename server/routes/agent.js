@@ -8,7 +8,7 @@ export function agentRoutes(ctx) {
   const tid = (req) => Number(req.params.id);
 
   r.post("/hello", wrap(async (req, res) => res.json(await a.hello(req.user.id, req.body || {}))));
-  r.post("/heartbeat", wrap(async (req, res) => res.json(await a.heartbeat(req.user.id, req.body || {}))));
+  r.post("/heartbeat", wrap(async (req, res) => res.json({ ...(await a.heartbeat(req.user.id, req.body || {})), control: await ctx.control.paraPc(Number(req.user.id)) })));
   r.post("/bye", wrap(async (req, res) => res.json(await a.bye(req.user.id))));
   // Entrega la siguiente tarea. 200 siempre; task:null + reason si no hay o se llegó al tope.
   r.post("/claim", wrap(async (req, res) => {
