@@ -15,6 +15,10 @@ function pickMime() {
 
 export const canRecord = () => !!(navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined");
 
+// Para la escucha de "Hey Jarvis" (app de escritorio): se pausa mientras se graba o se habla.
+let grabando = 0, hablando = false;
+export const ocupado = () => grabando > 0 || hablando;
+
 // Empieza a grabar. Devuelve { stop(): Promise<Blob> }.
 export async function startRecording(onAutoStop) {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -24,11 +28,13 @@ export async function startRecording(onAutoStop) {
   rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
   const done = new Promise((res) => {
     rec.onstop = () => {
+      grabando--;
       stream.getTracks().forEach((t) => t.stop());
       res(new Blob(chunks, { type: rec.mimeType || mime || "audio/mp4" }));
     };
   });
   rec.start();
+  grabando++;
   const timer = setTimeout(() => { if (rec.state !== "inactive") { rec.stop(); onAutoStop?.(); } }, MAX_MS);
   return { stop() { clearTimeout(timer); if (rec.state !== "inactive") rec.stop(); return done; } };
 }
@@ -72,8 +78,9 @@ export function desbloquearVoz() { try { getPlayer(); } catch { /* sin audio */ 
 // llama a onEnd al terminar (o enseguida si no hay nada con qué hablar).
 export function speak(msg, onEnd, priv = false) {
   let ended = false;
-  const end = () => { if (!ended) { ended = true; onEnd?.(); } };
+  const end = () => { if (!ended) { ended = true; if (me === token) hablando = false; onEnd?.(); } };
   const me = ++token;
+  hablando = true;
   const a = getPlayer();           // se crea dentro del gesto del usuario
   (async () => {
     try {
@@ -98,6 +105,7 @@ export function speak(msg, onEnd, priv = false) {
 }
 export function stopSpeaking() {
   token++;
+  hablando = false;
   try { player?.pause(); } catch { /* nada */ }
   try { window.speechSynthesis?.cancel(); } catch { /* nada */ }
 }

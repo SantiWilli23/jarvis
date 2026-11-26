@@ -10,6 +10,7 @@ export const DEFAULTS = {
   autoStart: true,                   // arrancar con Windows
   alwaysOnTop: false,
   greeting: true,                    // decir "Hola señor." al arrancar
+  despertar: false,                  // escuchar "Hey Jarvis" (detección local); se enciende desde la bandeja
   carpetas_permitidas: [],           // Modo Pro: si está vacío se usan las de config/permissions.json del hub
   claudePath: null,                 // ruta a claude.exe si no está en el PATH
   pc_apps: null,                     // apps extra que Jarvis puede abrir: { "nombre": { "cmd": "C:\\ruta\\app.exe", "args": [] } } (se suman a las de pc-spec.js; el servidor también debe listar el nombre en config/pc-actions.json)

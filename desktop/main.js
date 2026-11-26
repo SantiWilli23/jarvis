@@ -1,7 +1,7 @@
 // Jarvis para Windows (Electron). Carga la web del hub, bandeja, atajo global, arranque con Windows,
 // saludo y el runner que pasa la cola a Claude Code.
 //   Prueba de arranque:  npm start -- --smoke-test   (abre, comprueba y cierra solo; usa datos temporales)
-import { app, BrowserWindow, Tray, Menu, globalShortcut, safeStorage, shell, nativeImage, clipboard, Notification, desktopCapturer, screen } from "electron";
+import { app, BrowserWindow, Tray, Menu, globalShortcut, safeStorage, shell, nativeImage, clipboard, Notification, desktopCapturer, screen, ipcMain } from "electron";
 import { mkdtempSync } from "node:fs";
 import { tmpdir, hostname } from "node:os";
 import { join } from "node:path";
@@ -19,6 +19,10 @@ import { appendFileSync, statfsSync } from "node:fs";
 import * as os from "node:os";
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { createEscucha } from "./wake/escucha.js";
+import { createDetector } from "./wake/detector.js";
+import { cargarModelos, faltanModelos } from "./wake/modelos.js";
+import { crearDetectorLlegoPapi } from "./wake/llego-papi.js";
 import { createPcWorker } from "./runner/pc-worker.js";
 import { controlState } from "./runner/control-state.js";
 import { createPcExecutor } from "./runner/pc-exec.js";
@@ -35,6 +39,7 @@ const dataDir = app.getPath("userData");
 const gotLock = smoke || app.requestSingleInstanceLock(); // instancia única
 if (!gotLock) app.quit();
 let browserWin = null, browserWorker = null, pcWorker = null;
+let escucha = null;
 let win = null, tray = null, worker = null, cfg = null, quitting = false, lastStatus = {};
 
 const origin = () => new URL(cfg.hubUrl).origin;
@@ -171,13 +176,45 @@ function show(withMic) {
   if (withMic) win.webContents.executeJavaScript(`window.dispatchEvent(new CustomEvent("jarvis:mic"))`).catch(() => {});
 }
 
+// ---------- "Hey Jarvis" ----------
+async function crearDetectores() {
+  const dir = join(dataDir, "wake");
+  if (faltanModelos(dir).length) throw new Error("faltan los modelos: ejecute node scripts/get-wake-models.mjs");
+  const ort = await import("onnxruntime-web"); // solo se carga si se enciende la escucha
+  return [createDetector(await cargarModelos(ort, dir)), await crearDetectorLlegoPapi()].filter(Boolean);
+}
+// Jarvis graba, piensa o habla; o la web no está cargada (despertar no serviría).
+async function jarvisOcupado() {
+  if (!win || !win.webContents.getURL().startsWith(origin())) return true;
+  return win.webContents.executeJavaScript(`Promise.all([import("/js/state.js"), import("/js/voice.js")]).then(([s, v]) => ["listening", "thinking", "speaking"].includes(s.store.state) || !!v.ocupado?.())`);
+}
+function falloEscucha(msg) {
+  console.warn("[jarvis:despertar]", msg);
+  cfg.despertar = false; saveConfig(dataDir, cfg); updateTray();
+  try { new Notification({ title: "Jarvis dejó de escuchar", body: String(msg) }).show(); } catch { /* sin aviso */ }
+}
+async function ponerEscucha(si) {
+  si = si && !controlState.frenado();
+  cfg.despertar = si; saveConfig(dataDir, cfg);
+  if (!si) escucha.apagar();
+  else {
+    const carga = escucha.encender();
+    updateTray();
+    try { await carga; } catch (e) { return falloEscucha(e?.message); }
+  }
+  updateTray();
+}
+
 function updateTray() {
   if (!tray) return;
   const estado = !lastStatus.online && lastStatus.online !== undefined ? "desconectado" : worker?.isPaused() ? "cola en pausa" : lastStatus.current ? `tarea #${lastStatus.current.seq}` : "en línea";
-  tray.setToolTip(`Jarvis · ${estado}`);
+  const oyendo = !!escucha?.encendida();
+  tray.setImage(iconImage(oyendo)); // punto verde = escuchando "Hey Jarvis"
+  tray.setToolTip(`Jarvis · ${estado}${oyendo ? " · escuchando Hey Jarvis" : ""}`);
   tray.setContextMenu(Menu.buildFromTemplate([
     controlState.frenado() ? { label: "Frenado (reanude desde la web)", enabled: false } : { label: "Freno (detener todo)", click: frenarTodo },
     { label: "Abrir Jarvis", click: () => show(false) },
+    { label: "Escuchar Hey Jarvis", type: "checkbox", checked: !!cfg.despertar, enabled: !controlState.frenado(), click: (i) => ponerEscucha(i.checked) },
     { label: worker?.isPaused() ? "Reanudar cola" : "Pausar cola", enabled: !!worker, click: () => { worker.pause(!worker.isPaused()); updateTray(); } },
     { label: "Siempre visible", type: "checkbox", checked: !!cfg.alwaysOnTop, click: (i) => { cfg.alwaysOnTop = i.checked; win?.setAlwaysOnTop(i.checked); saveConfig(dataDir, cfg); } },
     { label: "Navegador de Jarvis", click: () => ensureBrowserWin().abrir() },
@@ -188,29 +225,33 @@ function updateTray() {
   ]));
 }
 
-function iconImage() {
+function iconImage(oyendo = false) {
   // Orbe azul 16x16 dibujado en código (sin archivos binarios en el repo).
   const s = 32, buf = Buffer.alloc(s * s * 4);
   for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
     const d = Math.hypot(x - 15.5, y - 15.5), i = (y * s + x) * 4;
     if (d <= 14) { buf[i] = 0xff; buf[i + 1] = Math.round(0x90 + (14 - d) * 6) % 256; buf[i + 2] = Math.round(0x20 + d * 2); buf[i + 3] = 255; } // BGRA
+    if (oyendo && Math.hypot(x - 24, y - 24) <= 8) { buf[i] = 0x50; buf[i + 1] = 0xe0; buf[i + 2] = 0x30; buf[i + 3] = 255; }
   }
   return nativeImage.createFromBitmap(buf, { width: s, height: s });
 }
 
 app.on("second-instance", () => show(false));
 app.on("window-all-closed", () => { /* sigue en la bandeja */ });
-app.on("before-quit", () => { quitting = true; pcWorker?.stop(); });
+app.on("before-quit", () => { quitting = true; escucha?.apagar(); pcWorker?.stop(); });
 app.on("will-quit", () => { globalShortcut.unregisterAll(); });
 
 app.whenReady().then(async () => {
   if (!gotLock) return;
   cfg = loadConfig(dataDir);
   createWindow();
+  escucha = createEscucha({ BrowserWindow, ipcMain, crearDetectores, ocupado: jarvisOcupado, alDespertar: () => show(true), alError: falloEscucha });
   tray = new Tray(iconImage());
   tray.on("click", () => show(false));
   updateTray();
   controlState.onFreno(updateTray);
+  controlState.onFreno(() => { if (cfg.despertar || escucha.encendida()) ponerEscucha(false); }); // el freno la apaga
+  if (cfg.despertar && !smoke) ponerEscucha(true);
   setInterval(updateTray, 5000).unref(); // para quitar "Frenado" cuando se reanude desde la web
   if (!globalShortcut.register(cfg.hotkeyFreno, frenarTodo)) console.warn(`[jarvis] No pude registrar el atajo del freno ${cfg.hotkeyFreno}.`);
 
