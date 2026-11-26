@@ -2,6 +2,7 @@
 import { all, get } from "../db/client.js";
 import { classify } from "../router/classify.js";
 import { estimateTokens } from "../memory/notes.js";
+import { puedeSalir as puedeSalirBase } from "../memoria-reparto.js";
 
 export const MAX_K = 8;
 export const PRESUPUESTO = 1500;
@@ -24,13 +25,13 @@ export const TOOLS = [
   },
 ];
 
-export const puedeSalir = (n) => n.status === "activa" && n.level === "normal"
-  && !RE_ESCOLAR.test(`${n.origen || ""} ${n.source || ""} ${n.title} ${n.body}`)
-  && !classify(`${n.title}\n${n.body}`).private;
+// El mismo filtro del reparto (secretos, correos, escolar, privado) y además cualquier mención escolar en origen o fuente.
+export const puedeSalir = (n, privacy) => puedeSalirBase(n, privacy)
+  && !RE_ESCOLAR.test(`${n.origen || ""} ${n.source || ""} ${n.title} ${n.body}`);
 
 const texto = (t, isError = false) => ({ content: [{ type: "text", text: t }], ...(isError ? { isError: true } : {}) });
 
-export function createTools({ db, search, inbox, audit, now = () => Date.now() }) {
+export function createTools({ db, search, inbox, audit, privacy, now = () => Date.now() }) {
   let turno = Promise.resolve(); // propuestas de una en una: el tope diario no se salta en paralelo
 
   async function buscar({ userId, cliente }, args) {
@@ -45,7 +46,7 @@ export function createTools({ db, search, inbox, audit, now = () => Date.now() }
     for (const id of ids) {
       if (out.length >= k) break;
       const n = porId.get(id);
-      if (!n || !puedeSalir(n)) continue;
+      if (!n || !puedeSalir(n, privacy)) continue;
       const t = estimateTokens(`${n.title} ${n.body}`);
       if (tokens + t > PRESUPUESTO) continue;
       out.push({ titulo: n.title, texto: n.body }); tokens += t;

@@ -180,6 +180,8 @@ body.movil .tabs button { border: 0; border-radius: 14px; background: var(--pane
 body.movil .tabs button.on { background: var(--activo); color: #fff; }
 body.movil .menu button, body.movil .menu a, body.movil .wide { display: flex; align-items: center; background: var(--panel); border: 0; border-radius: 14px; color: var(--fg); text-decoration: none; font-size: 15px; min-height: 52px; }
 body.movil .menu .danger { color: var(--used); }
+/* Dentro de un panel el botón necesita otro tono para verse como botón. */
+#panel-memoria .menu button { background: var(--panel-2); justify-content: center; }
 body.movil .phgrid button, body.movil .mus-lista button, body.movil .phrow button, body.movil .run, body.movil .mpro-hilos .hilo { border-radius: 14px; }
 body.movil .mas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 body.movil .mas-grid button { position: relative; min-height: 84px; display: grid; justify-items: center; align-content: center; gap: 8px; border: 0; border-radius: 18px; background: var(--activo); color: #fff; font-weight: 600; font-size: 15px; }
