@@ -3,7 +3,11 @@
 // Lo privado pasa siempre por privacy (lista blanca) y jamás se degrada a otro proveedor.
 import { ProviderError } from "../providers/base.js";
 
-export function createRouter({ providers, chain, orderByKind = {}, quota, privacy, onUse = () => {}, soloBajoPedido = [] }) {
+// En charla, un proveedor que no contesta en TIMEOUT_CHARLA_MS cede el turno al siguiente. El resto (razonar, preparar,
+// investigar...) puede tardar de verdad y no se corta. Ollama corre en el PC: tampoco se corta.
+export const TIMEOUT_CHARLA_MS = 12_000;
+
+export function createRouter({ providers, chain, orderByKind = {}, quota, privacy, onUse = () => {}, soloBajoPedido = [], timeoutCharlaMs = TIMEOUT_CHARLA_MS }) {
   // prefer: proveedor que va primero si se pide (p. ej. "/gemini"); lo privado sigue pasando por privacy.filter.
   function candidates(kind, isPrivate, prefer = null) {
     const pref = orderByKind[kind] || [];
@@ -21,9 +25,9 @@ export function createRouter({ providers, chain, orderByKind = {}, quota, privac
       privacy.assert(id, isPrivate); // barrera final
       try {
         onUse(id, { userId });
-        const r = await p.chat({ messages, system, images });
-        await quota.record(userId, id, r.tokens || 0);
-        await quota.ingestHeaders(userId, id, r.headers);
+        const signal = kind === "charla" && id !== "ollama" ? AbortSignal.timeout(timeoutCharlaMs) : undefined;
+        const r = await p.chat({ messages, system, images, kind, signal });
+        quota.anotar(userId, id, r.tokens || 0, r.headers);
         return { ok: true, provider: id, text: r.text, tokens: r.tokens || 0, tried };
       } catch (e) {
         const status = e instanceof ProviderError ? e.status : 0;
