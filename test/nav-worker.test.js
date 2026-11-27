@@ -45,6 +45,7 @@ test("argumentos: chrome, sonnet, guardia por --settings y nada de Chrome pre-ap
   for (const f of ["-p", "--chrome", "--verbose", "--strict-mcp-config"]) assert.ok(a.includes(f));
   assert.equal(flag(a, "--output-format"), "stream-json");
   assert.equal(flag(a, "--model"), "sonnet");
+  assert.equal(flag(a, "--effort"), "low");
   assert.equal(flag(a, "--max-turns"), "25");
   assert.equal(flag(a, "--settings"), "s.json");
   assert.equal(flag(a, "--setting-sources"), "");
