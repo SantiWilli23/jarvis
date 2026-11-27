@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
 import { memDb, clock } from "./helpers.js";
-import { createTts, partirTexto } from "../server/tts.js";
+import { createTts, partirTexto, recortarSilencio } from "../server/tts.js";
 import { createPrivacy } from "../server/router/privacy.js";
 import { chatRoutes } from "../server/routes/chat.js";
 import { ttsRoutes } from "../server/routes/tts.js";
@@ -98,4 +98,14 @@ test("tope de trabajos: los más viejos se olvidan", async () => {
   for (let i = 0; i < 21; i++) ids.push((await tts.preparar({ userId, text: "frase " + i })).partes[0].id);
   assert.equal(tts.trabajo({ userId, id: ids[0] }), undefined);
   assert.ok(tts.trabajo({ userId, id: ids[20] }));
+});
+
+test("recortarSilencio: deja ~50 ms a cada lado y no toca el sonido ni el silencio total", () => {
+  const pcm = Buffer.alloc(24000 * 2); // 1 s
+  for (let i = 12000; i < 13000; i++) pcm.writeInt16LE(i % 2 ? 3000 : -3000, i * 2);
+  const r = recortarSilencio(pcm);
+  assert.equal(r.length / 2, 1000 + 2 * 1200);
+  assert.deepEqual(r.subarray(2400, 4400), pcm.subarray(24000, 26000));
+  const mudo = Buffer.alloc(100);
+  assert.equal(recortarSilencio(mudo), mudo);
 });

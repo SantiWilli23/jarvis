@@ -24,6 +24,18 @@ export function pcmToWav(pcm, sampleRate = 24000, channels = 1) {
   return Buffer.concat([h, pcm]);
 }
 
+// Quita el silencio inicial y final de PCM 16 bits mono, dejando ~50 ms. Umbral bajo (~-52 dBFS) para no cortar sonido.
+export function recortarSilencio(pcm, sampleRate = 24000, { umbral = 80, margenMs = 50 } = {}) {
+  const n = Math.floor(pcm.length / 2);
+  const suena = (i) => Math.abs(pcm.readInt16LE(i * 2)) > umbral;
+  let a = 0, b = n - 1;
+  while (a < n && !suena(a)) a++;
+  if (a === n) return pcm; // todo silencio: se deja como está
+  while (!suena(b)) b--;
+  const m = Math.round((sampleRate * margenMs) / 1000);
+  return pcm.subarray(Math.max(0, a - m) * 2, Math.min(n, b + 1 + m) * 2);
+}
+
 // Más de ~160 caracteres y varias frases: [primeras frases hasta ~120, resto]. Cada parte es un trozo exacto del texto.
 export function partirTexto(texto, { desde = 160, primera = 120 } = {}) {
   const t = String(texto ?? "").trim();
@@ -107,7 +119,7 @@ export function createTts({ db, env = {}, fetch: f = globalThis.fetch, config = 
     const b64 = (await res.json())?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData?.data;
     if (!b64) return null;
     await record(userId, "tts_gemini", text.length);
-    return { source: "gemini", mime: "audio/wav", data: pcmToWav(Buffer.from(b64, "base64"), 24000) }; // PCM 24 kHz 16 bits mono
+    return { source: "gemini", mime: "audio/wav", data: pcmToWav(recortarSilencio(Buffer.from(b64, "base64")), 24000) }; // PCM 24 kHz 16 bits mono
   }
 
   async function minimaxVoice(userId) {
