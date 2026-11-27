@@ -127,10 +127,13 @@ export function createTts({ db, env = {}, fetch: f = globalThis.fetch, config = 
     try { mkdirSync(cacheDir, { recursive: true }); writeFileSync(cacheFile(text, source) + (mime === "audio/wav" ? ".wav" : ".mp3"), data); } catch { /* sin caché */ }
   }
 
+  // El plan gratis corta tras pocas peticiones por minuto: partir en dos solo si la voz estuvo quieta.
+  let ultimaGemini = -Infinity;
   async function gemini(userId, text) {
     const u = await used(userId, "tts_gemini");
     if (u.count >= gcfg.tope_dia) return null;
     // ~10 s; en textos largos crece (60 ms por carácter) para no cortar audios que sí iban a llegar. Si salta: siguiente voz.
+    ultimaGemini = now();
     const res = await pedirGemini({ fetch: f, apiKey: env.GEMINI_API_KEY, modelo: gcfg.modelo, voz: gcfg.voz, text, timeoutMs: gcfg.timeout_ms ?? Math.max(10_000, text.length * 60) });
     if (res.status === 429) { paused.gemini = now() + await pausa429(res); return null; }
     if (!res.ok) { paused.gemini = now() + 60_000; return null; }
@@ -198,7 +201,7 @@ export function createTts({ db, env = {}, fetch: f = globalThis.fetch, config = 
     async preparar({ userId, text, isPrivate = false, soloLocal = false }) {
       const t = String(text ?? "").trim();
       if (!t || isPrivate) return null;
-      const textos = prerecorded(t) ? [t] : partirTexto(t);
+      const textos = prerecorded(t) || now() - ultimaGemini < 60_000 ? [t] : partirTexto(t);
       if (!(await disponible(userId, t, textos.length, soloLocal))) return null;
       purgar();
       return {

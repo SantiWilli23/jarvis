@@ -93,6 +93,16 @@ test("sin voz: no pedida, privado, escolar, freno o sin clave", async (t) => {
   assert.equal((await (await servidor(t, { tts: sin.tts })).chat({ text: "hola", voz: true })).voz, undefined);
 });
 
+test("con voz usada hace menos de un minuto no se parte en dos", async () => {
+  const { tts, userId, now } = await setup();
+  const primera = await tts.preparar({ userId, text: LARGO });
+  assert.equal(primera.partes.length, 2);
+  await Promise.all(primera.partes.map((p) => tts.trabajo({ userId, id: p.id }).audio));
+  assert.equal((await tts.preparar({ userId, text: LARGO })).partes.length, 1);
+  now.advance(61_000);
+  assert.equal((await tts.preparar({ userId, text: LARGO })).partes.length, 2);
+});
+
 test("tope de trabajos: los más viejos se olvidan", async () => {
   const { tts, userId } = await setup({ config: { gemini: { tope_dia: 100 } } });
   const ids = [];
