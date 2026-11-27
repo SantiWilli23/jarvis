@@ -1,5 +1,5 @@
 // Punto de entrada: pantalla de contraseña, WebSocket, orbe, voz y paneles.
-import { getSettings, putSettings, api, login, getToken, setToken, onAuthLost, getStatus, sendChat, transcribe, decideApproval, pendingApprovals, deleteTask, approveReview, logout, waitForServer, restaurarSesion } from "./api.js";
+import { getSettings, putSettings, api, login, getToken, setToken, onAuthLost, pedirStatus, sendChat, transcribe, decideApproval, pendingApprovals, deleteTask, approveReview, logout, waitForServer, restaurarSesion } from "./api.js";
 import { connectWs, closeWs } from "./ws.js";
 import { store, setState, subscribe, LABELS, VISUAL } from "./state.js";
 import { initOrb, setVisual } from "./orb.js";
@@ -43,7 +43,10 @@ subscribe((what) => {
 });
 
 async function refreshStatus() {
-  try { store.status = await getStatus(); } catch { return; }
+  let st;
+  try { st = await pedirStatus(); } catch { return; }
+  if (st === store.status) return; // la misma tanda: ya se pintó
+  store.status = st;
   renderMemory(store.status); renderQueue(store.status, onQueueAction); renderConn(store.status, lastUsed, store.state === "thinking"); renderPc(store.status.pc); try { aplicarMotor(); } catch { /* aún no existe */ }
 }
 
@@ -93,7 +96,7 @@ function onNav(task) {
   pintarNav(task);
   if (store.state === "permiso") return;
   setState("speaking");
-  speak(String(task.respuesta || "").slice(0, 1500), afterSpeech, false); // lo privado nunca llega al navegador
+  speak(String(task.respuesta || "").slice(0, 1500), afterSpeech, task.tipo === "estudio"); // lo escolar se lee como privado: solo voz local
 }
 
 /* ---------- mensajes del WebSocket ---------- */
@@ -149,7 +152,7 @@ async function converse(text, priv) {
   say("Usted", text);
   setState("thinking");
   try {
-    const r = await sendChat(text, priv, store.convId, motorEfectivo());
+    const r = await sendChat(text, priv, store.convId, motorEfectivo(), !priv);
     store.convId = r.conversationId || store.convId;
     activeProvider = r.provider || null;
     if (r.status === "ok" && r.provider) lastUsed = r.provider;
@@ -165,10 +168,10 @@ async function converse(text, priv) {
       setState("idle");
     } else if (r.status === "sin_cuota") {
       setState("sin_cuota"); say("Jarvis", r.reply);
-      speak(r.reply, () => setTimeout(() => { if (store.state === "sin_cuota") setState("idle"); }, 4000), r.private);
+      speak(r.reply, () => setTimeout(() => { if (store.state === "sin_cuota") setState("idle"); }, 4000), r.private, r.voz);
     } else {
       setState("speaking"); say("Jarvis", r.reply);
-      speak(r.reply, afterSpeech, r.private);
+      speak(r.reply, afterSpeech, r.private, r.voz);
     }
     accionesDeMensaje(r);
   } catch (e) {
@@ -200,7 +203,9 @@ async function onOrb() {
   if (recorder) return stopAndSend();
   if (!canRecord()) { say("Jarvis", "Este navegador no puede grabar, señor. Escríbame abajo."); return; }
   try {
-    recorder = await startRecording(() => stopAndSend());
+    // En el escritorio se corta sola al callar; en /m este botón sigue como estaba. El segundo toque vale siempre.
+    const opciones = document.body.classList.contains("movil") ? {} : { silencioMs: 1500 };
+    recorder = await startRecording((motivo) => stopAndSend(motivo), opciones);
     setState("listening");
     say("Usted", "…le escucho.");
   } catch {
@@ -208,13 +213,14 @@ async function onOrb() {
     say("Jarvis", "No tengo permiso para el micrófono, señor. Revise los ajustes de Safari.");
   }
 }
-async function stopAndSend() {
+async function stopAndSend(motivo) {
   const r = recorder; recorder = null;
   if (!r) return;
   setState("thinking"); $("smodel").textContent = "transcribiendo";
   try {
     const blob = await r.stop();
-    if (blob.size < 800) { setState("idle"); say("Jarvis", "No le oí nada, señor."); return; }
+    // Sin voz no se transcribe: el modelo podría inventar una orden.
+    if (motivo === "sin_voz" || blob.size < 800) { setState("idle"); say("Jarvis", "No le oí nada, señor."); return; }
     const { text } = await transcribe(blob);
     if (!text?.trim()) { setState("idle"); say("Jarvis", "No le entendí, señor. ¿Puede repetirlo?"); return; }
     await converse(text, false);
@@ -252,7 +258,7 @@ for (const b of document.querySelectorAll("#panel-config [data-modo]")) {
 async function enter() {
   $("login").hidden = true; $("app").style.visibility = "visible";
   if (started) return; started = true;
-  await refreshStatus();
+  refreshStatus(); // sin esperar: la página se muestra ya y los paneles se rellenan al llegar
   cargarModo();
   try { const { approvals } = await pendingApprovals(); if (approvals[0]) setApproval(approvals[0]); } catch { /* sin pendientes */ }
   connectWs(onWs);

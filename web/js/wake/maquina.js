@@ -1,6 +1,7 @@
 // Estados y tiempos de la escucha permanente de /m. Puro: sin DOM ni audio, con reloj inyectable.
 // Bloques de entrada: 16 kHz mono en escala int16 (1280 muestras = 80 ms).
-export const TIEMPOS = { sinVoz: 6000, silencio: 3000, seguimiento: 8000, maximo: 30000, gracia: 400, eco: 300, previo: 4800 };
+export const TIEMPOS = { sinVoz: 6000, silencio: 1500, seguimiento: 8000, maximo: 30000, gracia: 400, eco: 300, previo: 4800 };
+const COLA = 6; // bloques (~480 ms) que se conservan tras la última voz al recortar el silencio final
 
 const rms = (b) => { let s = 0; for (const x of b) s += x * x; return Math.sqrt(s / (b.length || 1)); };
 const unir = (partes) => {
@@ -12,7 +13,7 @@ const unir = (partes) => {
 
 // estados: apagada | esperando | orden | procesando | seguimiento | ocupada | pausada
 export function createMaquina({ now = Date.now, alOrden, alCambiar = () => {}, tiempos = TIEMPOS }) {
-  let estado = "apagada", piso = 100, previo = [], orden = [], inicio = 0, ultimaVoz = 0, hablo = false, seguidos = 0, fin = null;
+  let estado = "apagada", piso = 100, previo = [], orden = [], inicio = 0, ultimaVoz = 0, hablo = false, seguidos = 0, fin = null, hastaVoz = 0;
   const umbral = () => Math.max(250, piso * 3);
 
   function pasar(e) {
@@ -28,14 +29,15 @@ export function createMaquina({ now = Date.now, alOrden, alCambiar = () => {}, t
   }
   function empezarOrden(yaHablo) {
     orden = [...previo];
+    hastaVoz = orden.length;
     previo = [];
     hablo = yaHablo;
     pasar("orden");
     ultimaVoz = inicio;
   }
-  function cerrar() {
+  function cerrar(porSilencio = false) {
     if (!hablo) return pasar("esperando");
-    const audio = unir(orden);
+    const audio = unir(porSilencio ? orden.slice(0, hastaVoz + COLA) : orden); // menos silencio que subir
     pasar("procesando");
     alOrden(audio);
   }
@@ -56,10 +58,10 @@ export function createMaquina({ now = Date.now, alOrden, alCambiar = () => {}, t
       return;
     }
     orden.push(b);
-    if (voz && t - inicio >= tiempos.gracia) { hablo = true; ultimaVoz = t; } // la cola de "Hey Jarvis" no cuenta
+    if (voz && t - inicio >= tiempos.gracia) { hablo = true; ultimaVoz = t; hastaVoz = orden.length; } // la cola de "Hey Jarvis" no cuenta
     if (t - inicio >= tiempos.maximo) cerrar();
     else if (!hablo && t - inicio >= tiempos.sinVoz) pasar("esperando");
-    else if (hablo && t - ultimaVoz >= tiempos.silencio) cerrar();
+    else if (hablo && t - ultimaVoz >= tiempos.silencio) cerrar(true);
   }
 
   return {

@@ -24,17 +24,19 @@ function montar() {
   return { m, dar, ordenes };
 }
 
-test("orden: se corta tras 3 s de silencio e incluye unos 300 ms previos", () => {
+test("orden: se corta tras 1,5 s de silencio, incluye unos 300 ms previos y recorta el silencio final", () => {
   const { m, dar, ordenes } = montar();
   m.activada();
   dar(VOZ, 1600);
-  dar(CALLADO, 2900);
+  dar(CALLADO, 1400);
   assert.equal(m.estado(), "orden");
   dar(CALLADO, 200);
   assert.equal(m.estado(), "procesando");
   assert.equal(ordenes.length, 1);
   assert.equal(ordenes[0][0], 10);                       // el previo
   assert.ok(ordenes[0].indexOf(3000) >= 4800 && ordenes[0].indexOf(3000) <= 6400);
+  const cola = ordenes[0].length - 1 - ordenes[0].lastIndexOf(3000);
+  assert.equal(cola, 6 * 1280);                          // unos 480 ms tras la última voz, no los 1,5 s
 });
 
 test("sin voz en 6 s vuelve a esperar sin enviar", () => {
