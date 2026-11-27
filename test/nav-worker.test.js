@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { createNavWorker, parseNavResult, probarGuardia, pasosDe } from "../desktop/runner/nav-worker.js";
+import { createNavWorker, parseNavResult, probarGuardia, pasosDe, navPrompt, buscarNode } from "../desktop/runner/nav-worker.js";
 import { decidir } from "../desktop/runner/nav-guard.js";
 import { buildNavArgs, navSettings } from "../desktop/runner/claude-args.js";
 import { urlPermitida, urlsDeHerramienta, normalizeEvent } from "../desktop/runner/claude-runner.js";
@@ -45,6 +45,7 @@ test("argumentos: chrome, sonnet, guardia por --settings y nada de Chrome pre-ap
   for (const f of ["-p", "--chrome", "--verbose", "--strict-mcp-config"]) assert.ok(a.includes(f));
   assert.equal(flag(a, "--output-format"), "stream-json");
   assert.equal(flag(a, "--model"), "sonnet");
+  assert.equal(flag(a, "--effort"), "low");
   assert.equal(flag(a, "--max-turns"), "25");
   assert.equal(flag(a, "--settings"), "s.json");
   assert.equal(flag(a, "--setting-sources"), "");
@@ -131,9 +132,9 @@ test("una a la vez; cola vacía y servidor sin la API no fallan", async () => {
   assert.equal(await sin.tick(), "vacio");
 });
 
-test("el bucle atiende nav solo con las colas clásica y Pro vacías", async () => {
+test("el bucle atiende nav con la cola clásica vacía y antes que Pro", async () => {
   const orden = [];
-  let clasicas = 1, pros = 1, listo;
+  let clasicas = 1, navs = 1, listo;
   const fin = new Promise((r) => { listo = r; });
   const hub = {
     hello: async () => ({}), heartbeat: async () => {}, bye: async () => {},
@@ -142,13 +143,13 @@ test("el bucle atiende nav solo con las colas clásica y Pro vacías", async () 
   };
   const w = createWorker({
     hub, pollMs: 5,
-    pro: { tick: async () => (pros-- > 0 ? (orden.push("pro"), "job") : "vacio") },
-    nav: { tick: async () => { orden.push("nav"); listo(); return "vacio"; } },
+    pro: { tick: async () => { orden.push("pro"); listo(); return "vacio"; } },
+    nav: { tick: async () => (navs-- > 0 ? (orden.push("nav"), "tarea") : "vacio") },
   });
   w.start();
   await fin;
   await w.stop();
-  assert.deepEqual(orden.slice(0, 3), ["clasica", "pro", "nav"]);
+  assert.deepEqual(orden.slice(0, 3), ["clasica", "nav", "pro"]);
 });
 
 test("hosts, herramientas y eventos", () => {
@@ -298,4 +299,44 @@ test("lectura: el corte de respaldo respeta hosts_negados", async () => {
   const t = tarea({ tipo: "investigar", sitio: "google", url_inicial: "https://www.google.com/search?q=a", limites: { hosts: ["*"], hosts_negados: ["paypal.com"] } });
   const { r } = await correr({ FAKE_TOOLS: JSON.stringify([{ name: C + "navigate", input: { url: "https://paypal.com/x" } }]), FAKE_HANG_MS: "30000" }, t);
   assert.equal(r.estado, "bloqueado");
+});
+
+test("navPrompt: select con browser_batch y solo herramientas del perfil", () => {
+  const sel = (t) => navPrompt(t).match(/select:(\S+)/)[1].split(",");
+  const ia = sel(tarea());
+  assert.ok(ia.includes(C + "browser_batch") && ia.includes(C + "computer") && !ia.includes(C + "tabs_close_mcp"));
+  const lectura = tarea({ tipo: "buscar_google", sitio: "google" });
+  assert.ok(sel(lectura).includes(C + "browser_batch"));
+  assert.ok(!sel(lectura).includes(C + "computer") && !sel(lectura).includes(C + "form_input"));
+  assert.ok(!/computer (wait|screenshot|key|type)/.test(navPrompt(lectura)));
+  assert.ok(sel({ ...lectura, capturas: true }).includes(C + "computer"));
+  const prohibidas = flag(buildNavArgs({ perfil: "ia" }), "--disallowedTools").split(",");
+  assert.ok(ia.every((n) => !prohibidas.includes(n)));
+});
+
+test("hook: node del PATH solo con ruta absoluta y fuera de la carpeta actual", () => {
+  const dir = mkdtempSync(join(tmpdir(), "nav-node-"));
+  const exe = join(dir, process.platform === "win32" ? "node.exe" : "node");
+  writeFileSync(exe, "no es un ejecutable");
+  const otra = tmpdir();
+  assert.equal(buscarNode({ env: { PATH: dir }, cwd: otra }), exe);
+  assert.equal(buscarNode({ env: { PATH: dir }, cwd: dir }), null);
+  assert.equal(buscarNode({ env: { PATH: "." }, cwd: otra, existe: () => true }), null);
+  assert.equal(buscarNode({ env: {}, cwd: otra, existe: () => true }), null);
+});
+
+test("hook: si el node del PATH falla, cae a process.execPath; el log no lleva texto ni direcciones", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "nav-node-"));
+  writeFileSync(join(dir, process.platform === "win32" ? "node.exe" : "node"), "no es un ejecutable");
+  const lineas = [];
+  const out = setup({ FAKE_RESULT: bloque({ estado: "ok", respuesta: "secreta" }) });
+  const env = { ...process.env, PATH: dir };
+  delete env.Path;
+  const hub = mkHub(tarea());
+  await createNavWorker({ hub, claude: CLAUDE, navDir: NAV_DIR, env, log: (m) => lineas.push(m) }).tick();
+  assert.equal(hub.results[0].estado, "ok");
+  assert.ok(existsSync(`${out}.0.stdin`));
+  const todo = lineas.join(" | ");
+  for (const m of ["claim", "guardia probado", "spawn", "result", "envío"]) assert.ok(todo.includes(m), m);
+  assert.ok(!/púlsar|secreta|https?:/.test(todo));
 });

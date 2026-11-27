@@ -19,9 +19,9 @@ export function createWorker({
   fallbackCwd = process.cwd(),
   pollMs = 5000, approvalPollMs = 3000, heartbeatMs = 15000, tapeWaitMs = 60_000,
   maxTurns = 30, model = null, onStatus = () => {},
-  pro = null,                    // worker del Modo Pro ({tick}); se atiende cuando la cola clásica está vacía
+  pro = null,                    // worker del Modo Pro ({tick}); se atiende cuando la cola clásica y la del navegador están vacías
   getCapabilities = null,        // () => capabilities del doctor (se manda en hello y heartbeat)
-  nav = null,                    // navegador de Claude ({tick}); solo cuando las colas clásica y Pro están vacías
+  nav = null,                    // navegador de Claude ({tick}); cuando la cola clásica está vacía, antes que Pro
   control = controlState,        // freno de emergencia
   textos = typeof hub?.textosClaim === "function" ? createTextosWorker({ hub, claude, control, log }) : null, // Claude sin herramientas
 }) {
@@ -130,8 +130,8 @@ export function createWorker({
         if (!said) { await sync(); said = true; log("PC en línea"); status({ online: true }); }
         const out = await tick();
         if (out === "tarea") continue; // sigue de inmediato con la siguiente
-        if (pro && (out === "vacia" || out === "tope_diario") && !paused) { const j = await pro.tick().catch((e) => { log(`Pro: ${e.message}`); if (e.status === 401 || e.status === 403) throw e; return "vacio"; }); if (j === "job") continue; }
         if (nav && (out === "vacia" || out === "tope_diario") && !paused) { const n = await nav.tick().catch((e) => { log(`Navegador: ${e.message}`); if (e.status === 401 || e.status === 403) throw e; return "vacio"; }); if (n === "tarea") continue; }
+        if (pro && (out === "vacia" || out === "tope_diario") && !paused) { const j = await pro.tick().catch((e) => { log(`Pro: ${e.message}`); if (e.status === 401 || e.status === 403) throw e; return "vacio"; }); if (j === "job") continue; }
         if (textos && (out === "vacia" || out === "tope_diario") && !paused) {
           const x = await textos.tick().catch((e) => { log(`Textos: ${e.message}`); if (e.status === 401 || e.status === 403) throw e; return "vacio"; });
           if (x === "tarea") continue;

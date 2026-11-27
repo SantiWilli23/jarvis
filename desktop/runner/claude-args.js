@@ -109,7 +109,7 @@ export function buildNavArgs({ perfil = "ia", capturas = false, settings = null,
   const sistema = NAV_SISTEMAS[perfil] + (memoria && perfil === "ia" ? `\n${EXCEPCION_MEMORIA}` : "");
   const prohibidas = [...NAV_PROHIBIDAS, ...(perfil === "ia" ? [] : [chrome("form_input"), ...(capturas ? [] : [chrome("computer")])])];
   return [
-    "-p", "--chrome", "--output-format", "stream-json", "--verbose", "--model", model,
+    "-p", "--chrome", "--output-format", "stream-json", "--verbose", "--model", model, "--effort", "low",
     "--permission-mode", "default", "--strict-mcp-config", // sin los conectores del usuario (Gmail, etc.)
     "--setting-sources", "",
     ...(settings ? ["--settings", settings] : []),

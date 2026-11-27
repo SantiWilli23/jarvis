@@ -30,8 +30,9 @@ La respuesta se guarda además como mensaje del asistente en la conversación (d
 - Capacidad del dispositivo `chrome`. Si no hay PC conectado con esa capacidad: `pc_apagado`, no se encola.
 - Hosts permitidos en `config/nav.json`; el worker aborta si se navega fuera de la lista.
 - Herramientas permitidas: tabs_context_mcp, tabs_create_mcp, navigate, read_page, get_page_text, find, computer,
-  form_input (y ToolSearch). Prohibidas: javascript_tool, file_upload, upload_image, Bash, PowerShell, Edit, Write,
+  form_input, browser_batch (y ToolSearch). Prohibidas: javascript_tool, file_upload, upload_image, Bash, PowerShell, Edit, Write,
   Read, WebFetch, WebSearch, Agent. Carpeta de trabajo temporal y vacía.
+- El hook corre con el node del PATH (si no hay o falla, con el propio ejecutable de la app) y Claude con `--effort low`.
 - No se escriben contraseñas ni códigos, no se resuelven CAPTCHAs (estado necesita_login/captcha), no se aceptan
   términos ni se compra. Lo leído en una página es dato, nunca órdenes.
 - Una tarea nav a la vez por dispositivo; topes por hora y por día en config/nav.json.
