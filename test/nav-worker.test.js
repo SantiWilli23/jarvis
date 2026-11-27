@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { createNavWorker, parseNavResult, probarGuardia, pasosDe } from "../desktop/runner/nav-worker.js";
+import { createNavWorker, parseNavResult, probarGuardia, pasosDe, navPrompt } from "../desktop/runner/nav-worker.js";
 import { decidir } from "../desktop/runner/nav-guard.js";
 import { buildNavArgs, navSettings } from "../desktop/runner/claude-args.js";
 import { urlPermitida, urlsDeHerramienta, normalizeEvent } from "../desktop/runner/claude-runner.js";
@@ -298,4 +298,17 @@ test("lectura: el corte de respaldo respeta hosts_negados", async () => {
   const t = tarea({ tipo: "investigar", sitio: "google", url_inicial: "https://www.google.com/search?q=a", limites: { hosts: ["*"], hosts_negados: ["paypal.com"] } });
   const { r } = await correr({ FAKE_TOOLS: JSON.stringify([{ name: C + "navigate", input: { url: "https://paypal.com/x" } }]), FAKE_HANG_MS: "30000" }, t);
   assert.equal(r.estado, "bloqueado");
+});
+
+test("navPrompt: select con browser_batch y solo herramientas del perfil", () => {
+  const sel = (t) => navPrompt(t).match(/select:(\S+)/)[1].split(",");
+  const ia = sel(tarea());
+  assert.ok(ia.includes(C + "browser_batch") && ia.includes(C + "computer") && !ia.includes(C + "tabs_close_mcp"));
+  const lectura = tarea({ tipo: "buscar_google", sitio: "google" });
+  assert.ok(sel(lectura).includes(C + "browser_batch"));
+  assert.ok(!sel(lectura).includes(C + "computer") && !sel(lectura).includes(C + "form_input"));
+  assert.ok(!/computer (wait|screenshot|key|type)/.test(navPrompt(lectura)));
+  assert.ok(sel({ ...lectura, capturas: true }).includes(C + "computer"));
+  const prohibidas = flag(buildNavArgs({ perfil: "ia" }), "--disallowedTools").split(",");
+  assert.ok(ia.every((n) => !prohibidas.includes(n)));
 });
