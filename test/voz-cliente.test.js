@@ -95,3 +95,18 @@ test("corte: en sala ruidosa se adapta y las pausas cortas no cortan", () => {
   assert.equal(medir([[900, 800], [6000, 1000], [900, 1000], [6000, 1000], [900, 1000]]).r, null);
   assert.equal(medir([[900, 800], [6000, 1000], [900, 2000]]).r, "silencio");
 });
+
+test("privado: solo una voz local; sin ninguna local no se lee", async () => {
+  respuestas["/api/tts"] = 204;
+  const nube = { name: "Alvaro Online (Natural)", lang: "es-ES", localService: false };
+  voces = [nube, { name: "Helena", lang: "es-ES", localService: true }];
+  await decir("Nota.", true);
+  assert.deepEqual(leido.map((l) => l.voz), ["Helena"]);
+  voces = [nube, { name: "Zira", lang: "en-US", localService: true }, { name: "SinDato", lang: "es-ES" }];
+  leido = [];
+  await decir("Nota.", true);
+  assert.equal(leido.length, 0);
+  assert.equal(ocupado(), false);
+  await decir("Público.", false);
+  assert.equal(leido.length, 1);
+});

@@ -87,20 +87,21 @@ export async function startRecording(onAutoStop, { silencioMs, sinVozMs } = {}) 
   return { stop() { clearTimeout(timer); if (rec.state !== "inactive") rec.stop(); return done; } };
 }
 
-let voice = null;
-function pickVoice() {
-  const vs = (window.speechSynthesis?.getVoices() || []).filter((v) => /^es/i.test(v.lang));
+// soloLocal (texto privado o escolar): solo voces que hablan en el equipo, nunca las de la nube (p. ej. Edge).
+function pickVoice(soloLocal) {
+  const vs = (window.speechSynthesis?.getVoices() || []).filter((v) => /^es/i.test(v.lang) && (!soloLocal || v.localService === true));
   const male = /jorge|diego|pablo|alvaro|enrique|raul|carlos|juan|miguel|andres|male|masculin/i;
   return vs.find((v) => male.test(v.name)) || vs[0] || null;
 }
-if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.onvoiceschanged = () => { voice = pickVoice(); };
+try { window.speechSynthesis?.getVoices(); } catch { /* sin voz o sin window */ } // pide la lista pronto
 
-// Voz del navegador (último recurso): tono bajo y calmado.
-function speakBrowser(msg, end) {
+// Voz del navegador (último recurso): tono bajo y calmado. Lo privado, sin voz local, no se lee.
+function speakBrowser(msg, end, priv) {
   try {
     if (!window.speechSynthesis) return end();
     const u = new SpeechSynthesisUtterance(msg);
-    voice = voice || pickVoice();
+    const voice = pickVoice(priv);
+    if (priv && !voice) return end();
     if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = "es-ES";
     u.rate = 0.88; u.pitch = 0.7;
     // Seguro por si Safari nunca dispara onend
@@ -135,7 +136,7 @@ function reproducir(a, blob, soltables) {
     Promise.resolve(a.play()).catch(() => fin(false));
   });
 }
-const delNavegador = (texto) => new Promise((res) => { let hecho = false; speakBrowser(texto, () => { if (!hecho) { hecho = true; res(); } }); });
+const delNavegador = (texto, priv) => new Promise((res) => { let hecho = false; speakBrowser(texto, () => { if (!hecho) { hecho = true; res(); } }, priv); });
 
 let cortar = null; // aborta las descargas y suelta el audio de lo que se esté diciendo
 
@@ -169,7 +170,7 @@ export function speak(msg, onEnd, priv = false, voz = null) {
       if (me !== token) return;    // otro habla o lo cortaron
       const sono = blob ? await reproducir(a, blob, soltables) : false;
       if (me !== token) return;
-      if (!sono) await delNavegador(trozo.texto);
+      if (!sono) await delNavegador(trozo.texto, !!priv);
       if (me !== token) return;
     }
     end();

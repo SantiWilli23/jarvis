@@ -93,7 +93,7 @@ function onNav(task) {
   pintarNav(task);
   if (store.state === "permiso") return;
   setState("speaking");
-  speak(String(task.respuesta || "").slice(0, 1500), afterSpeech, false); // lo privado nunca llega al navegador
+  speak(String(task.respuesta || "").slice(0, 1500), afterSpeech, task.tipo === "estudio"); // lo escolar se lee como privado: solo voz local
 }
 
 /* ---------- mensajes del WebSocket ---------- */
