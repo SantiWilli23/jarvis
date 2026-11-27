@@ -109,3 +109,28 @@ test("recortarSilencio: deja ~50 ms a cada lado y no toca el sonido ni el silenc
   const mudo = Buffer.alloc(100);
   assert.equal(recortarSilencio(mudo), mudo);
 });
+
+test("timeout de Gemini: cae al navegador", async () => {
+  const colgado = (_url, init) => new Promise((_res, rej) => {
+    const vivo = setTimeout(() => {}, 5000);
+    init.signal.addEventListener("abort", () => { clearTimeout(vivo); rej(init.signal.reason); });
+  });
+  const { tts, userId } = await setup({ fetch: colgado, config: { gemini: { timeout_ms: 20 } } });
+  assert.equal(await tts.synth({ userId, text: "probando" }), null);
+});
+
+test("429: pausa según retryDelay (mínimo 30 s)", async () => {
+  for (const [delay, espera] of [["90s", 90_000], ["2s", 30_000], [undefined, 60_000]]) {
+    let estado = 429;
+    const { tts, userId, f, now } = await setup({
+      fetch: () => (estado === 429 ? new Response(JSON.stringify({ error: { details: delay ? [{ retryDelay: delay }] : [] } }), { status: 429 }) : geminiOk()),
+    });
+    assert.equal(await tts.synth({ userId, text: "uno" }), null);
+    estado = 200;
+    now.advance(espera - 1000);
+    assert.equal(await tts.synth({ userId, text: "dos" }), null);
+    assert.equal(f.calls.length, 1);
+    now.advance(2000);
+    assert.equal((await tts.synth({ userId, text: "tres" })).source, "gemini");
+  }
+});

@@ -36,6 +36,14 @@ export function recortarSilencio(pcm, sampleRate = 24000, { umbral = 80, margenM
   return pcm.subarray(Math.max(0, a - m) * 2, Math.min(n, b + 1 + m) * 2);
 }
 
+// Cuánto esperar tras un 429: el retryDelay de Google ("34s") o la cabecera retry-after; entre 30 s y 1 h (sin dato, 60 s).
+export async function pausa429(res) {
+  let s = 0;
+  try { s = parseFloat((await res.json())?.error?.details?.find((d) => d.retryDelay)?.retryDelay) || 0; } catch { /* sin cuerpo */ }
+  s = s || Number(res.headers?.get("retry-after")) || 60;
+  return Math.min(3600, Math.max(30, s)) * 1000;
+}
+
 // Más de ~160 caracteres y varias frases: [primeras frases hasta ~120, resto]. Cada parte es un trozo exacto del texto.
 export function partirTexto(texto, { desde = 160, primera = 120 } = {}) {
   const t = String(texto ?? "").trim();
@@ -108,13 +116,15 @@ export function createTts({ db, env = {}, fetch: f = globalThis.fetch, config = 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${gcfg.modelo}:generateContent`;
     const res = await f(url, {
       method: "POST",
+      // ~10 s; en textos largos crece (60 ms por carácter) para no cortar audios que sí iban a llegar. Si salta: siguiente voz.
+      signal: AbortSignal.timeout(gcfg.timeout_ms ?? Math.max(10_000, text.length * 60)),
       headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
       body: JSON.stringify({
         contents: [{ parts: [{ text: ESTILO_GEMINI + text }] }],
         generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: gcfg.voz } } } },
       }),
     });
-    if (res.status === 429) { paused.gemini = now() + 10 * 60_000; return null; }
+    if (res.status === 429) { paused.gemini = now() + await pausa429(res); return null; }
     if (!res.ok) { paused.gemini = now() + 60_000; return null; }
     const b64 = (await res.json())?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData?.data;
     if (!b64) return null;
