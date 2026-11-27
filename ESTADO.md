@@ -3,7 +3,7 @@
 **Pedido:** memoria única mensual, freno, control que pregunta, mouse solo en lo autorizado, "Hey Jarvis" y "Llegó papi", voz de película, estudio + calendario MDE.
 **Publicado:** fases 1 y 2 (5bdf3aa, sw v22), comprobado en Render; app del PC reiniciada.
 **Velocidad (publicada):** voz en dos partes preparadas con la respuesta, corte de silencio 1,5 s, silencios recortados, MiniMax apagado, sw v24, menos consultas; 509 pruebas. Medido antes: ~12-13 s por voz; meta 6-7 s.
-**Siguiente:** medir la voz en producción, 6 frases pregrabadas que faltan (`node scripts/gen-frases.mjs`), fase 3 control amplio, fase 4 mouse.
+**Siguiente:** medir la voz en producción (publicado y en línea; falta reconectar Claude in Chrome), 6 frases pregrabadas que faltan (`node scripts/gen-frases.mjs`), fase 3 control amplio, fase 4 mouse.
 **Del usuario:** elegir voz, sí/no a Vosk ("Llegó papi"), sesión en Classroom y Lirmi, conectar Google (guía §14).
 **Sin probar:** Classroom, Lirmi, eventos reales, repaso con material real, micrófono real, app empaquetada, recoger/repartir, MCP, freno en Windows e iPhone; voz nueva con Google real.
 **Pendiente técnico:** al cambiar fecha de una prueba no se borra el evento viejo; rutina por horario se pierde si Render duerme >10 min.
