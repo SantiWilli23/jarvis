@@ -1,5 +1,5 @@
 // Punto de entrada: pantalla de contraseña, WebSocket, orbe, voz y paneles.
-import { getSettings, putSettings, api, login, getToken, setToken, onAuthLost, getStatus, sendChat, transcribe, decideApproval, pendingApprovals, deleteTask, approveReview, logout, waitForServer, restaurarSesion } from "./api.js";
+import { getSettings, putSettings, api, login, getToken, setToken, onAuthLost, pedirStatus, sendChat, transcribe, decideApproval, pendingApprovals, deleteTask, approveReview, logout, waitForServer, restaurarSesion } from "./api.js";
 import { connectWs, closeWs } from "./ws.js";
 import { store, setState, subscribe, LABELS, VISUAL } from "./state.js";
 import { initOrb, setVisual } from "./orb.js";
@@ -43,7 +43,10 @@ subscribe((what) => {
 });
 
 async function refreshStatus() {
-  try { store.status = await getStatus(); } catch { return; }
+  let st;
+  try { st = await pedirStatus(); } catch { return; }
+  if (st === store.status) return; // la misma tanda: ya se pintó
+  store.status = st;
   renderMemory(store.status); renderQueue(store.status, onQueueAction); renderConn(store.status, lastUsed, store.state === "thinking"); renderPc(store.status.pc); try { aplicarMotor(); } catch { /* aún no existe */ }
 }
 
@@ -254,7 +257,7 @@ for (const b of document.querySelectorAll("#panel-config [data-modo]")) {
 async function enter() {
   $("login").hidden = true; $("app").style.visibility = "visible";
   if (started) return; started = true;
-  await refreshStatus();
+  refreshStatus(); // sin esperar: la página se muestra ya y los paneles se rellenan al llegar
   cargarModo();
   try { const { approvals } = await pendingApprovals(); if (approvals[0]) setApproval(approvals[0]); } catch { /* sin pendientes */ }
   connectWs(onWs);

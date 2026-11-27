@@ -1,6 +1,6 @@
 // Modo Pro: chat de tres (usuario, Jarvis, Claude). Contrato en docs/PRO.md (§4 endpoints, §8 eventos ws).
 // Las funciones de render son puras (devuelven HTML escapado) y se prueban sin navegador.
-import { api, getToken, decideApproval, pendingApprovals } from "./api.js";
+import { api, pedirStatus, getToken, decideApproval, pendingApprovals } from "./api.js";
 import { renderRondaWeb, renderRamaSelect, opcionesRepos, opcionesRamas, ramaPorDefecto, motivosWebTexto, proActivo, localVisible, webHabilitado, createWebCtl, errWeb } from "./pro-web.js";
 import { montarVoz } from "./voz-ui.js";
 
@@ -169,7 +169,7 @@ export const errTexto = (e) => (e && ERRORES[e.message]) || (e?.status === 409 ?
 
 async function cargarEstado() {
   try {
-    const st = await api("/status");
+    const st = await pedirStatus();
     const ps = await api("/pro/status").catch(() => null); // trae local_visible y web
     S.pro = { ...(st.pro || { habilitado: false, motivos: [] }), ...(ps ? { local_visible: ps.local_visible === true, web: ps.web } : {}) };
     const caps = st.pc?.capabilities || st.pro?.capabilities || {};

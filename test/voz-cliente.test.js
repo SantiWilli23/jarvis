@@ -110,3 +110,17 @@ test("privado: solo una voz local; sin ninguna local no se lee", async () => {
   await decir("Público.", false);
   assert.equal(leido.length, 1);
 });
+
+test("/status: varios pedidos seguidos hacen una sola llamada", async () => {
+  const { pedirStatus } = await import("../web/js/api.js");
+  const real = globalThis.fetch;
+  let n = 0;
+  globalThis.fetch = async () => { n++; return { ok: true, status: 200, json: async () => ({ n }) }; };
+  try {
+    const [a, b, c] = await Promise.all([pedirStatus(10), pedirStatus(10), pedirStatus(10)]);
+    assert.equal(n, 1);
+    assert.ok(a === b && b === c);
+    await pedirStatus(10);
+    assert.equal(n, 2);
+  } finally { globalThis.fetch = real; }
+});

@@ -47,6 +47,19 @@ export async function api(path, { method = "GET", body, raw, headers = {}, auth 
 
 export const login = (password) => api("/auth/login", { method: "POST", body: { password, deviceName: navigator.userAgent.includes("iPhone") ? "iPhone" : "Navegador" }, auth: false });
 export const getStatus = () => api("/status");
+
+// Un solo GET /status para todos los que lo piden seguidos (fin de la respuesta, avisos del ws, Pro).
+// Espera `espera` ms sin pedidos nuevos, con un tope de 2 s para que una ráfaga no lo aplace para siempre.
+let tanda = null;
+export function pedirStatus(espera = 400) {
+  if (!tanda) {
+    tanda = { desde: Date.now() };
+    tanda.promesa = new Promise((res, rej) => { tanda.ir = () => { tanda = null; getStatus().then(res, rej); }; });
+  }
+  clearTimeout(tanda.reloj);
+  tanda.reloj = setTimeout(tanda.ir, Math.max(0, Math.min(espera, tanda.desde + 2000 - Date.now())));
+  return tanda.promesa;
+}
 // voz: la respuesta se leerá en voz alta (el servidor adelanta el audio); nunca con texto privado.
 export const sendChat = (text, priv, conversationId, engine = "auto", voz = false) => api("/chat", { method: "POST", body: { text, private: !!priv, conversationId, source: "voz", engine, reproductor: { activo: !!window.jarvisMusica?.estado().activo }, ...(voz && !priv ? { voz: true } : {}) } });
 export const getConnect = () => api("/connect");
