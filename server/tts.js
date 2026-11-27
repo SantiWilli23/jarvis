@@ -3,7 +3,7 @@
 // Privacidad: texto privado NUNCA sale a Gemini ni a MiniMax (solo pregrabadas locales o navegador).
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, extname, join } from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { get, run } from "./db/client.js";
 
 const MIME = { ".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg", ".m4a": "audio/mp4" };
@@ -24,7 +24,24 @@ export function pcmToWav(pcm, sampleRate = 24000, channels = 1) {
   return Buffer.concat([h, pcm]);
 }
 
-const ESTILO_GEMINI = "Di lo siguiente en español, con voz masculina grave, calmada y formal, con aire de mayordomo británico: ";
+// Más de ~160 caracteres y varias frases: [primeras frases hasta ~120, resto]. Cada parte es un trozo exacto del texto.
+export function partirTexto(texto, { desde = 160, primera = 120 } = {}) {
+  const t = String(texto ?? "").trim();
+  if (t.length <= desde) return [t];
+  let corte = 0;
+  for (const m of t.matchAll(/[.!?…]+["'»”)\]]*(?=\s)|\n/g)) {
+    const fin = m.index + m[0].length;
+    if (corte && fin > primera) break;
+    corte = fin;
+    if (fin > primera) break;
+  }
+  const a = t.slice(0, corte).trim(), b = t.slice(corte).trim();
+  return a && b ? [a, b] : [t];
+}
+
+const VIDA_TRABAJO_MS = 60_000, MAX_TRABAJOS = 20;
+
+const ESTILO_GEMINI ="Di lo siguiente en español, con voz masculina grave, calmada y formal, con aire de mayordomo británico: ";
 const DESC_VOZ_MINIMAX = "Voz masculina grave y calmada, tono formal y educado, aire de mayordomo británico, hablando en español, pausada y elegante.";
 
 export function createTts({ db, env = {}, fetch: f = globalThis.fetch, config = {}, privacy, phrasesDir, cacheDir, now = () => Date.now() }) {
@@ -130,7 +147,46 @@ export function createTts({ db, env = {}, fetch: f = globalThis.fetch, config = 
     { id: "minimax", on: minimaxOn, fn: minimax },
   ];
 
-  return {
+  // Síntesis adelantada (POST /api/chat con voz:true): en memoria, ligada al usuario y de vida corta.
+  const trabajos = new Map(); // id -> { userId, promesa, caduca }
+  const purgar = () => { for (const [id, j] of trabajos) if (j.caduca <= now()) trabajos.delete(id); };
+
+  // ¿Hay voz para este texto (ya filtrado: no privado)? soloLocal: solo pregrabadas (freno puesto).
+  async function disponible(userId, t, partes, soloLocal) {
+    if (prerecorded(t)) return true;
+    if (soloLocal || t.length > maxChars) return false;
+    for (const v of VOCES) {
+      if (!v.on() || !allowed(v.id, false) || (paused[v.id] || 0) > now()) continue;
+      const u = await used(userId, "tts_" + v.id);
+      if (v.id === "gemini" ? u.count + partes <= gcfg.tope_dia : u.chars + t.length <= mcfg.tope_caracteres_dia) return true;
+    }
+    return false;
+  }
+
+  const api = {
+    // Lanza la síntesis sin esperarla. Devuelve { partes: [{ id, texto }] } o null.
+    async preparar({ userId, text, isPrivate = false, soloLocal = false }) {
+      const t = String(text ?? "").trim();
+      if (!t || isPrivate) return null;
+      const textos = prerecorded(t) ? [t] : partirTexto(t);
+      if (!(await disponible(userId, t, textos.length, soloLocal))) return null;
+      purgar();
+      return {
+        partes: textos.map((texto) => {
+          while (trabajos.size >= MAX_TRABAJOS) trabajos.delete(trabajos.keys().next().value);
+          const id = randomUUID();
+          const promesa = api.synth({ userId, text: texto }).catch(() => null);
+          trabajos.set(id, { userId, promesa, caduca: now() + VIDA_TRABAJO_MS });
+          return { id, texto };
+        }),
+      };
+    },
+    // undefined: id desconocido, caducado o de otro usuario. Si no, { audio: promesa de { source, mime, data } o null }.
+    trabajo({ userId, id }) {
+      purgar();
+      const j = trabajos.get(id);
+      return j && j.userId === userId ? { audio: j.promesa } : undefined;
+    },
     // Devuelve { source, mime, data } o null (el navegador usa su propia voz).
     async synth({ userId, text, isPrivate = false }) {
       const t = String(text ?? "");
@@ -157,4 +213,5 @@ export function createTts({ db, env = {}, fetch: f = globalThis.fetch, config = 
       };
     },
   };
+  return api;
 }
