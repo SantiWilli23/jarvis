@@ -64,6 +64,23 @@ const VIDA_TRABAJO_MS = 60_000, MAX_TRABAJOS = 20;
 const ESTILO_GEMINI ="Di lo siguiente en español, con voz masculina grave, calmada y formal, con aire de mayordomo británico: ";
 const DESC_VOZ_MINIMAX = "Voz masculina grave y calmada, tono formal y educado, aire de mayordomo británico, hablando en español, pausada y elegante.";
 
+// Una petición de voz a Gemini y su respuesta como WAV (las usa también scripts/gen-frases.mjs).
+export function pedirGemini({ fetch: f = globalThis.fetch, apiKey, modelo, voz, text, timeoutMs }) {
+  return f(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
+    method: "POST",
+    signal: AbortSignal.timeout(timeoutMs),
+    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: ESTILO_GEMINI + text }] }],
+      generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voz } } } },
+    }),
+  });
+}
+export async function wavDeGemini(res) {
+  const b64 = (await res.json())?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData?.data;
+  return b64 ? pcmToWav(recortarSilencio(Buffer.from(b64, "base64")), 24000) : null; // PCM 24 kHz 16 bits mono
+}
+
 export function createTts({ db, env = {}, fetch: f = globalThis.fetch, config = {}, privacy, phrasesDir, cacheDir, now = () => Date.now() }) {
   const gcfg = { enabled: true, modelo: "gemini-2.5-flash-preview-tts", voz: "Algenib", tope_dia: 30, ...(config.gemini || {}) };
   const mcfg = { enabled: false, modelo: "speech-2.8-hd", tope_caracteres_dia: 5000, ...(config.minimax || {}) };
@@ -113,23 +130,14 @@ export function createTts({ db, env = {}, fetch: f = globalThis.fetch, config = 
   async function gemini(userId, text) {
     const u = await used(userId, "tts_gemini");
     if (u.count >= gcfg.tope_dia) return null;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${gcfg.modelo}:generateContent`;
-    const res = await f(url, {
-      method: "POST",
-      // ~10 s; en textos largos crece (60 ms por carácter) para no cortar audios que sí iban a llegar. Si salta: siguiente voz.
-      signal: AbortSignal.timeout(gcfg.timeout_ms ?? Math.max(10_000, text.length * 60)),
-      headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: ESTILO_GEMINI + text }] }],
-        generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: gcfg.voz } } } },
-      }),
-    });
+    // ~10 s; en textos largos crece (60 ms por carácter) para no cortar audios que sí iban a llegar. Si salta: siguiente voz.
+    const res = await pedirGemini({ fetch: f, apiKey: env.GEMINI_API_KEY, modelo: gcfg.modelo, voz: gcfg.voz, text, timeoutMs: gcfg.timeout_ms ?? Math.max(10_000, text.length * 60) });
     if (res.status === 429) { paused.gemini = now() + await pausa429(res); return null; }
     if (!res.ok) { paused.gemini = now() + 60_000; return null; }
-    const b64 = (await res.json())?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData?.data;
-    if (!b64) return null;
+    const data = await wavDeGemini(res);
+    if (!data) return null;
     await record(userId, "tts_gemini", text.length);
-    return { source: "gemini", mime: "audio/wav", data: pcmToWav(recortarSilencio(Buffer.from(b64, "base64")), 24000) }; // PCM 24 kHz 16 bits mono
+    return { source: "gemini", mime: "audio/wav", data };
   }
 
   async function minimaxVoice(userId) {

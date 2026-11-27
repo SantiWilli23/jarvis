@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 import express from "express";
 import { memDb, clock } from "./helpers.js";
 import { createTts, partirTexto, recortarSilencio } from "../server/tts.js";
@@ -133,4 +134,9 @@ test("429: pausa según retryDelay (mínimo 30 s)", async () => {
     now.advance(2000);
     assert.equal((await tts.synth({ userId, text: "tres" })).source, "gemini");
   }
+});
+
+test("manifiesto de frases: cada una tiene su audio", () => {
+  const dir = new URL("../web/audio/phrases/", import.meta.url);
+  for (const f of JSON.parse(readFileSync(new URL("manifest.json", dir), "utf8")).frases) assert.ok(existsSync(new URL(f.archivo, dir)), f.archivo);
 });
