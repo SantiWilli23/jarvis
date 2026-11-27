@@ -2,6 +2,7 @@
 // Los baja scripts/get-wake-models.mjs a <datos de la app>/wake; aquí se cargan con onnxruntime (inyectado).
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { modelosDe } from "./detector.js";
 
 const BASE = "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/";
 // nombre -> sha256 (GitHub no publica digest para esta release: fijado en la primera descarga oficial).
@@ -15,11 +16,5 @@ export const faltanModelos = (dir) => Object.keys(MODELOS).filter((n) => !exists
 
 export async function cargarModelos(ort, dir) {
   ort.env.wasm.numThreads = 1;
-  const [mel, emb, jarvis] = await Promise.all(Object.keys(MODELOS).map((n) => ort.InferenceSession.create(readFileSync(join(dir, n)))));
-  const correr = async (s, datos, forma) => (await s.run({ [s.inputNames[0]]: new ort.Tensor("float32", datos, forma) }))[s.outputNames[0]].data;
-  return {
-    mel: (audio) => correr(mel, audio, [1, audio.length]),
-    embed: (m) => correr(emb, m, [1, 76, 32, 1]),
-    clasificar: async (e) => (await correr(jarvis, e, [1, 16, 96]))[0],
-  };
+  return modelosDe(ort, Object.keys(MODELOS).map((n) => readFileSync(join(dir, n))));
 }

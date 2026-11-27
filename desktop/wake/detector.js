@@ -5,6 +5,18 @@ const CONTEXTO = 480;            // 3 saltos de 10 ms que el melspectrograma nec
 const BANDAS = 32, VENTANA_MEL = 76, VENTANA_EMB = 16, EMB = 96;
 const MAX_ATRASO = 25 * BLOQUE;  // 2 s: si la CPU no da abasto, se descarta y se empieza de cero
 
+// Sesiones onnxruntime (inyectado) de [melspectrograma, embeddings, clasificador]: Electron y el worker de /m.
+export async function modelosDe(ort, [bMel, bEmb, bJarvis]) {
+  const crear = (b) => ort.InferenceSession.create(b);
+  const mel = await crear(bMel), emb = await crear(bEmb), jarvis = await crear(bJarvis);
+  const correr = async (s, datos, forma) => (await s.run({ [s.inputNames[0]]: new ort.Tensor("float32", datos, forma) }))[s.outputNames[0]].data;
+  return {
+    mel: (audio) => correr(mel, audio, [1, audio.length]),
+    embed: (m) => correr(emb, m, [1, 76, 32, 1]),
+    clasificar: async (e) => (await correr(jarvis, e, [1, 16, 96]))[0],
+  };
+}
+
 // mel(Float32Array) -> n x 32; embed(Float32Array 76x32) -> 96; clasificar(Float32Array 16x96) -> puntaje 0..1
 export function createDetector({ mel, embed, clasificar, umbral = 0.5, refractarioMs = 2500 }) {
   const refractario = refractarioMs * 16; // en muestras

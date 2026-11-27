@@ -3,7 +3,8 @@ import { getSettings, putSettings, api, login, getToken, setToken, onAuthLost, g
 import { connectWs, closeWs } from "./ws.js";
 import { store, setState, subscribe, LABELS, VISUAL } from "./state.js";
 import { initOrb, setVisual } from "./orb.js";
-import { canRecord, startRecording, speak, stopSpeaking, desbloquearVoz } from "./voice.js";
+import { canRecord, startRecording, speak, stopSpeaking, desbloquearVoz, ocupado as vozOcupada } from "./voice.js";
+import { iniciarEscucha } from "./wake/escucha-m.js";
 import "./musica.js";
 import "./juegos.js";
 import { pintarNav, limpiarFuentes, botonEnlace, botonPro } from "./nav.js";
@@ -11,6 +12,7 @@ import { tickClock, renderMemory, renderQueue, renderConn, renderPc, showApprova
 
 const $ = (id) => document.getElementById(id);
 const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+let escucha = null; // escucha permanente, solo en /m
 let typeTimer = null, recorder = null, busy = false, activeProvider = null, lastUsed = null, started = false, pedido = "";
 
 /* ---------- texto del recuadro "say" ---------- */
@@ -223,6 +225,7 @@ async function stopAndSend() {
 
 /* ---------- pantalla de contraseña ---------- */
 function showLogin() {
+  escucha?.apagar();
   closeWs();
   $("login").hidden = false; $("app").style.visibility = "hidden";
   $("pw").value = ""; setTimeout(() => $("pw").focus(), 50);
@@ -285,7 +288,13 @@ onAuthLost(() => { started = false; showLogin(); });
 /* ---------- arranque ---------- */
 tickClock(); setInterval(tickClock, 15000);
 initOrb($("orb"));
-$("orb").addEventListener("click", onOrb);
+// En /m el orbe prende o apaga la escucha permanente (el botón de micrófono sigue grabando de un toque).
+if (document.body.classList.contains("movil")) {
+  escucha = iniciarEscucha({
+    say, transcribe, converse, setState, store, subscribe, desbloquearVoz,
+    ocupada: () => busy || !!recorder || vozOcupada() || ["thinking", "speaking", "permiso"].includes(store.state),
+  });
+} else $("orb").addEventListener("click", onOrb);
 // La app de escritorio (atajo global) pide activar el micrófono.
 window.addEventListener("jarvis:mic", () => { store.greeted = true; if (!recorder && store.state !== "thinking") onOrb(); });
 setState("idle");

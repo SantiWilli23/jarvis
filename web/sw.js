@@ -1,10 +1,11 @@
 // Service worker mínimo: guarda la "cáscara" de la app para que abra rápido. Nunca toca /api ni /ws.
-const CACHE = "jarvis-shell-v22";
-const SHELL = ["/", "/m", "/css/hud.css", "/css/movil.css", "/css/pro.css", "/css/envivo.css", "/estudio", "/css/estudio.css", "/js/estudio.js", "/js/pro.js", "/js/pro-web.js", "/js/movil-pro.js", "/js/vista.js", "/js/movil.js", "/js/musica.js", "/js/juegos.js", "/js/nav.js", "/js/envivo.js", "/js/chats.js", "/js/estudiar.js", "/js/secciones.js", "/js/acciones-pc.js", "/js/bandeja.js", "/js/freno.js", "/js/registro.js", "/js/rutinas.js", "/js/repaso.js", "/js/memoria.js", "/js/main.js", "/js/api.js", "/js/sesion.js", "/js/ws.js", "/js/state.js", "/js/orb.js", "/js/voice.js", "/js/voz-ui.js", "/js/panels.js", "/icon.svg", "/apple-touch-icon.png"];
+const CACHE = "jarvis-shell-v23";
+const CACHE_WAKE = "jarvis-wake-v1"; // wasm y modelos de "Hey Jarvis": la llena js/wake/worker.js y no cambia con la versión
+const SHELL = ["/", "/m", "/css/hud.css", "/css/movil.css", "/css/pro.css", "/css/envivo.css", "/estudio", "/css/estudio.css", "/js/estudio.js", "/js/pro.js", "/js/pro-web.js", "/js/movil-pro.js", "/js/vista.js", "/js/movil.js", "/js/musica.js", "/js/juegos.js", "/js/nav.js", "/js/envivo.js", "/js/chats.js", "/js/estudiar.js", "/js/secciones.js", "/js/acciones-pc.js", "/js/bandeja.js", "/js/freno.js", "/js/registro.js", "/js/rutinas.js", "/js/repaso.js", "/js/memoria.js", "/js/main.js", "/js/api.js", "/js/sesion.js", "/js/ws.js", "/js/state.js", "/js/orb.js", "/js/voice.js", "/js/voz-ui.js", "/js/wake/escucha-m.js", "/js/wake/maquina.js", "/js/wake/worker.js", "/js/wake/worklet.js", "/js/wake/detector.js", "/js/panels.js", "/icon.svg", "/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE && k !== CACHE_WAKE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 // Web Push: aviso sin contenido privado; al tocarlo abre la aprobación pendiente en la vista móvil.
 self.addEventListener("push", (e) => {
@@ -24,7 +25,7 @@ self.addEventListener("notificationclick", (e) => {
 });
 self.addEventListener("fetch", (e) => {
   const u = new URL(e.request.url);
-  if (e.request.method !== "GET" || u.origin !== location.origin || u.pathname.startsWith("/api") || u.pathname === "/health" || u.pathname === "/ws" || /^\/(mcp|oauth|\.well-known)(\/|$)/.test(u.pathname)) return;
+  if (e.request.method !== "GET" || u.origin !== location.origin || u.pathname.startsWith("/api") || u.pathname === "/health" || u.pathname === "/ws" || /^\/(mcp|oauth|\.well-known)(\/|$)/.test(u.pathname) || u.pathname === "/vendor/ort/ort.wasm") return;
   // Red primero; si no hay red, la copia guardada.
   e.respondWith(fetch(e.request).then((r) => { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return r; }).catch(() => caches.match(e.request)));
 });
