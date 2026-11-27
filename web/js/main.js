@@ -200,7 +200,9 @@ async function onOrb() {
   if (recorder) return stopAndSend();
   if (!canRecord()) { say("Jarvis", "Este navegador no puede grabar, señor. Escríbame abajo."); return; }
   try {
-    recorder = await startRecording(() => stopAndSend());
+    // En el escritorio se corta sola al callar; en /m este botón sigue como estaba. El segundo toque vale siempre.
+    const opciones = document.body.classList.contains("movil") ? {} : { silencioMs: 1500 };
+    recorder = await startRecording((motivo) => stopAndSend(motivo), opciones);
     setState("listening");
     say("Usted", "…le escucho.");
   } catch {
@@ -208,13 +210,13 @@ async function onOrb() {
     say("Jarvis", "No tengo permiso para el micrófono, señor. Revise los ajustes de Safari.");
   }
 }
-async function stopAndSend() {
+async function stopAndSend(motivo) {
   const r = recorder; recorder = null;
   if (!r) return;
   setState("thinking"); $("smodel").textContent = "transcribiendo";
   try {
     const blob = await r.stop();
-    if (blob.size < 800) { setState("idle"); say("Jarvis", "No le oí nada, señor."); return; }
+    if (motivo === "sin_voz" || blob.size < 800) { // sin voz no se transcribe: el modelo podría inventar una orden setState("idle"); say("Jarvis", "No le oí nada, señor."); return; }
     const { text } = await transcribe(blob);
     if (!text?.trim()) { setState("idle"); say("Jarvis", "No le entendí, señor. ¿Puede repetirlo?"); return; }
     await converse(text, false);

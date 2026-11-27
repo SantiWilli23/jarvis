@@ -19,23 +19,71 @@ export const canRecord = () => !!(navigator.mediaDevices?.getUserMedia && typeof
 let grabando = 0, hablando = false;
 export const ocupado = () => grabando > 0 || hablando;
 
+// Decide cuándo cortar una grabación. paso(nivel RMS en escala int16) devuelve null, "silencio" o "sin_voz".
+// El ruido de fondo es el mínimo de los últimos 5 s, así el umbral se adapta a la sala.
+export function createCorte({ silencioMs, sinVozMs = 8000, now = Date.now }) {
+  let ventana = [], inicio = null, ultimaVoz = null, callados = 0;
+  return {
+    paso(nivel) {
+      const t = now();
+      if (inicio === null) { if (nivel < 1) return null; inicio = t; } // micrófono aún sin señal
+      ventana.push({ t, nivel });
+      while (t - ventana[0].t > 5000) ventana.shift();
+      const piso = ventana.reduce((m, x) => (x.nivel >= 1 && x.nivel < m ? x.nivel : m), 2000);
+      const umbral = Math.max(250, piso * 3);
+      // se mira toda la ventana: quien habla desde el primer instante se reconoce al llegar la primera pausa
+      const altos = ventana.filter((x) => x.nivel > umbral);
+      if (altos.length >= 2 || (ultimaVoz !== null && altos.length)) ultimaVoz = Math.max(ultimaVoz ?? 0, altos.at(-1).t);
+      callados = nivel > umbral ? 0 : callados + 1;
+      if (ultimaVoz === null) return t - inicio >= sinVozMs ? "sin_voz" : null;
+      return t - ultimaVoz >= silencioMs && callados >= 4 ? "silencio" : null; // 4: aguanta el temporizador lento de una ventana oculta
+    },
+  };
+}
+
+// Mide el micrófono mientras se graba. Si no se puede medir, queda el toque y el máximo de 30 s.
+function vigilarSilencio(stream, opciones, alCortar) {
+  try {
+    const ac = new AudioContext();
+    ac.resume?.()?.catch(() => {});
+    const analizador = ac.createAnalyser();
+    analizador.fftSize = 2048;
+    ac.createMediaStreamSource(stream).connect(analizador);
+    const muestras = new Float32Array(analizador.fftSize), corte = createCorte(opciones);
+    const reloj = setInterval(() => {
+      if (ac.state !== "running") return;
+      analizador.getFloatTimeDomainData(muestras);
+      let suma = 0;
+      for (const x of muestras) suma += x * x;
+      const motivo = corte.paso(Math.sqrt(suma / muestras.length) * 32767);
+      if (motivo) alCortar(motivo);
+    }, 80);
+    return () => { clearInterval(reloj); ac.close().catch(() => {}); };
+  } catch { return () => {}; }
+}
+
 // Empieza a grabar. Devuelve { stop(): Promise<Blob> }.
-export async function startRecording(onAutoStop) {
+// Con silencioMs corta sola: onAutoStop("silencio") tras oír voz y callar, u onAutoStop("sin_voz") si no se oye nada.
+export async function startRecording(onAutoStop, { silencioMs, sinVozMs } = {}) {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const mime = pickMime();
   const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
   const chunks = [];
+  let soltarVigia = () => {};
   rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
   const done = new Promise((res) => {
     rec.onstop = () => {
       grabando--;
+      soltarVigia();
       stream.getTracks().forEach((t) => t.stop());
       res(new Blob(chunks, { type: rec.mimeType || mime || "audio/mp4" }));
     };
   });
   rec.start();
   grabando++;
-  const timer = setTimeout(() => { if (rec.state !== "inactive") { rec.stop(); onAutoStop?.(); } }, MAX_MS);
+  const auto = (motivo) => { if (rec.state !== "inactive") { clearTimeout(timer); rec.stop(); onAutoStop?.(motivo); } };
+  const timer = setTimeout(() => auto(), MAX_MS);
+  if (silencioMs) soltarVigia = vigilarSilencio(stream, { silencioMs, sinVozMs }, auto);
   return { stop() { clearTimeout(timer); if (rec.state !== "inactive") rec.stop(); return done; } };
 }
 

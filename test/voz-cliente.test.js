@@ -21,7 +21,7 @@ globalThis.fetch = async (url, o = {}) => {
   const estado = respuestas[url] ?? 200;
   return { status: estado, blob: async () => new Blob(["x"]) };
 };
-const { speak, stopSpeaking, ocupado } = await import("../web/js/voice.js");
+const { speak, stopSpeaking, ocupado, createCorte } = await import("../web/js/voice.js");
 const decir = (msg, priv, voz) => new Promise((r) => speak(msg, r, priv, voz));
 const VOZ = { partes: [{ id: "a", texto: "Uno." }, { id: "b", texto: "Dos." }] };
 
@@ -63,4 +63,35 @@ test("sin voz o con texto privado usa POST /api/tts como antes", async () => {
   await decir("Hola.", false);
   await decir("Secreto.", true, VOZ);
   assert.deepEqual(pedidos.map((p) => `${p.metodo} ${p.url}`), ["POST /api/tts", "POST /api/tts"]);
+});
+
+// Corte por silencio: muestras cada 80 ms.
+function medir(tramos) {
+  let t = 0;
+  const corte = createCorte({ silencioMs: 1500, now: () => t });
+  for (const [nivel, ms] of tramos) for (let i = 0; i < ms; i += 80) { t += 80; const r = corte.paso(nivel); if (r) return { r, t }; }
+  return { r: null, t };
+}
+
+test("corte: 1,5 s de silencio después de oír voz, aunque hable desde el primer instante", () => {
+  for (const previo of [[[30, 800]], []]) {
+    const antes = previo.length ? 800 : 0;
+    const { r, t } = medir([...previo, [3000, 2000], [30, 5000]]);
+    assert.equal(r, "silencio");
+    assert.ok(t - antes - 2000 >= 1400 && t - antes - 2000 <= 1700, String(t));
+  }
+});
+
+test("corte: sin voz a los 8 s, también en una sala ruidosa; sin señal no decide", () => {
+  for (const ruido of [20, 900]) {
+    const { r, t } = medir([[ruido, 20000]]);
+    assert.equal(r, "sin_voz");
+    assert.ok(t >= 8000 && t <= 8200);
+  }
+  assert.equal(medir([[0, 20000]]).r, null);
+});
+
+test("corte: en sala ruidosa se adapta y las pausas cortas no cortan", () => {
+  assert.equal(medir([[900, 800], [6000, 1000], [900, 1000], [6000, 1000], [900, 1000]]).r, null);
+  assert.equal(medir([[900, 800], [6000, 1000], [900, 2000]]).r, "silencio");
 });
