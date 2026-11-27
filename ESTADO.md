@@ -8,5 +8,5 @@
 **Sin probar:** Classroom, Lirmi, crear eventos reales, repaso con material real, micrófono real, app empaquetada, recoger/repartir, MCP, freno en Windows e iPhone.
 **Probado:** Claude real sin herramientas (0 herramientas, 0 conectores); paneles en web local.
 **Pendiente técnico:** al cambiar fecha de una prueba no se borra el evento viejo; rutina por horario se pierde si Render duerme >10 min.
-**Micrófono permanente (otro chat, sin código):** fase 2 ya unida; espera el "ya" del usuario. Primero Atajo+widget, luego escucha en /m (orbe, "Jarvis", 3 s, 8 s); sw parte de v22.
+**Micrófono (rama mic-int, sin unir a main ni publicar):** "Hey Jarvis" en /m (orbe prende/apaga, 3 s, 8 s) y Atajo con voz (docs/ATAJO-JARVIS.md); sw v23; 473 pruebas. Falta permiso de push y probar en iPhone.
 **Verificar:** `npm test`.
