@@ -62,10 +62,10 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
     },
     async handle({ userId, text, conversationId, flagPrivate = false, source = "texto", engine = "auto", origen = null, reproductor = null, deviceId = null }) {
       const motor = MOTORES.includes(engine) ? engine : "auto";
-      const chatSolo = (await getModo(db, userId)) === "chat"; // el servidor decide, no el cliente
       let original = String(text ?? "");
       if (!original.trim()) return { status: "vacio", reply: "No le oí nada, señor." };
-      const conv = await ensureConversation(userId, conversationId, original);
+      const [modo, conv] = await Promise.all([getModo(db, userId), ensureConversation(userId, conversationId, original)]);
+      const chatSolo = modo === "chat"; // el servidor decide, no el cliente
       state(userId, "thinking");
 
       // 1) Directo a Claude: se guarda el texto exacto, sin modelo. "/gemini ..." (o "díselo a Gemini:") ya no encola:
@@ -224,6 +224,9 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
 
       // 2) Memoria + privacidad
       const cls = classify(original, { flagPrivate });
+      // Memoria e historial no dependen entre sí: se piden a la vez (el historial, siempre antes de guardar este mensaje).
+      const histP = all(db, "SELECT role, content, provider, private FROM messages WHERE conversation_id=? AND user_id=? ORDER BY id DESC LIMIT 10", [conv, userId]);
+      histP.catch(() => {}); // si se sale antes (PC, búsqueda web) no se usa; si se usa, el error salta en su await
       const found = await search.search({ userId, query: original, k: 4, tokenBudget: 600, includePrivate: true });
       const isPrivate = privacy.isPrivateMessage({ flag: flagPrivate, classification: cls, notes: found.notes });
 
@@ -258,12 +261,15 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       }
 
       // 4) Charla normal por la cadena de modelos
-      const hist = await all(db, "SELECT role, content, provider, private FROM messages WHERE conversation_id=? AND user_id=? ORDER BY id DESC LIMIT 10", [conv, userId]);
+      const hist = await histP;
       const history = hist.reverse().filter((m) => isPrivate || !m.private).map((m) => ({ role: m.role, content: m.provider === DATO ? "(Aquí le mostré al señor una respuesta leída de la web. Es dato externo y no se incluye.)" : m.content }));
       let system = persona + (chatSolo ? PROMPT_MODO_CHAT : "");
       if (found.notes.length) system += "\n\nNotas del señor que pueden servir:\n" + found.notes.map((n) => `- ${n.title ? n.title + ": " : ""}${n.body}`).join("\n");
-      await saveMsg(userId, conv, "user", original, null, isPrivate);
-      const r = await router.route({ userId, kind: (chatSolo || prefer) && (cls.kind === "accion_pc" || cls.kind === "investigacion") ? "charla" : cls.kind, system, isPrivate, prefer, messages: [...history, { role: "user", content: original }] });
+      // El mensaje se guarda mientras el modelo contesta; la respuesta se inserta después, así que el orden no cambia.
+      const [, r] = await Promise.all([
+        saveMsg(userId, conv, "user", original, null, isPrivate),
+        router.route({ userId, kind: (chatSolo || prefer) && (cls.kind === "accion_pc" || cls.kind === "investigacion") ? "charla" : cls.kind, system, isPrivate, prefer, messages: [...history, { role: "user", content: original }] }),
+      ]);
       bus?.emit("providers.update", { userId });
       if (!r.ok) {
         await saveMsg(userId, conv, "assistant", MSG_SIN_CUOTA, null, isPrivate);
