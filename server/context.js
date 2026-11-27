@@ -120,7 +120,15 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   // Foto del estado para el panel (REST /api/status y WS al conectar).
   async function status(userId) {
     const ids = [...Object.keys(config.proveedores).filter((id) => id !== "fake" || keyless)];
-    const snap = await quota.snapshot(userId, ids);
+    agent.sweep();
+    // Todas las lecturas son independientes: van a la vez (la base es remota).
+    const [snap, q, tareas, lastSync, memoria, google, spotify, youtube, proEstado, pendientes, voz] = await Promise.all([
+      quota.snapshot(userId, ids), tasks.counts(userId), tasks.list(userId),
+      get(db, "SELECT value FROM settings WHERE user_id=? AND key='ultima_sync_pc'", [userId]),
+      notes.counts(userId), ext?.google.connected(userId), ext?.spotify.connected(userId),
+      ext?.youtube.enabled && ext.youtube.ready(userId).then((y) => y.permiso),
+      pro.status(userId), approvals.pending(userId), tts.status(userId),
+    ]);
     const t = now();
     const provs = ids.map((id) => {
       const c = config.proveedores[id], p = providers[id], s = snap[id];
@@ -133,24 +141,22 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
       };
     });
     const puestos = config.puestos.map((p) => ({ id: p.id, nombre: p.nombre, rol: p.rol, pc: !!p.pc, estado: p.pc ? (agent.view().online ? "activo" : "pc_apagado") : (providers[p.proveedor || p.id]?.enabled ? "activo" : "apagado") }));
-    const q = await tasks.counts(userId);
-    const queue = (await tasks.list(userId)).filter((x) => ["pendiente", "por_revisar", "reclamada", "en_curso"].includes(x.status)).reverse()
+    const queue = tareas.filter((x) => ["pendiente", "por_revisar", "reclamada", "en_curso"].includes(x.status)).reverse()
       .map((x) => ({ id: x.id, seq: x.seq, mode: x.mode, engine: x.engine, status: x.status, text: x.text.slice(0, 200), pasos: x.prepared?.pasos?.length || 0, por: x.prepared?.por || null, at: x.created_at }));
-    const lastSync = await get(db, "SELECT value FROM settings WHERE user_id=? AND key='ultima_sync_pc'", [userId]);
     const conn = (id, n, ok) => ({ id, nombre: n, ok: !!ok, usa: isUsing(id) });
     return {
       state: "idle", keyless, fts,
       providers: provs, puestos,
-      memory: { ...(await notes.counts(userId)), ultima_sync_pc: lastSync?.value ? Number(lastSync.value) : null, bd: env.DATABASE_URL ? "Turso" : "local" },
+      memory: { ...memoria, ultima_sync_pc: lastSync?.value ? Number(lastSync.value) : null, bd: env.DATABASE_URL ? "Turso" : "local" },
       queue: { items: queue, total: queue.length, porEstado: q },
-      pc: (agent.sweep(), agent.view()),
+      pc: agent.view(),
       connections: [conn("groq", "Groq", providers.groq?.enabled), conn("gemini", "Gemini", providers.gemini?.enabled), conn("openrouter", "OpenRouter", providers.openrouter?.enabled),
         conn("claude_pc", "Claude (PC)", agent.view().online), conn("telegram", "Telegram", !!env.TELEGRAM_BOT_TOKEN),
-        conn("turso", "Turso", !!env.DATABASE_URL), conn("render", "Render", !!env.RENDER), conn("gmail", "Gmail", await ext?.google.connected(userId)), conn("calendar", "Calendar", await ext?.google.connected(userId)), conn("spotify", "Spotify", await ext?.spotify.connected(userId)), conn("youtube", "YouTube", ext?.youtube.enabled && (await ext.youtube.ready(userId)).permiso),
+        conn("turso", "Turso", !!env.DATABASE_URL), conn("render", "Render", !!env.RENDER), conn("gmail", "Gmail", google), conn("calendar", "Calendar", google), conn("spotify", "Spotify", spotify), conn("youtube", "YouTube", youtube),
         conn("juegos", "Juegos", ext?.games.enabled), conn("whatsapp", "WhatsApp", ext?.whatsapp.enabled), conn("github", "GitHub", github.enabled)],
-      pro: await pro.status(userId),
-      pendientes_aprobacion: (await approvals.pending(userId)).length,
-      voz: await tts.status(userId),
+      pro: proEstado,
+      pendientes_aprobacion: pendientes.length,
+      voz,
     };
   }
 

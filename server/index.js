@@ -19,10 +19,7 @@ ctx.hub = createHub({
     return [{ type: "state", state: s.pendientes_aprobacion ? "permiso" : "idle" }, { type: "pc.status", ...s.pc }, { type: "providers.update", providers: s.providers }, { type: "pro.status", ...s.pro }, ...ctx.resultados.pendientes(userId)];
   },
 });
-// Cuando cambia algo de proveedores o tareas, el panel pide el estado completo.
-ctx.bus.on("providers.update", async ({ userId }) => {
-  ctx.hub.send(userId, { type: "providers.update", providers: (await ctx.status(userId)).providers });
-});
+// "providers.update" lo reenvía el hub tal cual y el panel pide /api/status: aquí no se calcula otra vez.
 
 // Si el PC deja de avisar, se marca desconectado.
 setInterval(() => ctx.agent.sweep(ctx.ownerId), 15_000).unref();
