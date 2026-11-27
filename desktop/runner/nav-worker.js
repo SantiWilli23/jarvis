@@ -1,9 +1,9 @@
 // Navegador de Claude (docs/NAV.md): reclama una tarea nav, la hace con Claude Code + Claude in Chrome en una
 // carpeta fija y vacía, con el guardia como hook, informa el avance y devuelve el resultado. Una a la vez.
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve, isAbsolute } from "node:path";
 import { buildNavArgs, navSettings } from "./claude-args.js";
 import { runClaude as realRun, resolveClaude as realResolve } from "./claude-runner.js";
 import { urlPermitida, urlsDeHerramienta, PERFILES } from "./nav-guard.js";
@@ -190,15 +190,41 @@ export function probarGuardia({ node, guard, politica, env }) {
   return si.status === 0 && /"permissionDecision":"allow"/.test(si.stdout) && no.status === 2;
 }
 
+// node del sistema para el hook (arranca mucho antes que Electron). Solo rutas absolutas del PATH y nunca la
+// carpeta de trabajo actual, para no ejecutar un node.exe dejado ahí.
+export function buscarNode({ env = process.env, cwd = process.cwd(), platform = process.platform, existe = existsSync } = {}) {
+  const win = platform === "win32";
+  const norma = (d) => (win ? resolve(d).toLowerCase() : resolve(d));
+  for (const crudo of String(env.PATH || env.Path || "").split(win ? ";" : ":")) {
+    const dir = crudo.replace(/"/g, "");
+    if (!(win ? /^[a-z]:[\\/]/i.test(dir) : isAbsolute(dir)) || norma(dir) === norma(cwd)) continue;
+    const ruta = join(dir, win ? "node.exe" : "node");
+    if (existe(ruta)) return ruta;
+  }
+  return null;
+}
+
+export const GUARDIA_CACHE_MS = 5 * 60_000;
+
 const fallo = (estado, error) => ({ estado, respuesta: "", fuentes: [], error });
 
 export function createNavWorker({
   hub, log = () => {}, claude = null, runClaude = realRun, resolveClaude = realResolve,
   timeoutMs = null,           // solo para pruebas; si no, el de la tarea
   retryMs = 2000, navDir = navDirPorDefecto(), latidoMs = 3000,
-  nodePath = process.execPath, env = process.env, control = controlState,
+  nodePath, env = process.env, control = controlState,  // sin nodePath: node del PATH y, si no sirve, process.execPath
 }) {
   let busy = false;
+  const probados = new Map(); // ejecutable + script del guardia -> hora de la última prueba correcta
+
+  function guardiaSirve({ node, fuente, guard, politica, env: hijoEnv }) {
+    const clave = `${node}
+${fuente}`;
+    if (Date.now() - (probados.get(clave) ?? -Infinity) < GUARDIA_CACHE_MS) return true;
+    if (!probarGuardia({ node, guard, politica, env: hijoEnv })) return false;
+    probados.set(clave, Date.now());
+    return true;
+  }
 
   // Latido: manda pasos y captura cada pocos segundos y pregunta si cancelaron. Nunca hace fallar la tarea.
   function latidos(id, obs, abort) {
@@ -224,7 +250,7 @@ export function createNavWorker({
     };
   }
 
-  async function run(task) {
+  async function run(task, marca) {
     const lim = task.limites || {};
     const pol = politicaDe(task);
     if (!PERFILES.includes(pol.perfil)) return fallo("error", "perfil desconocido");
@@ -241,16 +267,21 @@ export function createNavWorker({
     const soltar = control.onFreno(() => abort.abort());
     try {
       const guard = join(ctl, "nav-guard.mjs"), politica = join(ctl, "politica.json"), settings = join(ctl, "settings.json");
-      writeFileSync(guard, readFileSync(new URL("./nav-guard.js", import.meta.url))); // copia real (la app va en un .asar)
+      const fuente = readFileSync(new URL("./nav-guard.js", import.meta.url), "utf8");
+      writeFileSync(guard, fuente); // copia real (la app va en un .asar)
       writeFileSync(politica, JSON.stringify(pol));
-      writeFileSync(settings, JSON.stringify(navSettings({ node: nodePath, guard, politica })));
       const hijoEnv = { ...env, ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}) };
-      if (!probarGuardia({ node: nodePath, guard, politica, env: hijoEnv })) return fallo("error", "guardia_no_funciona");
+      const candidatos = nodePath !== undefined ? [nodePath] : [...new Set([buscarNode({ env }), process.execPath].filter(Boolean))];
+      const node = candidatos.find((n) => guardiaSirve({ node: n, fuente, guard, politica, env: hijoEnv }));
+      if (!node) return fallo("error", "guardia_no_funciona"); // cerrado: sin guardia no se navega
+      marca("guardia probado");
+      writeFileSync(settings, JSON.stringify(navSettings({ node, guard, politica })));
 
       cerrar = latidos(task.id, obs, abort);
+      marca("spawn");
       const r = await runClaude({
         ...bin, cwd: navDir, env: hijoEnv, hosts: pol.hosts, negados: pol.negados, killTree: true, timeoutMs: limiteMs,
-        signal: abort.signal, onMessage: obs.ver,
+        signal: abort.signal, onMessage: (m) => { if (m.type === "result") marca("result"); obs.ver(m); },
         args: buildNavArgs({ perfil: pol.perfil, memoria: esMemoria(task), capturas: pol.capturas, settings, maxTurns: Number(lim.max_turnos) || 25 }),
         stdin: Buffer.from(navPrompt(task), "utf8"),
       });
@@ -298,11 +329,16 @@ export function createNavWorker({
       catch (e) { if (e.status === 404) return "vacio"; throw e; } // servidor sin la API nav
       const task = r?.task;
       if (!task) return "vacio";
+      // Marcas de tiempo para medir: nunca llevan preguntas, respuestas ni direcciones.
+      const t0 = Date.now();
+      const marca = (m) => log(`Tarea ${task.id} ${new Date().toISOString()} ${m} +${Date.now() - t0} ms`);
       log(`Tarea ${task.id} (${task.tipo}, ${task.sitio})`);
+      marca("claim");
       let out;
-      try { out = await run(task); } catch (e) { out = fallo("error", `Error del agente: ${e.message}`.slice(0, 300)); }
+      try { out = await run(task, marca); } catch (e) { out = fallo("error", `Error del agente: ${e.message}`.slice(0, 300)); }
       log(`Tarea ${task.id}: ${out.estado}`);
       await send(task.id, out);
+      marca("envío");
       return "tarea";
     } finally { busy = false; }
   }
