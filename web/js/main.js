@@ -149,7 +149,7 @@ async function converse(text, priv) {
   say("Usted", text);
   setState("thinking");
   try {
-    const r = await sendChat(text, priv, store.convId, motorEfectivo());
+    const r = await sendChat(text, priv, store.convId, motorEfectivo(), !priv);
     store.convId = r.conversationId || store.convId;
     activeProvider = r.provider || null;
     if (r.status === "ok" && r.provider) lastUsed = r.provider;
@@ -165,10 +165,10 @@ async function converse(text, priv) {
       setState("idle");
     } else if (r.status === "sin_cuota") {
       setState("sin_cuota"); say("Jarvis", r.reply);
-      speak(r.reply, () => setTimeout(() => { if (store.state === "sin_cuota") setState("idle"); }, 4000), r.private);
+      speak(r.reply, () => setTimeout(() => { if (store.state === "sin_cuota") setState("idle"); }, 4000), r.private, r.voz);
     } else {
       setState("speaking"); say("Jarvis", r.reply);
-      speak(r.reply, afterSpeech, r.private);
+      speak(r.reply, afterSpeech, r.private, r.voz);
     }
     accionesDeMensaje(r);
   } catch (e) {

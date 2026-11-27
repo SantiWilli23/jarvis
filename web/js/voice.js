@@ -55,11 +55,11 @@ function speakBrowser(msg, end) {
     voice = voice || pickVoice();
     if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = "es-ES";
     u.rate = 0.88; u.pitch = 0.7;
-    u.onend = end; u.onerror = end;
+    // Seguro por si Safari nunca dispara onend
+    const seguro = setTimeout(end, Math.max(4000, msg.length * 120));
+    u.onend = u.onerror = () => { clearTimeout(seguro); end(); };
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
-    // Seguro por si Safari nunca dispara onend
-    setTimeout(end, Math.max(4000, msg.length * 120));
   } catch { end(); }
 }
 
@@ -74,38 +74,63 @@ function getPlayer() {
 // Para llamar dentro de un toque: deja el audio listo en iOS sin decir nada.
 export function desbloquearVoz() { try { getPlayer(); } catch { /* sin audio */ } }
 
-// Dice el texto: pide /api/tts (pregrabada > Gemini > MiniMax); si responde 204 o falla, usa la voz del navegador.
+// Reproduce un audio; resuelve true si sonó entero y false si no se pudo.
+function reproducir(a, blob, soltables) {
+  return new Promise((res) => {
+    const url = URL.createObjectURL(blob);
+    soltables.add(url);
+    let hecho = false;
+    const fin = (ok) => { if (hecho) return; hecho = true; soltables.delete(url); URL.revokeObjectURL(url); res(ok); };
+    a.onended = () => fin(true);
+    a.onerror = () => fin(false);
+    a.src = url;
+    Promise.resolve(a.play()).catch(() => fin(false));
+  });
+}
+const delNavegador = (texto) => new Promise((res) => { let hecho = false; speakBrowser(texto, () => { if (!hecho) { hecho = true; res(); } }); });
+
+let cortar = null; // aborta las descargas y suelta el audio de lo que se esté diciendo
+
+// Dice el texto. Si el chat ya trajo voz.partes, pide todas a la vez (GET /api/tts/:id) y las reproduce en orden;
+// la parte que no dé audio se lee con la voz del navegador. Sin partes: POST /api/tts (204 o fallo = voz del navegador).
 // llama a onEnd al terminar (o enseguida si no hay nada con qué hablar).
-export function speak(msg, onEnd, priv = false) {
+export function speak(msg, onEnd, priv = false, voz = null) {
+  cortar?.();
   let ended = false;
   const end = () => { if (!ended) { ended = true; if (me === token) hablando = false; onEnd?.(); } };
   const me = ++token;
   hablando = true;
   const a = getPlayer();           // se crea dentro del gesto del usuario
-  (async () => {
+  a.onended = a.onerror = null;
+  const ctl = new AbortController(), soltables = new Set();
+  cortar = () => { ctl.abort(); a.onended = a.onerror = null; for (const u of soltables) URL.revokeObjectURL(u); soltables.clear(); };
+  const auth = { authorization: `Bearer ${getToken()}` };
+  const audioDe = async (url, opciones) => {
     try {
-      const res = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ text: msg, private: !!priv }),
-      });
+      const res = await fetch(url, { ...opciones, signal: ctl.signal });
+      return res.status === 200 ? await res.blob() : null;
+    } catch { return null; }
+  };
+  const partes = !priv && Array.isArray(voz?.partes) ? voz.partes.filter((p) => p?.id != null && p.texto) : [];
+  const trozos = partes.length
+    ? partes.map((p) => ({ texto: p.texto, audio: audioDe(`/api/tts/${encodeURIComponent(p.id)}`, { headers: auth }) }))
+    : [{ texto: msg, audio: audioDe("/api/tts", { method: "POST", headers: { "content-type": "application/json", ...auth }, body: JSON.stringify({ text: msg, private: !!priv }) }) }];
+  (async () => {
+    for (const trozo of trozos) {
+      const blob = await trozo.audio;
       if (me !== token) return;    // otro habla o lo cortaron
-      if (res.status === 200) {
-        const url = URL.createObjectURL(await res.blob());
-        if (me !== token) { URL.revokeObjectURL(url); return; }
-        a.onended = () => { URL.revokeObjectURL(url); end(); };
-        a.onerror = () => { URL.revokeObjectURL(url); speakBrowser(msg, end); };
-        a.src = url;
-        await a.play();
-        return;
-      }
-    } catch { /* cae a la voz del navegador */ }
-    if (me === token) speakBrowser(msg, end);
+      const sono = blob ? await reproducir(a, blob, soltables) : false;
+      if (me !== token) return;
+      if (!sono) await delNavegador(trozo.texto);
+      if (me !== token) return;
+    }
+    end();
   })();
 }
 export function stopSpeaking() {
   token++;
   hablando = false;
+  cortar?.(); cortar = null;
   try { player?.pause(); } catch { /* nada */ }
   try { window.speechSynthesis?.cancel(); } catch { /* nada */ }
 }

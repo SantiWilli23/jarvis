@@ -47,7 +47,8 @@ export async function api(path, { method = "GET", body, raw, headers = {}, auth 
 
 export const login = (password) => api("/auth/login", { method: "POST", body: { password, deviceName: navigator.userAgent.includes("iPhone") ? "iPhone" : "Navegador" }, auth: false });
 export const getStatus = () => api("/status");
-export const sendChat = (text, priv, conversationId, engine = "auto") => api("/chat", { method: "POST", body: { text, private: !!priv, conversationId, source: "voz", engine, reproductor: { activo: !!window.jarvisMusica?.estado().activo } } });
+// voz: la respuesta se leerá en voz alta (el servidor adelanta el audio); nunca con texto privado.
+export const sendChat = (text, priv, conversationId, engine = "auto", voz = false) => api("/chat", { method: "POST", body: { text, private: !!priv, conversationId, source: "voz", engine, reproductor: { activo: !!window.jarvisMusica?.estado().activo }, ...(voz && !priv ? { voz: true } : {}) } });
 export const getConnect = () => api("/connect");
 export const runTool = (name, args = {}) => api(`/tools/${name}`, { method: "POST", body: args });
 export const googleStart = () => api("/connect/google/start", { method: "POST", body: {} });

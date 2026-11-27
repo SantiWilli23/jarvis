@@ -1,5 +1,10 @@
 // Botón de freno (docs/CONTROL.md): detiene todo lo que Jarvis hace en el PC. Reanudar es un toque aparte.
 import { api, getToken } from "./api.js";
+import { stopSpeaking } from "./voice.js";
+import { store, setState } from "./state.js";
+
+// Frenar también corta lo que Jarvis esté diciendo (con toda su cola de partes).
+function callar() { stopSpeaking(); if (store.state === "speaking") setState("idle"); }
 
 const hueco = document.getElementById("panel-freno");
 if (hueco) {
@@ -22,6 +27,7 @@ if (hueco) {
   boton.addEventListener("click", async () => {
     if (ocupado) return;
     ocupado = true; boton.disabled = true;
+    if (!frenado) callar(); // al instante, aunque la red tarde
     try {
       const r = await api(frenado ? "/control/reanudar" : "/control/freno", { method: "POST", body: {} });
       frenado = !!r.frenado;
@@ -29,7 +35,7 @@ if (hueco) {
     } catch { pintar(frenado ? "No pude reanudar" : "No pude frenar: use el atajo del PC"); }
     finally { ocupado = false; boton.disabled = false; }
   });
-  window.addEventListener("jarvis:ws", (e) => { if (e.detail?.type === "control.estado") { frenado = !!e.detail.frenado; pintar(); } });
+  window.addEventListener("jarvis:ws", (e) => { if (e.detail?.type === "control.estado") { frenado = !!e.detail.frenado; if (frenado) callar(); pintar(); } });
   window.addEventListener("jarvis:mas", cargar);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) cargar(); });
   setInterval(cargar, 10_000);
