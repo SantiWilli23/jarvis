@@ -28,12 +28,13 @@ import { browserRoutes, agentBrowserRoutes } from "./routes/browser.js";
 import { agentNavRoutes, navRoutes } from "./routes/nav.js";
 import { escolarRoutes } from "./routes/escolar.js";
 import { agentMemoriaRoutes } from "./routes/agent-memoria.js";
+import { createWake, DETECTOR } from "./routes/wake.js";
 
 const WEB = fileURLToPath(new URL("../web", import.meta.url));
 
-// CSP: solo scripts propios (sin inline), fuentes de Google, WebSocket al mismo servidor, audio/blob del TTS.
+// CSP: solo scripts propios (sin inline; wasm para "Hey Jarvis" en /m), fuentes de Google, WebSocket al mismo servidor, audio/blob del TTS.
 export const csp = (host = "") => [
-  "default-src 'self'", "script-src 'self' https://www.youtube.com https://s.ytimg.com", "frame-src https://www.youtube-nocookie.com https://www.youtube.com", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src 'self' https://fonts.gstatic.com",
+  "default-src 'self'", "script-src 'self' 'wasm-unsafe-eval' https://www.youtube.com https://s.ytimg.com", "frame-src https://www.youtube-nocookie.com https://www.youtube.com", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob: https://i.ytimg.com", "media-src 'self' blob: data:", `connect-src 'self'${host ? ` wss://${host} ws://${host}` : ""}`,
   "worker-src 'self'", "manifest-src 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'",
 ].join("; ");
@@ -57,6 +58,7 @@ export function createApp(ctx) {
   });
   app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { req.rawBody = buf; } })); // rawBody: firma de WhatsApp
 
+  const wake = ctx.wake ?? createWake();
   app.use(healthRoutes());                    // GET /health
   const api = express.Router();
   api.use(healthRoutes());                    // GET /api/health
@@ -93,6 +95,7 @@ export function createApp(ctx) {
   api.use("/chat", auth, chatRoutes(ctx));
   api.use("/settings", auth, settingsRoutes(ctx));
   api.use("/stt", auth, sttRoutes(ctx));
+  api.use("/wake", auth, wake.routes());       // modelos de "Hey Jarvis": solo con sesión
   api.use("/tts", auth, ttsRoutes(ctx));
   api.use("/tasks", auth, taskRoutes(ctx));
   api.use("/memory", auth, memoryRoutes(ctx));
@@ -102,6 +105,8 @@ export function createApp(ctx) {
   app.use("/api", api);
 
   app.use(de(ctx.mcp, "routes"));                  // /mcp, /.well-known/*, /oauth/* (antes del estático)
+  app.get("/js/wake/detector.js", (_req, res, next) => res.sendFile(DETECTOR, { dotfiles: "allow" }, (e) => { if (e && !res.headersSent) next(e); })); // el mismo del escritorio
+  app.get("/vendor/ort/:archivo", wake.vendor);
   app.use(express.static(WEB, { index: "index.html", extensions: ["html"] }));
   // eslint-disable-next-line no-unused-vars
   app.use((err, _req, res, _next) => {
