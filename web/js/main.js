@@ -219,7 +219,8 @@ async function stopAndSend(motivo) {
   setState("thinking"); $("smodel").textContent = "transcribiendo";
   try {
     const blob = await r.stop();
-    if (motivo === "sin_voz" || blob.size < 800) { // sin voz no se transcribe: el modelo podría inventar una orden setState("idle"); say("Jarvis", "No le oí nada, señor."); return; }
+    // Sin voz no se transcribe: el modelo podría inventar una orden.
+    if (motivo === "sin_voz" || blob.size < 800) { setState("idle"); say("Jarvis", "No le oí nada, señor."); return; }
     const { text } = await transcribe(blob);
     if (!text?.trim()) { setState("idle"); say("Jarvis", "No le entendí, señor. ¿Puede repetirlo?"); return; }
     await converse(text, false);

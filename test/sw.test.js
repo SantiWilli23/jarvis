@@ -1,7 +1,9 @@
 // Service worker: cáscara desde caché con revalidación, sin tocar datos.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const web = (f) => new URL(`../web/${f}`, import.meta.url);
 const fuente = readFileSync(web("sw.js"), "utf8");
@@ -50,5 +52,11 @@ test("todo script y estilo propio de las páginas existe y está en la cáscara"
       assert.ok(existsSync(web(ruta)), `${html}: ${ruta}`);
       assert.ok(fuente.includes(`"/${ruta}"`), `sw.js sin /${ruta} (${html})`);
     }
+  }
+});
+
+test("todo el JavaScript de web/ se puede analizar (main.js no se importa en otras pruebas)", () => {
+  for (const f of readdirSync(web("js/"), { recursive: true }).filter((x) => x.endsWith(".js"))) {
+    execFileSync(process.execPath, ["--check", fileURLToPath(web(`js/${f.replaceAll("\\", "/")}`))], { stdio: "pipe" });
   }
 });
