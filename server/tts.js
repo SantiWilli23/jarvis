@@ -3,7 +3,7 @@
 // Privacidad: texto privado NUNCA sale a Gemini ni a MiniMax (solo pregrabadas locales o navegador).
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, extname, join } from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { get, run } from "./db/client.js";
 
 const MIME = { ".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg", ".m4a": "audio/mp4" };
@@ -24,8 +24,62 @@ export function pcmToWav(pcm, sampleRate = 24000, channels = 1) {
   return Buffer.concat([h, pcm]);
 }
 
-const ESTILO_GEMINI = "Di lo siguiente en español, con voz masculina grave, calmada y formal, con aire de mayordomo británico: ";
+// Quita el silencio inicial y final de PCM 16 bits mono, dejando ~50 ms. Umbral bajo (~-52 dBFS) para no cortar sonido.
+export function recortarSilencio(pcm, sampleRate = 24000, { umbral = 80, margenMs = 50 } = {}) {
+  const n = Math.floor(pcm.length / 2);
+  const suena = (i) => Math.abs(pcm.readInt16LE(i * 2)) > umbral;
+  let a = 0, b = n - 1;
+  while (a < n && !suena(a)) a++;
+  if (a === n) return pcm; // todo silencio: se deja como está
+  while (!suena(b)) b--;
+  const m = Math.round((sampleRate * margenMs) / 1000);
+  return pcm.subarray(Math.max(0, a - m) * 2, Math.min(n, b + 1 + m) * 2);
+}
+
+// Cuánto esperar tras un 429: el retryDelay de Google ("34s") o la cabecera retry-after; entre 30 s y 1 h (sin dato, 60 s).
+export async function pausa429(res) {
+  let s = 0;
+  try { s = parseFloat((await res.json())?.error?.details?.find((d) => d.retryDelay)?.retryDelay) || 0; } catch { /* sin cuerpo */ }
+  s = s || Number(res.headers?.get("retry-after")) || 60;
+  return Math.min(3600, Math.max(30, s)) * 1000;
+}
+
+// Más de ~160 caracteres y varias frases: [primeras frases hasta ~120, resto]. Cada parte es un trozo exacto del texto.
+export function partirTexto(texto, { desde = 160, primera = 120 } = {}) {
+  const t = String(texto ?? "").trim();
+  if (t.length <= desde) return [t];
+  let corte = 0;
+  for (const m of t.matchAll(/[.!?…]+["'»”)\]]*(?=\s)|\n/g)) {
+    const fin = m.index + m[0].length;
+    if (corte && fin > primera) break;
+    corte = fin;
+    if (fin > primera) break;
+  }
+  const a = t.slice(0, corte).trim(), b = t.slice(corte).trim();
+  return a && b ? [a, b] : [t];
+}
+
+const VIDA_TRABAJO_MS = 60_000, MAX_TRABAJOS = 20;
+
+const ESTILO_GEMINI ="Di lo siguiente en español, con voz masculina grave, calmada y formal, con aire de mayordomo británico: ";
 const DESC_VOZ_MINIMAX = "Voz masculina grave y calmada, tono formal y educado, aire de mayordomo británico, hablando en español, pausada y elegante.";
+
+// Una petición de voz a Gemini y su respuesta como WAV (las usa también scripts/gen-frases.mjs).
+export function pedirGemini({ fetch: f = globalThis.fetch, apiKey, modelo, voz, text, timeoutMs }) {
+  return f(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
+    method: "POST",
+    signal: AbortSignal.timeout(timeoutMs),
+    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: ESTILO_GEMINI + text }] }],
+      generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voz } } } },
+    }),
+  });
+}
+export async function wavDeGemini(res) {
+  const b64 = (await res.json())?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData?.data;
+  return b64 ? pcmToWav(recortarSilencio(Buffer.from(b64, "base64")), 24000) : null; // PCM 24 kHz 16 bits mono
+}
 
 export function createTts({ db, env = {}, fetch: f = globalThis.fetch, config = {}, privacy, phrasesDir, cacheDir, now = () => Date.now() }) {
   const gcfg = { enabled: true, modelo: "gemini-2.5-flash-preview-tts", voz: "Algenib", tope_dia: 30, ...(config.gemini || {}) };
@@ -76,21 +130,14 @@ export function createTts({ db, env = {}, fetch: f = globalThis.fetch, config = 
   async function gemini(userId, text) {
     const u = await used(userId, "tts_gemini");
     if (u.count >= gcfg.tope_dia) return null;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${gcfg.modelo}:generateContent`;
-    const res = await f(url, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: ESTILO_GEMINI + text }] }],
-        generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: gcfg.voz } } } },
-      }),
-    });
-    if (res.status === 429) { paused.gemini = now() + 10 * 60_000; return null; }
+    // ~10 s; en textos largos crece (60 ms por carácter) para no cortar audios que sí iban a llegar. Si salta: siguiente voz.
+    const res = await pedirGemini({ fetch: f, apiKey: env.GEMINI_API_KEY, modelo: gcfg.modelo, voz: gcfg.voz, text, timeoutMs: gcfg.timeout_ms ?? Math.max(10_000, text.length * 60) });
+    if (res.status === 429) { paused.gemini = now() + await pausa429(res); return null; }
     if (!res.ok) { paused.gemini = now() + 60_000; return null; }
-    const b64 = (await res.json())?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData?.data;
-    if (!b64) return null;
+    const data = await wavDeGemini(res);
+    if (!data) return null;
     await record(userId, "tts_gemini", text.length);
-    return { source: "gemini", mime: "audio/wav", data: pcmToWav(Buffer.from(b64, "base64"), 24000) }; // PCM 24 kHz 16 bits mono
+    return { source: "gemini", mime: "audio/wav", data };
   }
 
   async function minimaxVoice(userId) {
@@ -130,7 +177,46 @@ export function createTts({ db, env = {}, fetch: f = globalThis.fetch, config = 
     { id: "minimax", on: minimaxOn, fn: minimax },
   ];
 
-  return {
+  // Síntesis adelantada (POST /api/chat con voz:true): en memoria, ligada al usuario y de vida corta.
+  const trabajos = new Map(); // id -> { userId, promesa, caduca }
+  const purgar = () => { for (const [id, j] of trabajos) if (j.caduca <= now()) trabajos.delete(id); };
+
+  // ¿Hay voz para este texto (ya filtrado: no privado)? soloLocal: solo pregrabadas (freno puesto).
+  async function disponible(userId, t, partes, soloLocal) {
+    if (prerecorded(t)) return true;
+    if (soloLocal || t.length > maxChars) return false;
+    for (const v of VOCES) {
+      if (!v.on() || !allowed(v.id, false) || (paused[v.id] || 0) > now()) continue;
+      const u = await used(userId, "tts_" + v.id);
+      if (v.id === "gemini" ? u.count + partes <= gcfg.tope_dia : u.chars + t.length <= mcfg.tope_caracteres_dia) return true;
+    }
+    return false;
+  }
+
+  const api = {
+    // Lanza la síntesis sin esperarla. Devuelve { partes: [{ id, texto }] } o null.
+    async preparar({ userId, text, isPrivate = false, soloLocal = false }) {
+      const t = String(text ?? "").trim();
+      if (!t || isPrivate) return null;
+      const textos = prerecorded(t) ? [t] : partirTexto(t);
+      if (!(await disponible(userId, t, textos.length, soloLocal))) return null;
+      purgar();
+      return {
+        partes: textos.map((texto) => {
+          while (trabajos.size >= MAX_TRABAJOS) trabajos.delete(trabajos.keys().next().value);
+          const id = randomUUID();
+          const promesa = api.synth({ userId, text: texto }).catch(() => null);
+          trabajos.set(id, { userId, promesa, caduca: now() + VIDA_TRABAJO_MS });
+          return { id, texto };
+        }),
+      };
+    },
+    // undefined: id desconocido, caducado o de otro usuario. Si no, { audio: promesa de { source, mime, data } o null }.
+    trabajo({ userId, id }) {
+      purgar();
+      const j = trabajos.get(id);
+      return j && j.userId === userId ? { audio: j.promesa } : undefined;
+    },
     // Devuelve { source, mime, data } o null (el navegador usa su propia voz).
     async synth({ userId, text, isPrivate = false }) {
       const t = String(text ?? "");
@@ -157,4 +243,5 @@ export function createTts({ db, env = {}, fetch: f = globalThis.fetch, config = 
       };
     },
   };
+  return api;
 }

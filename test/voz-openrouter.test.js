@@ -182,3 +182,7 @@ test("OpenRouter: un 429 lo pausa y el tope de 50 al día lo agota", async () =>
   assert.equal(r.ok, false);
   assert.equal(r.tried[0].skip, "dia");
 });
+
+test("la configuración del repo deja MiniMax (de pago) apagado", () => {
+  assert.equal(loadJson("providers.json").voz.minimax.enabled, false);
+});

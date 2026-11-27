@@ -5,6 +5,8 @@
     { "id": "a-sus-ordenes", "texto": "A sus órdenes, señor.", "archivo": "a-sus-ordenes.wav" },
     { "id": "sistemas-en-linea", "texto": "Todos los sistemas en línea.", "archivo": "sistemas-en-linea.wav" },
     { "id": "entendido", "texto": "Entendido.", "archivo": "entendido.wav" },
-    { "id": "un-momento", "texto": "Un momento, señor.", "archivo": "un-momento-senor.wav" }
+    { "id": "un-momento", "texto": "Un momento, señor.", "archivo": "un-momento-senor.wav" },
+    { "id": "anotado-en-cola", "texto": "Anotado, señor. Lo dejé en cola, palabra por palabra, y se lo entrego a Claude en cuanto encienda su PC.", "archivo": "anotado-en-cola.wav" },
+    { "id": "preparado-claude", "texto": "Lo preparé para Claude en el PC, señor. Revise los pasos en la cola antes de enviarlo.", "archivo": "preparado-claude.wav" }
   ]
 }
