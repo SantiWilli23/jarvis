@@ -10,4 +10,5 @@
 **Pendiente técnico:** al cambiar fecha de una prueba no se borra el evento viejo; rutina por horario se pierde si Render duerme >10 min.
 **Micrófono (publicado):** "Hey Jarvis" en /m (orbe prende/apaga, 3 s, 8 s) y Atajo con voz (docs/ATAJO-JARVIS.md); sw v23; 473 pruebas. Falta probar en iPhone y armar el Atajo.
 **Navegador rápido (local, sin push; app del PC ya lo usa):** una prueba por IA: ChatGPT 102→67 s, Gemini 93→44 s; 476 pruebas. Sin probar: Perplexity, Grok, Claude, lectura y escolar.
+**Navegador sin PC (plan, sin código):** recomendado VM gratis de Oracle (pide tarjeta) + nube de Claude para buscar; respaldo: portátil siempre encendido. Primero prueba (Fase 0). Falta decisión del usuario.
 **Verificar:** `npm test`.
