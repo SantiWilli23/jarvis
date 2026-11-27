@@ -51,29 +51,40 @@ export function createQuota({ db, limits = {}, now = () => Date.now() }) {
     const r = await get(db, "SELECT paused_until FROM provider_state WHERE user_id=? AND provider=?", [userId, provider]);
     return r?.paused_until ? Number(r.paused_until) : 0;
   }
+  // Un solo viaje y sin carreras: solo se pisan las columnas que vienen en patch.
   async function setState(userId, provider, patch) {
     const t = now();
-    const cur = await get(db, "SELECT * FROM provider_state WHERE user_id=? AND provider=?", [userId, provider]);
-    if (!cur) {
-      await run(db, "INSERT INTO provider_state (user_id, provider, paused_until, last_error, headers_json, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
-        [userId, provider, patch.paused_until ?? null, patch.last_error ?? null, patch.headers_json ?? null, t, t]);
-    } else {
-      const m = { ...cur, ...patch };
-      await run(db, "UPDATE provider_state SET paused_until=?, last_error=?, headers_json=?, updated_at=? WHERE user_id=? AND provider=?",
-        [m.paused_until ?? null, m.last_error ?? null, m.headers_json ?? null, t, userId, provider]);
-    }
+    const cols = ["paused_until", "last_error", "headers_json"].filter((c) => c in patch);
+    await run(db, `INSERT INTO provider_state (user_id, provider, paused_until, last_error, headers_json, created_at, updated_at) VALUES (?,?,?,?,?,?,?)
+      ON CONFLICT(user_id, provider) DO UPDATE SET ${[...cols, "updated_at"].map((c) => `${c}=excluded.${c}`).join(", ")}`,
+      [userId, provider, patch.paused_until ?? null, patch.last_error ?? null, patch.headers_json ?? null, t, t]);
   }
-  return {
+  // Anotaciones en segundo plano: la respuesta no las espera, pero check y snapshot sí (no se pierde el control de cupos).
+  const enCurso = new Set();
+  const asentado = () => (enCurso.size ? Promise.all([...enCurso]) : null);
+  const api = {
+    // Anota un uso sin hacer esperar a quien llama.
+    anotar(userId, provider, tokens = 0, headers = {}) {
+      const p = Promise.all([api.record(userId, provider, tokens), api.ingestHeaders(userId, provider, headers)])
+        .catch((e) => console.error("[cuota]", e?.message))
+        .finally(() => enCurso.delete(p));
+      enCurso.add(p);
+    },
     // ¿Se puede llamar ahora a este proveedor? { ok, reason, until }
     async check(userId, provider) {
+      await asentado();
       const t = now();
-      const pu = await pausedUntil(userId, provider);
-      if (pu > t) return { ok: false, reason: "pausado", until: pu };
       const lim = limits[provider] || {};
-      if (lim.rpm != null && (await count(userId, provider, minKey(t))) >= lim.rpm) {
+      const [pu, porMin, porDia] = await Promise.all([
+        pausedUntil(userId, provider),
+        lim.rpm != null ? count(userId, provider, minKey(t)) : 0,
+        lim.rpd != null ? count(userId, provider, dayKey(t)) : 0,
+      ]);
+      if (pu > t) return { ok: false, reason: "pausado", until: pu };
+      if (lim.rpm != null && porMin >= lim.rpm) {
         return { ok: false, reason: "minuto", until: (Math.floor(t / 60_000) + 1) * 60_000 };
       }
-      if (lim.rpd != null && (await count(userId, provider, dayKey(t))) >= lim.rpd) {
+      if (lim.rpd != null && porDia >= lim.rpd) {
         const d = new Date(t); d.setUTCHours(24, 0, 0, 0);
         return { ok: false, reason: "dia", until: d.getTime() };
       }
@@ -81,11 +92,9 @@ export function createQuota({ db, limits = {}, now = () => Date.now() }) {
     },
     async record(userId, provider, tokens = 0) {
       const t = now();
-      for (const key of [minKey(t), dayKey(t)]) {
-        await run(db, `INSERT INTO provider_usage (user_id, provider, window_key, count, tokens, created_at) VALUES (?,?,?,1,?,?)
-          ON CONFLICT(user_id, provider, window_key) DO UPDATE SET count = count + 1, tokens = tokens + excluded.tokens`,
-          [userId, provider, key, tokens, t]);
-      }
+      await run(db, `INSERT INTO provider_usage (user_id, provider, window_key, count, tokens, created_at) VALUES (?,?,?,1,?,?), (?,?,?,1,?,?)
+        ON CONFLICT(user_id, provider, window_key) DO UPDATE SET count = count + 1, tokens = tokens + excluded.tokens`,
+        [minKey(t), dayKey(t)].flatMap((key) => [userId, provider, key, tokens, t]));
     },
     // Lee cabeceras de límite tras una respuesta correcta; si ya no quedan peticiones, pausa hasta el reinicio.
     async ingestHeaders(userId, provider, headers = {}) {
@@ -110,22 +119,28 @@ export function createQuota({ db, limits = {}, now = () => Date.now() }) {
     async pause(userId, provider, until, reason = "") {
       await setState(userId, provider, { paused_until: until, last_error: reason });
     },
-    // Para el panel: uso actual de cada proveedor.
+    // Para el panel: uso actual de cada proveedor. Una sola consulta para todos.
     async snapshot(userId, ids) {
-      const t = now(), out = {};
+      await asentado();
+      const t = now(), min = minKey(t), out = {};
       for (const id of ids) {
         const lim = limits[id] || {};
-        out[id] = {
-          used_min: await count(userId, id, minKey(t)),
-          used_day: await count(userId, id, dayKey(t)),
-          limit_min: lim.rpm ?? null,
-          limit_day: lim.rpd ?? null,
-          paused_until: (await pausedUntil(userId, id)) || null,
-        };
+        out[id] = { used_min: 0, used_day: 0, limit_min: lim.rpm ?? null, limit_day: lim.rpd ?? null, paused_until: null };
+      }
+      if (!ids.length) return out;
+      const en = ids.map(() => "?").join(",");
+      const rows = await all(db, `SELECT provider, window_key, count, NULL AS paused_until FROM provider_usage WHERE user_id=? AND window_key IN (?,?) AND provider IN (${en})
+        UNION ALL SELECT provider, NULL, NULL, paused_until FROM provider_state WHERE user_id=? AND provider IN (${en})`,
+        [userId, min, dayKey(t), ...ids, userId, ...ids]);
+      for (const r of rows) {
+        const s = out[r.provider];
+        if (r.window_key == null) s.paused_until = Number(r.paused_until) || null;
+        else s[r.window_key === min ? "used_min" : "used_day"] = Number(r.count);
       }
       return out;
     },
   };
+  return api;
 }
 
 export { all };
