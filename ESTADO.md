@@ -11,5 +11,5 @@
 **Micrófono (publicado):** "Hey Jarvis" en /m (orbe prende/apaga, 3 s, 8 s) y Atajo con voz (docs/ATAJO-JARVIS.md); sw v23; 473 pruebas. Falta probar en iPhone y armar el Atajo.
 **Navegador rápido (publicado; app del PC ya lo usa):** una prueba por IA: ChatGPT 102→67 s, Gemini 93→44 s; 476 pruebas. Sin probar: Perplexity, Grok, Claude, lectura y escolar.
 **Navegador sin PC (investigado, sin código):** sin tarjeta no hay servidor gratis 24/7 fiable (Codespaces: por horas y solo para desarrollo; AWS: 6 meses, adultos). Recomendado: portátil siempre encendido; falta ajustar Windows y probar con la sesión bloqueada.
-**Ahorro + funciones (publicado 811a570, sw v25; 524 pruebas):** buenos días, recordatorios hablados, notas (docs/FUNCIONES.md); ahorro de uso (config/nav.json > ahorro). Una prueba real ChatGPT OK: 0,057 vs ~0,077 USD antes. Sin probar: Gemini, lectura, escolar, Clásico/Pro, iPhone.
+**Ahorro + funciones (publicado 811a570, sw v25; 524 pruebas):** buenos días, recordatorios hablados, notas (docs/FUNCIONES.md); ahorro de uso (config/nav.json > ahorro). Una prueba real ChatGPT OK: 0,057 vs ~0,077 USD antes. Sin probar: Gemini, lectura, escolar, Clásico/Pro, iPhone. **Selector Haiku/Sonnet:** planificado, sin código; espera «ya» (clasificador sin IA, un reintento con Sonnet, Haiku se enciende solo tras ~4 pruebas).
 **Verificar:** `npm test`.
