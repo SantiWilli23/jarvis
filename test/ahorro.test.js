@@ -75,6 +75,7 @@ before(async () => {
   const db = createDb({ url: ":memory:" });
   await initSchema(db);
   ctx = await buildContext({ db, env: { OWNER_PASSWORD: "prueba-123" }, now });
+  ctx.nav.config.ahorro.elegir_modelo = false; // aquí se prueba sin el selector
   uid = ctx.ownerId;
   await ctx.agent.hello(uid, { capabilities: { chrome: { ok: true } } });
 });
@@ -91,7 +92,7 @@ test("servidor: el claim lleva ajustes, el gasto se suma y la consulta repetida 
   const primero = await pedir();
   const task = await responder();
   assert.deepEqual([task.limites.max_budget_usd, task.limites.modelo], [0.2, "sonnet"]);
-  assert.deepEqual(task.ahorro, TODO);
+  assert.deepEqual(task.ahorro, { ...TODO, elegir_modelo: false });
   assert.equal((await ctx.status(uid)).uso_navegador.costo_dia, 0.08);
   const otra = await pedir();
   assert.equal(otra.guardada, true);

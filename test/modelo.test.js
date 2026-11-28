@@ -157,9 +157,10 @@ const resultado = (id, o = {}) => ctx.nav.result(uid, 1, id, { estado: "ok", res
 before(async () => {
   ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "prueba-123" }, now });
   uid = ctx.ownerId;
+  ctx.nav.config.ahorro.elegir_modelo = false; // cada prueba enciende lo que necesita
 });
 
-test("apagado por defecto: igual que antes, pero forzar por texto funciona", async () => {
+test("selector apagado: igual que antes, pero forzar por texto funciona", async () => {
   await limpiar();
   assert.equal(ctx.nav.config.ahorro.elegir_modelo, false);
   let t = await tarea();

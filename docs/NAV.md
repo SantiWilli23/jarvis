@@ -163,7 +163,7 @@ Sin probar con Chrome real: `sin_toolsearch`, `prompt_propio` y `pocas_capturas`
 
 # Modelo: selector Haiku/Sonnet
 
-Apagado por defecto (`ahorro.elegir_modelo: false` en config/nav.json). Por usuario: `PUT /api/settings {nav_elegir_modelo: true|false}`
+Encendido (`ahorro.elegir_modelo: true` en config/nav.json; con `false` vuelve a lo de antes). Por usuario: `PUT /api/settings {nav_elegir_modelo: true|false}`
 (si no se puso, manda la config). Fuera de Pro el modelo va siempre explícito y nunca es Opus.
 
 `modelos`: `barato` (claude-haiku-5-5), `fuerte` (sonnet), `umbral` (3), `escalar` (true), `capturas` (`fuerte`|`barato`).
