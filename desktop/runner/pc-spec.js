@@ -23,6 +23,15 @@ export const PC_ACTIONS = {
   archivos_listar: { nivel: "automatico", params: { raiz: { tipo: "texto", max: 40 }, ruta: { tipo: "ruta_relativa", opcional: true } } },
   archivos_leer: { nivel: "aprobacion", privado: true, params: { raiz: { tipo: "texto", max: 40 }, ruta: { tipo: "ruta_relativa" } } },
   captura: { nivel: "automatico", privado: true, params: {} },
+  // requiere: solo con ese permiso encendido desde la web (control amplio / ratón y teclado). no_guardar: sus params se borran.
+  abrir_programa: { nivel: "aprobacion", requiere: "amplio", params: { nombre: { tipo: "texto", max: 60 } } },
+  archivos_mover: { nivel: "aprobacion", requiere: "amplio", params: { raiz: { tipo: "texto", max: 40 }, de: { tipo: "ruta_relativa" }, a: { tipo: "ruta_relativa" } } },
+  archivos_crear_carpeta: { nivel: "aprobacion", requiere: "amplio", params: { raiz: { tipo: "texto", max: 40 }, ruta: { tipo: "ruta_relativa" } } },
+  archivos_papelera: { nivel: "aprobacion", requiere: "amplio", params: { raiz: { tipo: "texto", max: 40 }, ruta: { tipo: "ruta_relativa" } } },
+  ui_leer: { nivel: "automatico", requiere: "raton", privado: true, params: { objetivo: { tipo: "objetivo" } } },
+  ui_pulsar: { nivel: "aprobacion", requiere: "raton", params: { objetivo: { tipo: "objetivo" }, elemento: { tipo: "texto", max: 80 } } },
+  ui_escribir: { nivel: "aprobacion", requiere: "raton", privado: true, no_guardar: true, params: { objetivo: { tipo: "objetivo" }, texto: { tipo: "texto", max: 200 } } },
+  ui_tecla: { nivel: "aprobacion", requiere: "raton", params: { objetivo: { tipo: "objetivo" }, tecla: { tipo: "enum", valores: ["enter", "tab", "esc", "arriba", "abajo", "izquierda", "derecha", "retroceso"] } } },
 };
 
 // Estas SIEMPRE piden aprobación, diga lo que diga el servidor o su config.
@@ -71,6 +80,10 @@ function checkSpec(spec, v, nombre, apps) {
     }
     case "ruta_relativa":
       return rutaRelativaValida(v) ? { ok: true, value: v.trim() } : { ok: false, error: `${nombre}_invalido` };
+    case "objetivo": { // la pertenencia a la lista autorizada se comprueba aparte (servidor y PC)
+      const s = typeof v === "string" ? v.trim().toLowerCase() : "";
+      return /^[a-z0-9._ -]{1,253}$/.test(s) ? { ok: true, value: s } : { ok: false, error: `${nombre}_invalido` };
+    }
     case "app": {
       const hit = (apps || []).find((a) => norm(a) === norm(v));
       return hit ? { ok: true, value: hit } : { ok: false, error: "app_no_permitida" };
@@ -96,6 +109,7 @@ export function validateParams(id, input, { defs = PC_ACTIONS, apps = Object.key
     if (params.accion !== "fijar") delete params.nivel;
     if (params.accion !== "subir" && params.accion !== "bajar") delete params.pasos;
   }
+  if (id === "ui_escribir" && /[\r\n\t]/.test(params.texto)) return { ok: false, error: "texto_invalido" }; // un salto de línea sería un Enter
   const forzada = SIEMPRE_APROBACION.includes(id) && def.nivel !== "aprobacion";
   return { ok: true, params, def: forzada ? { ...def, nivel: "aprobacion" } : def };
 }

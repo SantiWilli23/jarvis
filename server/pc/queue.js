@@ -4,7 +4,7 @@
 // - Todo se valida aquí con la lista blanca (config/pc-actions.json) y el PC lo valida otra vez (desktop/runner/pc-spec.js).
 // - Nunca se ejecuta texto del usuario; el contenido de las acciones "privado" no se audita.
 import { all, get, run } from "../db/client.js";
-import { validateParams } from "../../desktop/runner/pc-spec.js";
+import { validateParams, SIEMPRE_APROBACION } from "../../desktop/runner/pc-spec.js";
 
 const RECLAMADA_MAX_MS = 2 * 60_000; // si el PC reclama y no contesta, se da por fallida
 const RESULT_MAX = 2000;
@@ -25,6 +25,10 @@ export function createPcQueue({ db, bus, approvals, audit, agent, config, now = 
   const soporta = (action) => (agent?.accionesPc?.() ?? ACCIONES_ANTIGUAS).includes(action);
   const maxCapturas = config.capturas_por_dia ?? 20;
   const msgTope = `Ya se alcanzó el tope diario de capturas (${maxCapturas}), señor. Vuelva a intentarlo mañana.`;
+
+  // Acciones no_guardar (texto tecleado): al terminar, caducar o rechazarse, sus params se borran.
+  const noGuardar = Object.keys(defs).filter((id) => defs[id].no_guardar && /^[a-z_]+$/.test(id));
+  const BORRAR = `params=CASE WHEN action IN (${["", ...noGuardar].map((id) => `'${id}'`).join(",")}) THEN '{}' ELSE params END`;
 
   const validate = (action, input) => {
     const v = validateParams(String(action || ""), input, { defs, apps });
@@ -47,36 +51,41 @@ export function createPcQueue({ db, bus, approvals, audit, agent, config, now = 
     // Con el PC apagado no se sabe qué admite: no se marca nada como no soportado.
     soportada: (action) => !pcOnline() || soporta(action),
     catalog() {
-      return Object.entries(defs).map(([id, d]) => ({ id, descripcion: d.descripcion, nivel: d.nivel, privado: !!d.privado, params: d.params }));
+      return Object.entries(defs).map(([id, d]) => ({ id, descripcion: d.descripcion, nivel: d.nivel, privado: !!d.privado, ...(d.requiere ? { requiere: d.requiere } : {}), params: d.params }));
     },
 
     async sweep(userId = null) {
       const t = now(), f = userId != null ? " AND user_id=?" : "", a = userId != null ? [userId] : [];
-      const c = await run(db, `UPDATE pc_actions SET status='caducada', done_at=? WHERE status IN ('aprobacion','lista') AND expires_at < ?${f}`, [t, t, ...a]);
-      const d = await run(db, `UPDATE pc_actions SET status='fallida', done_at=?, result=? WHERE status='reclamada' AND claimed_at < ?${f}`,
+      const c = await run(db, `UPDATE pc_actions SET status='caducada', done_at=?, ${BORRAR} WHERE status IN ('aprobacion','lista') AND expires_at < ?${f}`, [t, t, ...a]);
+      const d = await run(db, `UPDATE pc_actions SET status='fallida', done_at=?, result=?, ${BORRAR} WHERE status='reclamada' AND claimed_at < ?${f}`,
         [t, JSON.stringify({ ok: false, texto: "El PC no contestó." }), t - RECLAMADA_MAX_MS, ...a]);
       if (d.changes) await run(db, "UPDATE claude_usage SET ok=0 WHERE tipo='captura' AND ok IS NULL AND action_id IN (SELECT id FROM pc_actions WHERE status='fallida')");
       if ((c.changes || d.changes) && userId != null) emit(userId);
     },
 
     // Encola una acción. No despierta ni espera al PC: si está apagado, se dice y no se guarda nada.
-    async create({ userId, action, params: input = {}, source = "web", conversationId = null, deviceId = null }) {
+    async create({ userId, action, params: input = {}, source = "web", conversationId = null, deviceId = null, autorizada = false }) {
       const v = validate(action, input);
       if (!v.ok) return v;
       if (!pcOnline()) return { ok: false, error: "pc_apagado" };
       if (!soporta(action)) return { ok: false, error: "accion_no_soportada", mensaje: MSG_NO_SOPORTADA };
       await api.sweep(userId);
       const t = now();
-      const status = v.aprobacion ? "aprobacion" : "lista";
+      // La orden explícita autoriza SOLO esta fila, y solo las acciones con permiso propio (nunca apagar ni escribir).
+      const porOrden = autorizada === true && v.aprobacion && !!v.def.requiere && !SIEMPRE_APROBACION.includes(action) && action !== "ui_escribir";
+      const pide = v.aprobacion && !porOrden;
+      const status = pide ? "aprobacion" : "lista";
       // Captura: el tope (usadas hoy + en espera) se comprueba en el mismo INSERT para que dos pedidos a la vez no lo salten.
       const tope = action === "captura";
-      const r = await run(db, `INSERT INTO pc_actions (user_id, action, params, status, expires_at, created_at, conversation_id, device_id, source) SELECT ?,?,?,?,?,?,?,?,?
+      const r = await run(db, `INSERT INTO pc_actions (user_id, action, params, status, expires_at, created_at, conversation_id, device_id, source, approved) SELECT ?,?,?,?,?,?,?,?,?,?
         ${tope ? "WHERE (SELECT COUNT(*) FROM claude_usage WHERE user_id=? AND day=? AND tipo='captura') + (SELECT COUNT(*) FROM pc_actions WHERE user_id=? AND action='captura' AND status IN ('aprobacion','lista')) < ?" : ""}`,
-        [userId, action, JSON.stringify(v.params), status, t + (v.aprobacion ? minCadAprob : minCad), t, conversationId ?? null, deviceId ?? null, String(source).slice(0, 20),
+        [userId, action, JSON.stringify(v.params), status, t + (pide ? minCadAprob : minCad), t, conversationId ?? null, deviceId ?? null, String(source).slice(0, 20), porOrden ? 1 : 0,
           ...(tope ? [userId, diaDe(t), userId, maxCapturas] : [])]);
       if (!r.changes) { await log(userId, "pc.tope", action); return { ok: false, error: "tope_capturas", mensaje: msgTope }; }
-      if (v.aprobacion) {
-        const a = await approvals.request({ userId, kind: `pc:${action}`, summary: `PC: ${v.def.descripcion}`, detail: v.def.privado ? "Esta acción necesita su aprobación." : JSON.stringify(v.params) });
+      if (porOrden) await log(userId, "pc.autorizada_orden", action);
+      if (pide) {
+        const resumen = action === "ui_escribir" ? `Escribir ${v.params.texto.length} caracteres en ${v.params.objetivo}` : v.def.descripcion;
+        const a = await approvals.request({ userId, kind: `pc:${action}`, summary: `PC: ${resumen}`, detail: v.def.privado ? "Esta acción necesita su aprobación." : JSON.stringify(v.params) });
         await run(db, "UPDATE pc_actions SET approval_id=? WHERE id=?", [a.id, r.id]);
       }
       await log(userId, "pc.creada", `${action} ${status} (${source})`);
@@ -101,7 +110,7 @@ export function createPcQueue({ db, bus, approvals, audit, agent, config, now = 
         if (!row) return null;
         let params = {}; try { params = JSON.parse(row.params || "{}"); } catch { /* vacío */ }
         const v = validate(row.action, params);
-        if (!v.ok) { await run(db, "UPDATE pc_actions SET status='fallida', done_at=?, result=? WHERE id=?", [t, JSON.stringify({ ok: false, texto: "Acción no válida." }), row.id]); continue; }
+        if (!v.ok) { await run(db, `UPDATE pc_actions SET status='fallida', done_at=?, result=?, ${BORRAR} WHERE id=?`, [t, JSON.stringify({ ok: false, texto: "Acción no válida." }), row.id]); continue; }
         // Se encoló con otra app del PC (se cambió por una que no la admite).
         if (agent?.accionesPc?.() && !soporta(row.action)) { await descartar(userId, row, MSG_NO_SOPORTADA, t); continue; }
         // Uso de capturas: se apunta al entregarla (cuenta aunque falle). Segunda comprobación del tope, atómica.
@@ -131,7 +140,7 @@ export function createPcQueue({ db, bus, approvals, audit, agent, config, now = 
         const s = JSON.stringify(datos);
         if (s.length <= RESULT_MAX) body.datos = datos;
       }
-      const r = await run(db, "UPDATE pc_actions SET status=?, result=?, done_at=? WHERE id=? AND user_id=? AND status='reclamada'", [ok ? "hecha" : "fallida", JSON.stringify(body), now(), id, userId]);
+      const r = await run(db, `UPDATE pc_actions SET status=?, result=?, done_at=?, ${BORRAR} WHERE id=? AND user_id=? AND status='reclamada'`, [ok ? "hecha" : "fallida", JSON.stringify(body), now(), id, userId]);
       if (!r.changes) return { ok: false, error: "estado_invalido", status: row.status };
       if (row.action === "captura") await run(db, "UPDATE claude_usage SET ok=? WHERE tipo='captura' AND action_id=? AND user_id=?", [ok ? 1 : 0, id, userId]);
       await log(userId, ok ? "pc.hecha" : "pc.fallida", row.action);
@@ -139,6 +148,20 @@ export function createPcQueue({ db, bus, approvals, audit, agent, config, now = 
       bus?.emit("pc.action.result", { userId, id, action: row.action, nombre: defs[row.action]?.descripcion || row.action, ok: !!ok, texto: real, privado: priv,
         conversationId: row.conversation_id == null ? null : Number(row.conversation_id), deviceId: row.device_id == null ? null : Number(row.device_id) });
       return { ok: true, item: view(await get(db, "SELECT * FROM pc_actions WHERE id=?", [id])) };
+    },
+
+    // Freno (todo lo pendiente) o permiso apagado (solo lo que lo requiere). Devuelve cuántas rechazó.
+    async rechazarPendientes(userId, requiere = null) {
+      const estados = requiere ? "('aprobacion','lista')" : "('aprobacion','lista','reclamada')";
+      let n = 0;
+      for (const row of await all(db, `SELECT id, action, approval_id FROM pc_actions WHERE user_id=? AND status IN ${estados}`, [userId])) {
+        if (requiere && defs[row.action]?.requiere !== requiere) continue;
+        const r = await run(db, `UPDATE pc_actions SET status='rechazada', done_at=?, ${BORRAR} WHERE id=? AND status IN ${estados}`, [now(), row.id]);
+        n += r.changes;
+        if (requiere && row.approval_id != null) await approvals.decide(userId, Number(row.approval_id), false);
+      }
+      if (n) emit(userId);
+      return n;
     },
 
     // Aprobar o rechazar desde el chat/web (equivale a /api/approvals/:id).
@@ -155,7 +178,7 @@ export function createPcQueue({ db, bus, approvals, audit, agent, config, now = 
 
   // El servidor la descarta antes de entregarla: queda fallida y el aviso vuelve al chat.
   async function descartar(userId, row, texto, t) {
-    await run(db, "UPDATE pc_actions SET status='fallida', done_at=?, result=? WHERE id=?", [t, JSON.stringify({ ok: false, texto }), row.id]);
+    await run(db, `UPDATE pc_actions SET status='fallida', done_at=?, result=?, ${BORRAR} WHERE id=?`, [t, JSON.stringify({ ok: false, texto }), row.id]);
     emit(userId, { action: { id: Number(row.id), status: "fallida" } });
     bus?.emit("pc.action.result", { userId, id: Number(row.id), action: row.action, nombre: defs[row.action]?.descripcion || row.action, ok: false, texto, privado: false,
       conversationId: row.conversation_id == null ? null : Number(row.conversation_id), deviceId: row.device_id == null ? null : Number(row.device_id) });
@@ -172,7 +195,7 @@ export function createPcQueue({ db, bus, approvals, audit, agent, config, now = 
         await run(db, "UPDATE pc_actions SET status='lista', approved=1, expires_at=? WHERE id=? AND status='aprobacion'", [t + minCad, row.id]);
         await log(userId, "pc.aprobada", row.action);
       } else {
-        await run(db, "UPDATE pc_actions SET status=?, done_at=? WHERE id=? AND status='aprobacion'", [approval.status === "aprobada" ? "caducada" : "rechazada", t, row.id]);
+        await run(db, `UPDATE pc_actions SET status=?, done_at=?, ${BORRAR} WHERE id=? AND status='aprobacion'`, [approval.status === "aprobada" ? "caducada" : "rechazada", t, row.id]);
         await log(userId, approval.status === "aprobada" ? "pc.caducada" : "pc.rechazada", row.action);
       }
       emit(userId);

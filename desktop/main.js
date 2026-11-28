@@ -148,7 +148,9 @@ function startWorker() {
   pcWorker = createPcWorker({
     hub, log: (m) => console.log("[jarvis:pc]", m),
     executor: createPcExecutor({
-      execFile: (cmd, args) => execFileP(cmd, args, { windowsHide: true, timeout: 15_000 }), spawn, clipboard, os, statfs: statfsSync,
+      execFile: (cmd, args, { signal, env } = {}) => execFileP(cmd, args, { windowsHide: true, timeout: 15_000, signal, ...(env ? { env: { ...process.env, ...env } } : {}) }), spawn,
+      control: controlState, negados: [new URL(cfg.hubUrl).hostname.replace(/^www\./, "")],
+      registrar: (e) => { hub.controlLog(e).catch(() => {}); }, clipboard, os, statfs: statfsSync,
       notify: pcNotify, files: createPcFiles({ roots: cfg.pc_carpetas }), capture,
       apps: cfg.pc_apps,
     }),

@@ -357,12 +357,24 @@ body.movil .juego-btn { min-height: 44px; padding: 0 14px; font-size: 12px; }
 .say .navfuentes a { color: var(--accent); }
 
 /* Freno de emergencia y registro (docs/CONTROL.md) */
-#panel-freno { position: fixed; right: 14px; bottom: 14px; z-index: 9; display: flex; align-items: center; gap: 8px; }
+#panel-freno { position: fixed; right: 14px; top: 14px; z-index: 9; display: flex; align-items: center; gap: 8px; }
 body.movil #panel-freno { position: static; }
 .freno-btn { min-width: 72px; min-height: 44px; padding: 8px 16px; font-weight: 700; letter-spacing: 0.1em; color: #fff; background: #c4182b; border: 2px solid var(--red); border-radius: 999px; cursor: pointer; }
 #panel-freno.frenado .freno-btn { color: #1a0f00; background: var(--amber); border-color: var(--amber); }
 .freno-estado { font-family: var(--mono); font-size: 12px; color: var(--amber); }
 .freno-estado:empty { display: none; }
+.control-pc { position: relative; font-size: 13px; }
+.control-pc summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; padding: 0 10px; }
+.control-cuerpo { position: absolute; right: 0; top: 100%; width: min(300px, 86vw); max-height: 60vh; overflow-y: auto; display: grid; gap: 8px; padding: 12px; background: #0b0f14; border: 1px solid var(--dim); border-radius: 10px; }
+body.movil .control-cuerpo { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 56px); right: 8px; z-index: 20; }
+.control-cuerpo label { display: flex; align-items: center; gap: 8px; }
+.control-cuerpo input[type="number"] { width: 72px; }
+.control-resta { margin-left: auto; font-family: var(--mono); color: var(--amber); }
+.control-cuerpo form { display: flex; flex-wrap: wrap; gap: 6px; }
+.control-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.control-lista li { display: flex; justify-content: space-between; gap: 8px; overflow-wrap: anywhere; }
+.control-aviso { color: var(--amber); }
+.control-aviso:empty { display: none; }
 .registro { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 260px; overflow-y: auto; font-size: 13px; }
 .registro li { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; }
 .registro time { font-family: var(--mono); font-size: 11px; color: var(--dim); }

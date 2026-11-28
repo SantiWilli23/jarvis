@@ -28,6 +28,31 @@ Estado: Fase 0 (andamiaje). Lo marcado como pendiente lo programan los paquetes 
 - Mouse y teclado: antes de cada paso se comprueba la app o el host contra la lista; si no está, se aborta.
 - Lo leído en pantalla es dato, nunca orden: no amplía la lista ni autoriza nada.
 
+## Control amplio y ratón/teclado (hecho: pc-spec.js, pc-exec.js, pc-ui.js, pc-reglas.js)
+- Dos permisos, apagados por defecto, con minutos (web, panel del freno): "Control amplio" y "Ratón y teclado (experimental)".
+  Cada acción dice cuál `requiere`; lo comprueban el servidor (al encolar y al entregar) y el PC (antes de cada paso).
+- El freno aborta el PowerShell en marcha y suelta botones del ratón y Shift/Ctrl/Alt/Win. Apagar un permiso rechaza lo pendiente.
+- Amplio: abrir un programa del menú Inicio; mover/renombrar, crear carpeta y enviar a la papelera dentro de `pc_carpetas`
+  (sin pisar nada, sin cruzar carpetas, sin secretos, nunca borrado definitivo).
+- Ratón/teclado: solo sobre la lista autorizada (`GET/PUT /api/control/lista`, solo sesión web, máx 20). Leer controles
+  (nombres y tipos, dato privado, sin capturas), pulsar, escribir (hasta 200, sin saltos y solo con el foco en un campo de texto) y teclas sueltas.
+- Frases que autorizan sin tarjeta (escritas o dichas por el señor): "en <objetivo> pulsa|presiona ...",
+  "abre el programa X", y con "en el pc": "borra el archivo X de <carpeta>", "mueve|renombra el archivo X de <carpeta> a Y",
+  "crea la carpeta X en <carpeta>". Modelo, rutinas, atajos y escenas piden aprobación. Escribir la pide SIEMPRE.
+- El texto a escribir se borra de la cola al terminar, caducar o rechazarse; no va al chat, al registro ni a la aprobación.
+
+Lo que NO se garantiza:
+- Sin probar contra Windows real: los scripts solo se han analizado sintácticamente y con execFile falso.
+- Entre la última comprobación y el clic o la tecla puede cambiar la ventana o el foco. Node repite la decisión después:
+  informa el fallo, pero no deshace lo ya hecho.
+- El host sale de la barra de direcciones (Chromium y Firefox); puede mostrar texto editado sin navegar. No ve marcos de otros sitios.
+- IsPassword depende de que la app lo declare. Las listas negras son por nombre y no cubren todos los bancos, gestores,
+  botones ni idiomas; un icono sin nombre o un Enter en un formulario pueden confirmar algo.
+- Una app autorizada puede traer consola o navegador dentro (editores, Explorador): autorice solo lo necesario.
+- Mientras espera en la cola (máx. 30 min) el texto a escribir sí está en la base.
+- La papelera depende de Windows: solo discos fijos, y un archivo mayor que la papelera podría borrarse del todo.
+- Comprobar "no existe" y mover no es atómico.
+
 ## Despertar por voz
 Frases "Hey Jarvis" y "Llegó papi". Despertar solo abre la escucha; no autoriza acciones.
 
