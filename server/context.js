@@ -44,6 +44,7 @@ import { createClaudeTextos } from "./claude-textos.js";
 import { createMemoriaReparto } from "./memoria-reparto.js";
 import { createEscolarCalendario } from "./escolar-calendario.js";
 import { createMcp } from "./mcp/index.js";
+import { createFunciones } from "./funciones/index.js";
 
 const cfgPath = (f) => fileURLToPath(new URL(`../config/${f}`, import.meta.url));
 export const loadJson = (f) => JSON.parse(readFileSync(cfgPath(f), "utf8"));
@@ -83,7 +84,10 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const prepare = createPrepare({ router, tasks });
   const approvals = createApprovals({ db, bus, audit, now });
   const phone = createPhoneQueue({ db, bus, approvals, audit, config: loadJson("phone-actions.json"), now });
-  const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, proModelos: () => claudeIds(loadProConfig()), now });
+  const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, proModelos: () => {
+    const cfg = loadProConfig(), ids = claudeIds(cfg);
+    return cfg.local_visible !== false ? ids : ids.filter((id) => !/opus/i.test(id)); // con Pro escondido no se gasta en sondear Opus
+  }, now });
   const pc = createPcQueue({ db, bus, approvals, audit, agent, config: loadJson("pc-actions.json"), now });
   const escenas = createEscenas({ config: loadJson("escenas.json"), pc, phone, audit });
   const github = createGitHub({ env, fetch: f, now });
@@ -92,7 +96,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const limiter = createLoginLimiter({ db, now });
   const stt = createStt({ apiKey: env.GROQ_API_KEY, fetch: f });
   const websearch = createWebSearch({ providers, quota, config: config.busqueda, fetch: f, env, now });
-  const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, phone, pc, escenas, persona, webSearch: websearch, agent, getMusic: () => ext?.music, getNav: () => nav, getPro: () => pro, getGithub: () => github, getEscolar: () => escolar, getExtras: () => [control, rutinas, repaso, escolarCalendario, memoriaReparto], now });
+  const chat = createChatService({ db, router, privacy, search, tasks, prepare, bus, phone, pc, escenas, persona, webSearch: websearch, agent, getMusic: () => ext?.music, getNav: () => nav, getPro: () => pro, getGithub: () => github, getEscolar: () => escolar, getExtras: () => [control, rutinas, repaso, escolarCalendario, memoriaReparto, funciones], now });
   let ext = null; // conectores de las fases 4-6 (se arman al final)
   const studio = createStudio({ db, config: config.estudio, providers, chat, privacy, now });
   const browser = createBrowser({ db, config: loadJson("browser-sites.json"), agent, chat, privacy, bus, audit, now });
@@ -102,10 +106,11 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   // Módulos de la Fase 0 (docs/CONTROL.md, docs/MEMORIA.md, docs/NAV.md).
   const control = createControl({ db, bus, audit, approvals, tasks, agent, pc, nav, browser, pro, now });
   const claudeTextos = createClaudeTextos({ db, crypto, bus, agent, audit, getControl: () => control, now });
-  const rutinas = createRutinas({ db, bus, audit, approvals, escenas, pc, phone, getChat: () => chat, getControl: () => control, getPush: () => push, zona: env.ZONA_HORARIA, now });
+  const rutinas = createRutinas({ db, bus, audit, approvals, escenas, pc, phone, getChat: () => chat, getControl: () => control, getPush: () => push, getNotify: () => ext?.notify, zona: env.ZONA_HORARIA, now });
   const repaso = createRepaso({ db, crypto, escolar, claudeTextos, audit, now });
   const memoriaReparto = createMemoriaReparto({ db, notes, inbox, privacy, nav, claudeTextos, audit, bus, agent, getControl: () => control, now });
   const escolarCalendario = createEscolarCalendario({ db, escolar, crypto, approvals, audit, getGoogle: () => ext?.google, getControl: () => control, now });
+  const funciones = createFunciones({ db, escolar, audit, fetch: f, zona: env.ZONA_HORARIA || undefined, now });
   const mcp = createMcp({ db, notes, search, privacy, sessions, limiter, audit, env, now });
   const tts = createTts({ db, env, fetch: f, config: config.voz, privacy, now,
     phrasesDir: fileURLToPath(new URL("../web/audio/phrases", import.meta.url)),
@@ -155,6 +160,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
         conn("turso", "Turso", !!env.DATABASE_URL), conn("render", "Render", !!env.RENDER), conn("gmail", "Gmail", google), conn("calendar", "Calendar", google), conn("spotify", "Spotify", spotify), conn("youtube", "YouTube", youtube),
         conn("juegos", "Juegos", ext?.games.enabled), conn("whatsapp", "WhatsApp", ext?.whatsapp.enabled), conn("github", "GitHub", github.enabled)],
       pro: proEstado,
+      uso_navegador: await nav.costoDia(userId), // gasto equivalente de 24 h (docs/NAV.md)
       pendientes_aprobacion: pendientes.length,
       voz,
     };
@@ -162,10 +168,11 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
 
   const base = { db, env, config, permissions, persona, ownerId, providers, chain, keyless, privacy, quota, bus, state, router,
     notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, pc, escenas, agent, pro, github, sessions, limiter, stt, tts, studio, browser, nav, escolar, chat, websearch, status, now, fts,
-    control, rutinas, repaso, claudeTextos, memoriaReparto, escolarCalendario, mcp };
-  ext = buildExtensions(base, { fetch: f });
+    control, rutinas, repaso, claudeTextos, memoriaReparto, escolarCalendario, funciones, mcp };
+  let push = null;
+  ext = buildExtensions({ ...base, getPush: () => push }, { fetch: f });
   const despertador = createDespertador({ env, bus, audit, getGoogle: () => ext?.google, now });
-  const push = createPush({ db, env, bus, audit, ownerId, webpush: webpushOverride === undefined ? await loadWebPush() : webpushOverride, now });
+  push = createPush({ db, env, bus, audit, ownerId, webpush: webpushOverride === undefined ? await loadWebPush() : webpushOverride, now });
   const out = { ...base, ...ext, despertador, push };
   out.resultados = createResultados({ bus, push, notify: ext.notify, getHub: () => out.hub, audit, now }); // out.hub lo pone index.js
   return out;

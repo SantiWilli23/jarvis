@@ -123,6 +123,15 @@ CREATE TABLE IF NOT EXISTS audit_log (
   detail TEXT,
   created_at INTEGER NOT NULL
 );
+-- Notas del colegio (docs/FUNCIONES.md).
+CREATE TABLE IF NOT EXISTS calificaciones (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  materia TEXT NOT NULL,
+  nota REAL NOT NULL,
+  ponderacion REAL,
+  created_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS reminders (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,

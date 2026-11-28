@@ -16,7 +16,8 @@ export const SOLO_LEER = ["Read", "Glob", "Grep"];
 export const LEER_ESCRIBIR = [...SOLO_LEER, "Edit", "Write", "MultiEdit"];
 
 export function buildArgs({ task, folders = [], approved = [], resume = null, maxTurns = 30, model = null }) {
-  const args = ["-p", "--output-format", "stream-json", "--verbose"];
+  // Ahorro: sin conectores MCP ni skills del usuario. Los ajustes (hooks y permisos suyos) sí se cargan.
+  const args = ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--disable-slash-commands"];
   if (resume) args.push("--resume", resume);
   const canWrite = folders.length > 0;
   args.push("--permission-mode", canWrite ? "acceptEdits" : "default");
@@ -43,7 +44,7 @@ export const PRIVADOS_CLAUDE = [...SECRETOS.map((p) => `Read(${p})`), "Edit(**/.
 
 export function buildProArgs({ role, model = null, repo, approved = [], resume = null, maxTurns = 40, fallbackModel = null }) {
   const escribe = role === "programar";
-  const args = ["-p", "--output-format", "stream-json", "--verbose"];
+  const args = ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--disable-slash-commands"];
   if (resume) args.push("--resume", resume);
   args.push("--permission-mode", escribe ? "acceptEdits" : "default");
   args.push("--allowedTools", [...(escribe ? LEER_ESCRIBIR : SOLO_LEER), ...approved].join(","));
@@ -93,6 +94,10 @@ export const NAV_SISTEMAS = {
 // Recoger o repartir la memoria (docs/MEMORIA.md): única excepción a "no escribas datos personales".
 const EXCEPCION_MEMORIA = "Excepción de esta tarea, aprobada por el usuario: la consulta es un texto sobre su propia memoria (puede llevar datos personales suyos). Escríbela en el chat EXACTAMENTE como está y envíala una vez. Siguen prohibidos las contraseñas, los códigos, iniciar sesión, aceptar términos, abrir ajustes y salir de los hosts permitidos.";
 
+// Ahorro (config/nav.json "ahorro"): herramientas de Chrome que ningún perfil usa; denegadas no ocupan contexto.
+const SOBRAN = ["gif_creator", "read_console_messages", "read_network_requests", "resize_window", "shortcuts_list", "shortcuts_execute", "update_plan", "switch_browser", "list_connected_browsers", "select_browser"].map(chrome);
+const SIN_TEXTO = "No escribas ningún texto entre herramientas: ni explicaciones ni avisos de avance. Tu único texto es el bloque JSON final.";
+
 // Ajustes de la sesión: el guardia (nav-guard.js) como hook PreToolUse de TODAS las herramientas.
 // Forma `args` (sin shell) y onFailure "block": si el hook falla o tarda, la herramienta no se ejecuta.
 export function navSettings({ node, guard, politica }) {
@@ -104,20 +109,22 @@ export function navSettings({ node, guard, politica }) {
 // --tools ToolSearch: de las herramientas propias solo queda la que carga las de Chrome.
 // Las de Chrome NO se pre-aprueban: solo las permite el guardia; sin él quedan denegadas.
 // --setting-sources "": sin ajustes del usuario (permisos, hooks o plugins que pudieran aflojar esto).
-export function buildNavArgs({ perfil = "ia", capturas = false, settings = null, maxTurns = 25, model = "sonnet", memoria = false } = {}) {
+export function buildNavArgs({ perfil = "ia", capturas = false, settings = null, maxTurns = 25, model = "sonnet", memoria = false, presupuesto = null, ahorro = {} } = {}) {
   if (!NAV_SISTEMAS[perfil]) throw new Error(`perfil desconocido: ${perfil}`);
-  const sistema = NAV_SISTEMAS[perfil] + (memoria && perfil === "ia" ? `\n${EXCEPCION_MEMORIA}` : "");
-  const prohibidas = [...NAV_PROHIBIDAS, ...(perfil === "ia" ? [] : [chrome("form_input"), ...(capturas ? [] : [chrome("computer")])])];
+  const sistema = NAV_SISTEMAS[perfil] + (memoria && perfil === "ia" ? `\n${EXCEPCION_MEMORIA}` : "") + (ahorro.sin_texto ? `\n${SIN_TEXTO}` : "");
+  const directo = !!ahorro.sin_toolsearch; // las de Chrome van cargadas desde el principio (ENABLE_TOOL_SEARCH=false)
+  const prohibidas = [...NAV_PROHIBIDAS, ...(perfil === "ia" ? [] : [chrome("form_input"), ...(capturas ? [] : [chrome("computer")])]),
+    ...(directo ? ["ToolSearch", ...SOBRAN, ...(perfil === "ia" ? [chrome("tabs_close_mcp")] : [])] : [])];
   return [
     "-p", "--chrome", "--output-format", "stream-json", "--verbose", "--model", model, "--effort", "low",
     "--permission-mode", "default", "--strict-mcp-config", // sin los conectores del usuario (Gmail, etc.)
     "--setting-sources", "",
     ...(settings ? ["--settings", settings] : []),
-    "--tools", "ToolSearch",
-    "--allowedTools", "ToolSearch",
+    ...(directo ? ["--tools", ""] : ["--tools", "ToolSearch", "--allowedTools", "ToolSearch"]),
     "--disallowedTools", prohibidas.join(","),
     "--max-turns", String(maxTurns),
-    "--append-system-prompt", sistema,
+    ...(Number(presupuesto) > 0 ? ["--max-budget-usd", String(Number(presupuesto))] : []),
+    ahorro.prompt_propio ? "--system-prompt" : "--append-system-prompt", sistema,
   ];
 }
 

@@ -7,6 +7,7 @@ import { getModo } from "./settings.js";
 import { classify } from "./router/classify.js";
 import { detectDirect } from "./queue/direct.js";
 import { plano, parseEscolarIntent } from "./escolar-intents.js";
+import { instante, sumarDias, diaSemana, cuando } from "./funciones/comun.js";
 import { parseNavIntent } from "./nav-intents.js";
 import { parsePhoneIntent } from "./phone/intents.js";
 import { detectDestino, stripDestino, parsePcIntent } from "./pc/intents.js";
@@ -48,6 +49,21 @@ export function toca(horario, t, { ultima = null, desde = 0 } = {}) {
   if (ultima == null) return true;
   const u = local(ultima, horario.zona);
   return !(u.fecha === a.fecha && u.min >= meta);
+}
+// Última ocasión (en 7 días) que pasó el margen sin correr: el servidor estaba dormido. null si no hay.
+export function perdida(horario, t, { ultima = null, desde = 0 } = {}) {
+  if (!horario) return null;
+  const [h, m] = horario.hora.split(":").map(Number);
+  const { fecha } = local(t, horario.zona);
+  for (let n = 0; n <= 7; n++) {
+    const dia = sumarDias(fecha, -n);
+    if (!horario.dias.includes(diaSemana(dia))) continue;
+    const occ = instante(dia, h, m, horario.zona);
+    if (occ > t) continue;
+    if (t - occ < GRACIA_MIN * 60_000) return null; // todavía a tiempo: la corre toca()
+    return desde >= occ + 60_000 || (ultima != null && ultima >= occ) ? null : occ;
+  }
+  return null;
 }
 function validarHorario(h, zonaDef) {
   if (h == null) return null;
@@ -111,7 +127,7 @@ export function parseCrear(text) {
 const LISTAR = /^(?:(?:lista|listame|muestra|muestrame|ver|dime)(?: (?:mis|las))? rutinas|(?:que|cuales) (?:rutinas (?:tengo|hay)|son mis rutinas)|mis rutinas)$/;
 const ORDEN = /^(borra|elimina|pausa|desactiva|reanuda|activa|lanza|ejecuta|prueba|corre)(?: (?:la|mi))? rutina (?:(?:numero|n) )?(?:de )?(.+)$/;
 
-export function createRutinas({ db, bus = null, audit = null, approvals = null, escenas = null, pc = null, phone = null, getChat, getControl = () => null, getPush = () => null, zona = ZONA, now = () => Date.now() }) {
+export function createRutinas({ db, bus = null, audit = null, approvals = null, escenas = null, pc = null, phone = null, getChat, getControl = () => null, getPush = () => null, getNotify = () => null, zona = ZONA, now = () => Date.now() }) {
   const zonaDef = zona && zonaValida(zona) ? zona : ZONA;
   const enMarcha = new Set();
   const pendientes = new Set(); // trabajo lanzado por una aprobación
@@ -239,14 +255,27 @@ export function createRutinas({ db, bus = null, audit = null, approvals = null, 
     } finally { enMarcha.delete(userId); }
   }
 
+  // Una ocasión atrasada no ejecuta nada ni pide permisos: solo se avisa, una vez. Sin nombres ni contenido.
+  async function avisarAtrasada(userId, r, occ) {
+    await audit?.log({ userId, action: "rutina.atrasada", detail: `id ${r.id}` });
+    if ((await modoChat(userId)) || (await frenado(userId))) return;
+    const body = `Atrasada: una rutina de ${cuando(occ, now(), r.horario.zona || zona)} no corrió porque yo estaba dormido. No ejecuté nada; si la quiere, diga «lanza la rutina ${r.id}».`;
+    try { await getPush()?.notify(userId, { title: "Jarvis", body, tag: `jarvis-rutina-${r.id}` }); } catch (e) { console.error("[rutinas] push", e?.message); }
+    try { await getNotify()?.(body); } catch (e) { console.error("[rutinas] telegram", e?.message); }
+  }
+
   async function tick(userId) {
     if (userId == null) return;
     for (const r of await lista(userId)) {
       const t = now();
-      if (!r.activa || !toca(r.horario, t, { ultima: r.ultima, desde: r.actualizado })) continue;
+      if (!r.activa) continue;
+      const ya = toca(r.horario, t, { ultima: r.ultima, desde: r.actualizado });
+      const atrasada = ya ? null : perdida(r.horario, t, { ultima: r.ultima, desde: r.actualizado });
+      if (!ya && atrasada == null) continue;
       // Reclamo atómico: dos tick a la vez no repiten la misma ocasión.
       const c = await run(db, "UPDATE rutinas SET ultima=? WHERE id=? AND user_id=? AND activa=1 AND ultima IS ?", [t, r.id, userId, r.ultima]);
       if (!c.changes) continue;
+      if (atrasada != null) { await avisarAtrasada(userId, r, atrasada); continue; }
       const out = await ejecutar(userId, r, { origen: "horario" });
       if (!out.ok) await log(userId, "rutina.omitida", `id ${r.id}`);
     }

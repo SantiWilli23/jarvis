@@ -133,3 +133,30 @@ colorId: Inglés 5, Matemáticas 9, Lenguaje 11, Historia 6; otras materias sin 
 ## Cableado
 - `/api/escolar/calendario` y `/api/repaso` (sesión web). Tabla `repaso_items` (datos cifrados).
 - Lo escolar nunca va a la memoria repartida ni sale por MCP (docs/MEMORIA.md).
+
+# Ahorro de uso de Claude
+
+## Medida y topes
+- El PC lee de `result` el costo equivalente y los tokens (entrada, salida, caché leída y escrita) y los manda en `uso` dentro del resultado. Columnas `costo_usd`, `tok_*` y `guardada` de nav_tasks. Log del PC sin contenido. `/api/status` trae `uso_navegador: {costo_dia, tope}` (últimas 24 h).
+- Una tarea cortada antes de `result` (cancelada, tiempo, host bloqueado) no informa costo y no suma.
+- `limites.max_budget_usd` por tarea (`--max-budget-usd`; puede pasarse un poco) y `limites.tope_costo_dia` al encolar (error `tope_costo`). Con 0 o sin la clave quedan apagados.
+- `perfiles.<perfil>.modelo`: por defecto sonnet.
+
+## Ajustes (config/nav.json, `ahorro`; viajan en el claim; `false` vuelve a lo anterior)
+| Clave | Qué hace |
+|---|---|
+| `cache_5m` | `CLAUDE_CODE_PROMPT_CACHE_TTL=5m` |
+| `sin_toolsearch` | `ENABLE_TOOL_SEARCH=false`, sin paso ToolSearch, `--tools ""` y se deniegan las de Chrome que sobran |
+| `sin_texto` | sin texto entre herramientas |
+| `entorno_limpio` | no hereda `CLAUDE*` (salvo CLAUDE_CONFIG_DIR, CLAUDE_CODE_OAUTH_TOKEN, CLAUDE_CODE_GIT_BASH_PATH) |
+| `prompt_propio` | `--system-prompt` en vez de añadir al de Claude Code |
+| `pocas_capturas` | perfil ia: find/read_page en vez de capturas; get_page_text solo al final |
+
+Sin probar con Chrome real: `sin_toolsearch`, `prompt_propio` y `pocas_capturas`. Si las tareas fallan, apague primero esas tres.
+
+## Respuestas guardadas
+`cache_horas` (24; 0 apaga). Mismo usuario, tipo, sitio y consulta exacta con éxito: se entrega con "(respuesta guardada)", sin PC y sin contar en los topes. No aplica a estudio ni memoria, a chats que se continúan, a "de nuevo"/"chat nuevo" ni al pedir capturas. La privacidad se revisa antes.
+
+## Fuera del navegador
+- Textos y sondas: caché de 5 min. Sondas del doctor: 24 h (se olvidan si una tarea falla por modelo o sesión; reiniciar la app también sondea), sin guardar sesión. Con `local_visible:false` en config/pro.json no se sondea ni se exige Opus.
+- Clásico y Pro: `--strict-mcp-config --disable-slash-commands`. No se usa `--setting-sources`: quitaría hooks, permisos, modelo por defecto e instrucciones del usuario o del repo. La descripción de capturas sí usa `--setting-sources ""`.
