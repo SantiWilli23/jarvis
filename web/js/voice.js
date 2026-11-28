@@ -121,7 +121,12 @@ function getPlayer() {
 }
 
 // Para llamar dentro de un toque: deja el audio listo en iOS sin decir nada.
-export function desbloquearVoz() { try { getPlayer(); } catch { /* sin audio */ } }
+let vozLista = false;
+export function desbloquearVoz() {
+  try { getPlayer(); } catch { /* sin audio */ }
+  // iOS solo deja hablar al navegador si la primera vez fue dentro de un toque.
+  try { if (!vozLista) { window.speechSynthesis.speak(new SpeechSynthesisUtterance("")); vozLista = true; } } catch { /* sin voz */ }
+}
 
 // Reproduce un audio; resuelve true si sonó entero y false si no se pudo.
 function reproducir(a, blob, soltables) {
@@ -161,7 +166,7 @@ export function speak(msg, onEnd, priv = false, voz = null) {
     } catch { return null; }
   };
   const partes = !priv && Array.isArray(voz?.partes) ? voz.partes.filter((p) => p?.id != null && p.texto) : [];
-  const trozos = partes.length
+  const trozos = !priv && voz?.navegador ? [{ texto: msg, audio: null }] : partes.length
     ? partes.map((p) => ({ texto: p.texto, audio: audioDe(`/api/tts/${encodeURIComponent(p.id)}`, { headers: auth }) }))
     : [{ texto: msg, audio: audioDe("/api/tts", { method: "POST", headers: { "content-type": "application/json", ...auth }, body: JSON.stringify({ text: msg, private: !!priv }) }) }];
   (async () => {

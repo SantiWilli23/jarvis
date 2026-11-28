@@ -1,10 +1,10 @@
 <!-- estado-proyecto -->
-# Estado de Jarvis (27-nov-2026) - fases 3 y 4 publicadas
+# Estado de Jarvis (28-nov-2026) - voz del navegador lista, sin publicar
 **Pedido:** memoria única mensual, freno, control que pregunta, mouse solo en lo autorizado, "Hey Jarvis" y "Llegó papi", voz de película, estudio + calendario MDE.
 **Publicado:** fases 1 y 2 (5bdf3aa, sw v22), comprobado en Render; app del PC reiniciada.
-**Velocidad (publicada):** voz en dos partes preparadas con la respuesta, corte de silencio 1,5 s, silencios recortados, MiniMax apagado, sw v24, menos consultas; 509 pruebas. Medido en producción: chat 1,9 s, audio ~10 s (meta 6-7 s no lograda); Gemini gratis corta y habla la voz del navegador.
+**Velocidad (publicada):** voz en dos partes preparadas con la respuesta, corte de silencio 1,5 s, silencios recortados, MiniMax apagado, sw v24, menos consultas; 509 pruebas. Medido en producción: chat 1,9 s, audio ~10 s (meta 6-7 s no lograda); Gemini gratis corta y habla la voz del navegador. Ahora Gemini TTS apagado (config/providers.json): respuestas con voz del navegador al instante, Algenib solo en pregrabadas.
 **Fases 3 y 4 (publicadas 8bdab80, comprobado en Render; app del PC reiniciada):** control amplio y ratón/teclado, apagados por defecto, panel "Control del PC", sw v26, 541 pruebas; sin probar en Windows real (docs/CONTROL.md).
-**Siguiente:** primera prueba real (Bloc de notas); 3 frases que faltan (Gemini TTS gratis: 10 pedidos al día; `node scripts/gen-frases.mjs`); decidir voz del navegador o Algenib.
+**Siguiente:** publicar la voz (en main local, sw v27, 542 pruebas; sin probar en iPhone); primera prueba real (Bloc de notas); 3 frases que faltan (`node scripts/gen-frases.mjs`, 10 pedidos al día).
 **Del usuario:** elegir voz, sí/no a Vosk ("Llegó papi"), sesión en Classroom y Lirmi, conectar Google (guía §14).
 **Sin probar:** Classroom, Lirmi, eventos reales, repaso con material real, micrófono real, app empaquetada, recoger/repartir, MCP, freno en Windows e iPhone; voz nueva con Google real.
 **Pendiente técnico:** al cambiar fecha de una prueba no se borra el evento viejo; si Render duerme, recordatorios y rutinas avisan tarde (marcados atrasados).

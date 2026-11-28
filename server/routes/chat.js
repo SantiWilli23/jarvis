@@ -10,7 +10,8 @@ async function vozDe(ctx, userId, { text, flag, out }) {
     if (flag || out.private || classify(text).private || classify(reply).private) return null;
     if (out.private === undefined && (await ctx.chat.checkPrivate({ userId, text }))) return null;
     const soloLocal = out.status === "frenado" || !!(await ctx.control?.frenado(userId));
-    return await ctx.tts.preparar({ userId, text: reply, soloLocal });
+    // Sin voz de servidor para este texto: el cliente habla de una vez, sin otro viaje a /api/tts.
+    return (await ctx.tts.preparar({ userId, text: reply, soloLocal })) || { navegador: true };
   } catch (e) {
     console.error("[chat] voz", e?.message);
     return null;

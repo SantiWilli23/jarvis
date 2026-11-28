@@ -191,6 +191,7 @@ function accionesDeMensaje(r) {
 /* ---------- toque en el orbe ---------- */
 async function onOrb() {
   if (busy) return;
+  desbloquearVoz();
   if (!store.greeted) {                       // primer toque: saludo (también desbloquea la voz en iOS)
     store.greeted = true;
     say("Jarvis", "Hola señor.");
@@ -283,6 +284,7 @@ $("sayform").addEventListener("submit", (e) => {
   e.preventDefault();
   const t = $("sayin").value; $("sayin").value = "";
   store.greeted = true;
+  desbloquearVoz();
   converse(t, $("saypriv").checked);
 });
 // Botón de micrófono: graba directo (sin el saludo del primer toque del orbe).

@@ -85,12 +85,13 @@ test("sin voz: no pedida, privado, escolar, freno o sin clave", async (t) => {
     [{ out: { status: "escolar" } }, { voz: true }],
     [{ reply: "Su contraseña es esa, señor." }, { voz: true }],
     [{}, { voz: true, private: true }],
-    [{ frenado: true }, { voz: true }],
   ];
   for (const [srv, body] of casos) assert.equal((await (await servidor(t, { tts, ...srv })).chat({ text: "hola", ...body })).voz, undefined);
+  // Sin audio de servidor (freno o sin clave): el cliente habla con el navegador, sin otro viaje.
+  assert.deepEqual((await (await servidor(t, { tts, frenado: true })).chat({ text: "hola", voz: true })).voz, { navegador: true });
   assert.equal(f.calls.length, 0);
   const sin = await setup({ env: {} });
-  assert.equal((await (await servidor(t, { tts: sin.tts })).chat({ text: "hola", voz: true })).voz, undefined);
+  assert.deepEqual((await (await servidor(t, { tts: sin.tts })).chat({ text: "hola", voz: true })).voz, { navegador: true });
 });
 
 test("con voz usada hace menos de un minuto no se parte en dos", async () => {

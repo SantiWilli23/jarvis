@@ -65,6 +65,12 @@ test("sin voz o con texto privado usa POST /api/tts como antes", async () => {
   assert.deepEqual(pedidos.map((p) => `${p.metodo} ${p.url}`), ["POST /api/tts", "POST /api/tts"]);
 });
 
+test("sin audio de servidor: habla el navegador sin pedir nada", async () => {
+  await decir("Hola.", false, { navegador: true });
+  assert.deepEqual(pedidos, []);
+  assert.deepEqual(leido.map((l) => l.texto), ["Hola."]);
+});
+
 // Corte por silencio: muestras cada 80 ms.
 function medir(tramos) {
   let t = 0;
