@@ -1,5 +1,5 @@
 <!-- estado-proyecto -->
-# Estado de Jarvis (28-nov-2026) - voz del navegador publicada (Render en sw v28)
+# Estado de Jarvis (28-nov-2026) - voz del navegador y selector de modelo publicados
 **Pedido:** memoria única mensual, freno, control que pregunta, mouse solo en lo autorizado, "Hey Jarvis" y "Llegó papi", voz de película, estudio + calendario MDE.
 **Publicado:** fases 1 y 2 (5bdf3aa, sw v22), comprobado en Render; app del PC reiniciada.
 **Velocidad (publicada):** voz en dos partes preparadas con la respuesta, corte de silencio 1,5 s, silencios recortados, MiniMax apagado, sw v24, menos consultas; 509 pruebas. Medido en producción: chat 1,9 s, audio ~10 s (meta 6-7 s no lograda); Gemini gratis corta y habla la voz del navegador. Ahora Gemini TTS apagado (config/providers.json): respuestas con voz del navegador al instante, Algenib solo en pregrabadas.
@@ -11,5 +11,5 @@
 **Micrófono (publicado):** "Hey Jarvis" en /m (orbe prende/apaga, 3 s, 8 s) y Atajo con voz (docs/ATAJO-JARVIS.md); sw v23; 473 pruebas. Falta probar en iPhone y armar el Atajo.
 **Navegador rápido (publicado; app del PC ya lo usa):** una prueba por IA: ChatGPT 102→67 s, Gemini 93→44 s; 476 pruebas. Sin probar: Perplexity, Grok, Claude, lectura y escolar.
 **Navegador sin PC (investigado, sin código):** sin tarjeta no hay servidor gratis 24/7 fiable (Codespaces: por horas y solo para desarrollo; AWS: 6 meses, adultos). Recomendado: portátil siempre encendido; falta ajustar Windows y probar con la sesión bloqueada.
-**Ahorro + funciones (publicado 811a570, sw v25; 524 pruebas):** buenos días, recordatorios hablados, notas (docs/FUNCIONES.md); ahorro de uso (config/nav.json > ahorro). Una prueba real ChatGPT OK: 0,057 vs ~0,077 USD antes. Sin probar: Gemini, lectura, escolar, Clásico/Pro, iPhone. **Selector Haiku/Sonnet:** listo y encendido en rama `modelo` (60ec26e, sw v28, 555 pruebas), 4 tareas reales con Haiku OK; sin publicar (publicarlo lleva también la voz de main local).
+**Ahorro + funciones (publicado 811a570, sw v25; 524 pruebas):** buenos días, recordatorios hablados, notas (docs/FUNCIONES.md); ahorro de uso (config/nav.json > ahorro). Una prueba real ChatGPT OK: 0,057 vs ~0,077 USD antes. Sin probar: Gemini, lectura, escolar, Clásico/Pro, iPhone. **Selector Haiku/Sonnet (publicado, encendido):** 4 tareas reales con Haiku OK; sin probar reintento, formularios ni la línea de modelo en la web.
 **Verificar:** `npm test`.
