@@ -4,7 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { resolveClaude, claudeEnv, classifyClaudeError } from "./claude-runner.js";
+import { resolveClaude, claudeEnv, classifyClaudeError, TTL_CORTO } from "./claude-runner.js";
 import { PRO_MODELOS } from "./claude-args.js";
 import { isGitRepo } from "./git-snapshot.js";
 
@@ -29,17 +29,17 @@ export async function discoverRepos(folders = [], isGit = isGitRepo) {
 
 // Sonda REAL de un modelo de Claude: una llamada mínima (sin herramientas ni MCP, ~1,6k tokens) con el id exacto.
 // Una cuenta sin acceso al modelo contesta is_error (404) aunque el proceso salga bien. Resultado en caché:
-// éxito 30 min, fallo 2 min (para no gastar cuota ni retrasar el hello).
-const SONDA_OK_MS = 30 * 60_000, SONDA_FALLO_MS = 2 * 60_000;
+// éxito 24 h (se olvida si una tarea falla por modelo o sesión), fallo 2 min (para no gastar cuota ni retrasar el hello).
+const SONDA_OK_MS = 24 * 3_600_000, SONDA_FALLO_MS = 2 * 60_000;
 const cacheSonda = new Map();
 export function limpiarCacheSonda() { cacheSonda.clear(); }
 export async function probeClaudeModel(cb, id, { ex = exec, env = process.env, now = Date.now } = {}) {
   const k = `${cb.command}|${id}`, c = cacheSonda.get(k);
   if (c && now() - c.at < (c.ok ? SONDA_OK_MS : SONDA_FALLO_MS)) return c.r;
-  const args = ["-p", "ok", "--model", id, "--max-turns", "1", "--output-format", "json", "--system-prompt", "Responde ok.", "--tools", "", "--strict-mcp-config", "--disable-slash-commands"];
+  const args = ["-p", "ok", "--model", id, "--max-turns", "1", "--output-format", "json", "--system-prompt", "Responde ok.", "--tools", "", "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence"];
   let r;
   try {
-    const out = await ex(cb, args, 60000, claudeEnv(env));
+    const out = await ex(cb, args, 60000, { ...claudeEnv(env), ...TTL_CORTO });
     const j = JSON.parse(String(out).trim().split(/\r?\n/).filter((l) => l.trim().startsWith("{")).pop() || "{}");
     r = j.is_error ? { ok: false, error: classifyClaudeError(j.result) || "error", detalle: String(j.result || "").slice(0, 160) } : { ok: true };
   } catch (e) {

@@ -17,7 +17,7 @@ export function tamanoCaptura(w, h, max = MAX_LADO) {
 // --tools "" apaga todas las herramientas; además se deniegan por nombre por si alguna versión lo ignora.
 export const CLAUDE_SIN_HERRAMIENTAS = ["Bash", "PowerShell", "Read", "Edit", "Write", "MultiEdit", "Glob", "Grep", "WebFetch", "WebSearch", "Task", "NotebookEdit"];
 export function buildDescribeArgs({ model = null } = {}) {
-  const args = ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--tools", "", "--disallowedTools", CLAUDE_SIN_HERRAMIENTAS.join(","), "--permission-mode", "default", "--max-turns", "1", "--append-system-prompt", PROMPT_CAPTURA];
+  const args = ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--tools", "", "--disallowedTools", CLAUDE_SIN_HERRAMIENTAS.join(","), "--permission-mode", "default", "--strict-mcp-config", "--disable-slash-commands", "--setting-sources", "", "--max-turns", "1", "--append-system-prompt", PROMPT_CAPTURA];
   if (model) args.push("--model", model);
   return args;
 }

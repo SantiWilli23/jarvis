@@ -83,7 +83,10 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const prepare = createPrepare({ router, tasks });
   const approvals = createApprovals({ db, bus, audit, now });
   const phone = createPhoneQueue({ db, bus, approvals, audit, config: loadJson("phone-actions.json"), now });
-  const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, proModelos: () => claudeIds(loadProConfig()), now });
+  const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, proModelos: () => {
+    const cfg = loadProConfig(), ids = claudeIds(cfg);
+    return cfg.local_visible !== false ? ids : ids.filter((id) => !/opus/i.test(id)); // con Pro escondido no se gasta en sondear Opus
+  }, now });
   const pc = createPcQueue({ db, bus, approvals, audit, agent, config: loadJson("pc-actions.json"), now });
   const escenas = createEscenas({ config: loadJson("escenas.json"), pc, phone, audit });
   const github = createGitHub({ env, fetch: f, now });
@@ -155,6 +158,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
         conn("turso", "Turso", !!env.DATABASE_URL), conn("render", "Render", !!env.RENDER), conn("gmail", "Gmail", google), conn("calendar", "Calendar", google), conn("spotify", "Spotify", spotify), conn("youtube", "YouTube", youtube),
         conn("juegos", "Juegos", ext?.games.enabled), conn("whatsapp", "WhatsApp", ext?.whatsapp.enabled), conn("github", "GitHub", github.enabled)],
       pro: proEstado,
+      uso_navegador: await nav.costoDia(userId), // gasto equivalente de 24 h (docs/NAV.md)
       pendientes_aprobacion: pendientes.length,
       voz,
     };

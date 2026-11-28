@@ -50,6 +50,7 @@ test("frases de Claude y de memoria", () => {
 });
 
 test("seguir el mismo chat: url anterior revalidada, 'chat nuevo' la evita y vence por horas", async () => {
+  ctx.nav.config.cache_horas = 0; // aquí se repite "hola" a propósito (la caché tiene sus pruebas en ahorro.test.js)
   await limpiar();
   const URL1 = "https://claude.ai/chat/abc-123";
   const una = async (extra) => {

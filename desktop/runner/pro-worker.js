@@ -3,6 +3,7 @@
 import { existsSync } from "node:fs";
 import { controlState } from "./control-state.js";
 import { buildProArgs } from "./claude-args.js";
+import { limpiarCacheSonda } from "./doctor.js";
 import { classifyDenial, allowRule } from "./danger.js";
 import { runClaude as realRunClaude, resolveClaude as realResolveClaude, classifyClaudeError } from "./claude-runner.js";
 import * as gitSnap from "./git-snapshot.js";
@@ -82,6 +83,7 @@ export function createProWorker({
       total.tokens_in += last.usage.tokens_in; total.tokens_out += last.usage.tokens_out;
       if (last.aborted === "cancelado") return { cancelado: true };
       if (last.aborted === "tiempo") return { error: "timeout" };
+      if (["modelo_no_disponible", "sin_login"].includes(last.errorKind)) limpiarCacheSonda(); // el doctor vuelve a sondear
       if (last.isError && !fallback && reservas.length && ["sin_cuota", "saturado", "modelo_no_disponible"].includes(last.errorKind)) {
         fallback = { de: modelo, a: reservas[0], motivo: last.errorKind };
         log(`Claude ${modelo}: ${last.errorKind}; sigo con ${reservas[0]} (se avisará en el hilo)`);

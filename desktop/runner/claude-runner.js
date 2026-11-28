@@ -33,6 +33,13 @@ export function claudeEnv(env = process.env) {
   return e;
 }
 
+// Caché de prompts de 5 minutos (la escritura de 1 h cuesta más y las tareas cortas no la aprovechan).
+export const TTL_CORTO = { CLAUDE_CODE_PROMPT_CACHE_TTL: "5m" };
+
+// Sin variables heredadas de Claude Desktop o de otra sesión de Claude Code. Quedan las de sesión e instalación.
+const CLAUDE_CONSERVAR = ["CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_GIT_BASH_PATH"];
+export const entornoLimpio = (env) => Object.fromEntries(Object.entries(env).filter(([k]) => !/^CLAUDE(CODE$|_)/i.test(k) || CLAUDE_CONSERVAR.includes(k.toUpperCase())));
+
 // Clasifica el texto de un fallo de Claude: sin_cuota | sin_login | modelo_no_disponible | saturado | null.
 export function classifyClaudeError(text) {
   const t = String(text || "");
@@ -116,6 +123,7 @@ export function runClaude({ command, prefix = [], args, stdin, cwd, env = proces
         if (m.modelUsage && typeof m.modelUsage === "object") out.models = Object.keys(m.modelUsage); // modelo(s) que de verdad respondieron
         out.denials = Array.isArray(m.permission_denials) ? m.permission_denials : [];
         const u = m.usage || {};
+        if (typeof m.total_cost_usd === "number") out.costo = { costo_usd: m.total_cost_usd, entrada: u.input_tokens || 0, salida: u.output_tokens || 0, cache_lectura: u.cache_read_input_tokens || 0, cache_escritura: u.cache_creation_input_tokens || 0 };
         out.usage = { tokens_in: (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0), tokens_out: u.output_tokens || 0 };
       }
     };
@@ -129,6 +137,7 @@ export function runClaude({ command, prefix = [], args, stdin, cwd, env = proces
       if (err) { out.isError = true; out.result = out.result || `No pude ejecutar Claude: ${err.message}`; }
       if (out.isError || code) {
         if (out.subtype === "error_max_turns") out.errorKind = "error_max_turns";
+        else if (/budget/i.test(out.subtype || "")) out.errorKind = "tope_costo_tarea"; // --max-budget-usd
         else out.errorKind = classifyClaudeError(`${out.result}\n${out.stderr}`);
         if (!out.result && !out.stderr && !out.errorKind && out.subtype && out.subtype !== "success") out.errorKind = out.subtype;
       }

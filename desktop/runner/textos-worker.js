@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildTextosArgs } from "./claude-args.js";
-import { runClaude as realRun, resolveClaude as realResolve } from "./claude-runner.js";
+import { runClaude as realRun, resolveClaude as realResolve, TTL_CORTO } from "./claude-runner.js";
 import { controlState } from "./control-state.js";
 
 export const TEXTOS_TIMEOUT_MS = 5 * 60_000;
@@ -30,6 +30,7 @@ export function createTextosWorker({ hub, claude = null, runClaude = realRun, re
       cwd = mkdtempSync(join(tmpdir(), "jarvis-textos-"));
       const r = await runClaude({
         ...bin, args: buildTextosArgs({ model }), stdin: Buffer.from(String(task.texto), "utf8"), cwd,
+        env: { ...process.env, ...TTL_CORTO },
         signal: abort.signal, killTree: true, timeoutMs,
         onMessage: (m) => { if (m.type === "assistant" && m.message?.content?.some((b) => b.type === "tool_use")) { herramienta = true; abort.abort(); } },
       });
