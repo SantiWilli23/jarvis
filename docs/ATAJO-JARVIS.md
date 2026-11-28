@@ -64,7 +64,7 @@ Con el teléfono bloqueado, iOS puede pedir que lo desbloquee antes de seguir, s
 de Siri (permitir Siri con el iPhone bloqueado).
 
 ## 4. Qué voz va a oír
-- Lo normal: la voz de Jarvis (Algenib).
+- Lo normal: la voz de Jarvis (Enceladus).
 - La voz del iPhone cuando la respuesta es **privada** (no se envía a ningún servicio de voz externo), cuando se
   acabó el cupo de voz del día (el tope puesto en Jarvis son 30 respuestas) o si la voz falla.
 

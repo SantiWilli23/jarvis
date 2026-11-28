@@ -21,7 +21,7 @@ const setupDe = (modelo) => ({
   model: `models/${modelo}`,
   generationConfig: {
     responseModalities: ['AUDIO'],
-    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Algenib' } } },
+    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Enceladus' } } },
   },
   systemInstruction: { parts: [{ text: 'Eres Jarvis, un mayordomo. Responde en español, muy breve.' }] },
   outputAudioTranscription: {},

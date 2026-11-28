@@ -82,7 +82,7 @@ export async function wavDeGemini(res) {
 }
 
 export function createTts({ db, env = {}, fetch: f = globalThis.fetch, config = {}, privacy, phrasesDir, cacheDir, now = () => Date.now() }) {
-  const gcfg = { enabled: true, modelo: "gemini-2.5-flash-preview-tts", voz: "Algenib", tope_dia: 30, ...(config.gemini || {}) };
+  const gcfg = { enabled: true, modelo: "gemini-2.5-flash-preview-tts", voz: "Enceladus", tope_dia: 30, ...(config.gemini || {}) };
   const mcfg = { enabled: false, modelo: "speech-2.8-hd", tope_caracteres_dia: 5000, ...(config.minimax || {}) };
   const maxChars = config.max_caracteres ?? 400;
   const cacheables = new Set((config.cachear || ["Hola señor."]).map(normalizePhrase));

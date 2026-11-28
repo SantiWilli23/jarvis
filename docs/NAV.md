@@ -10,7 +10,7 @@ las herramientas son `mcp__claude-in-chrome__*` y el modelo las carga antes con 
 - Motor: Claude Code + Claude in Chrome (sesiones del usuario). El navegador Electron actual no se toca.
 - Frase explícita => se envía sin pedir confirmación. Nunca texto privado.
 - "busca X" a secas sigue usando la búsqueda por API; solo "busca en Google" / "con el navegador" usa el PC.
-- Respuestas leídas con la voz normal (Algenib), salvo lo privado.
+- Respuestas leídas con la voz normal (Enceladus), salvo lo privado.
 
 ## Tabla nav_tasks
 id, user_id, conversation_id, tipo (`preguntar_ia`|`buscar_google`), sitio (`chatgpt`|`gemini`|`perplexity`|`grok`|`claude`|`google`),

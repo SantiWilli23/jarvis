@@ -18,7 +18,7 @@ const err = (status, error, mensaje) => ({ status, error, mensaje });
 const dia = (t) => "d:" + new Date(t).toISOString().slice(0, 10); // mismo corte diario (UTC) que la voz
 
 export function createConversa({ db, env = {}, fetch: f = globalThis.fetch, config = {}, persona = "", control = null, audit = null, now = () => Date.now() }) {
-  const cfg = { enabled: false, modelo: "gemini-3.8-live", voz: "Algenib", tope_minutos_dia: 60, max_min_sesion: 15, ...config };
+  const cfg = { enabled: false, modelo: "gemini-3.8-live", voz: "Enceladus", tope_minutos_dia: 60, max_min_sesion: 15, ...config };
   const tope = Math.round(cfg.tope_minutos_dia * 60);
 
   const setup = () => ({

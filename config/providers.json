@@ -10,11 +10,11 @@
   ],
   "youtube": { "tope_unidades_dia": 8000, "max_busquedas_dia": 50, "cache_busqueda_dias": 7, "cache_playlists_horas": 12, "cache_pistas_horas": 6, "max_pistas": 200 },
   "voz": {
-    "nota": "Cadena de voz: frases pregrabadas > Gemini TTS > MiniMax (apagado, de pago) > voz del navegador. Lo privado nunca sale a Gemini ni a MiniMax. Gemini TTS apagado a propósito: gratis da muy pocos audios al día y tarda; habla la voz del navegador y Algenib queda en las pregrabadas (scripts/gen-frases.mjs). Para volver: gemini.enabled true.",
+    "nota": "Cadena de voz: frases pregrabadas > Gemini TTS > MiniMax (apagado, de pago) > voz del navegador. Lo privado nunca sale a Gemini ni a MiniMax. Gemini TTS apagado a propósito: gratis da muy pocos audios al día y tarda; habla la voz del navegador y Enceladus queda en las pregrabadas (scripts/gen-frases.mjs). Para volver: gemini.enabled true.",
     "max_caracteres": 400,
     "cachear": ["Hola señor."],
-    "live": { "enabled": true, "modelo": "gemini-3.8-live", "voz": "Algenib", "tope_minutos_dia": 60, "max_min_sesion": 15 },
-    "gemini": { "enabled": false, "modelo": "gemini-2.5-flash-preview-tts", "voz": "Algenib", "tope_dia": 30 },
+    "live": { "enabled": true, "modelo": "gemini-3.8-live", "voz": "Enceladus", "tope_minutos_dia": 60, "max_min_sesion": 15 },
+    "gemini": { "enabled": false, "modelo": "gemini-2.5-flash-preview-tts", "voz": "Enceladus", "tope_dia": 30 },
     "minimax": { "enabled": false, "modelo": "speech-2.8-hd", "tope_caracteres_dia": 5000, "nota": "APAGADO: es de pago." }
   },
   "busqueda": {
