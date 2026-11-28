@@ -45,6 +45,7 @@ import { createClaudeTextos } from "./claude-textos.js";
 import { createMemoriaReparto } from "./memoria-reparto.js";
 import { createEscolarCalendario } from "./escolar-calendario.js";
 import { createMcp } from "./mcp/index.js";
+import { createConversa } from "./conversa.js";
 import { createFunciones } from "./funciones/index.js";
 
 const cfgPath = (f) => fileURLToPath(new URL(`../config/${f}`, import.meta.url));
@@ -116,6 +117,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const memoriaReparto = createMemoriaReparto({ db, notes, inbox, privacy, nav, claudeTextos, audit, bus, agent, getControl: () => control, now });
   const escolarCalendario = createEscolarCalendario({ db, escolar, crypto, approvals, audit, getGoogle: () => ext?.google, getControl: () => control, now });
   const funciones = createFunciones({ db, escolar, audit, fetch: f, zona: env.ZONA_HORARIA || undefined, now });
+  const conversa = createConversa({ db, env, fetch: f, config: config.voz.live, persona, control, audit, now });
   const mcp = createMcp({ db, notes, search, privacy, sessions, limiter, audit, env, now });
   const tts = createTts({ db, env, fetch: f, config: config.voz, privacy, now,
     phrasesDir: fileURLToPath(new URL("../web/audio/phrases", import.meta.url)),
@@ -173,7 +175,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
 
   const base = { db, env, config, permissions, persona, ownerId, providers, chain, keyless, privacy, quota, bus, state, router,
     notes, search, inbox, audit, tasks, direct, prepare, approvals, phone, pc, escenas, agent, pro, github, sessions, limiter, stt, tts, studio, browser, nav, escolar, chat, websearch, status, now, fts,
-    control, rutinas, repaso, claudeTextos, memoriaReparto, escolarCalendario, funciones, mcp };
+    control, rutinas, repaso, claudeTextos, memoriaReparto, escolarCalendario, funciones, mcp, conversa };
   let push = null;
   ext = buildExtensions({ ...base, getPush: () => push }, { fetch: f });
   const despertador = createDespertador({ env, bus, audit, getGoogle: () => ext?.google, now });

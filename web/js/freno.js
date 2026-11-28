@@ -4,7 +4,8 @@ import { stopSpeaking } from "./voice.js";
 import { store, setState } from "./state.js";
 
 // Frenar también corta lo que Jarvis esté diciendo (con toda su cola de partes).
-function callar() { stopSpeaking(); if (store.state === "speaking") setState("idle"); }
+const avisarFreno = () => window.dispatchEvent(new CustomEvent("jarvis:freno")); // conversa.js corta la charla
+function callar() { avisarFreno(); stopSpeaking(); if (store.state === "speaking") setState("idle"); }
 
 const hueco = document.getElementById("panel-freno");
 if (hueco) {
@@ -65,7 +66,7 @@ if (hueco) {
       resta.textContent = on ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : "";
     }
   }
-  function aplicar(e) { frenado = !!e.frenado; hasta.amplio = e.amplio_hasta; hasta.raton = e.raton_hasta; pintar(); }
+  function aplicar(e) { frenado = !!e.frenado; hasta.amplio = e.amplio_hasta; hasta.raton = e.raton_hasta; if (frenado) avisarFreno(); pintar(); }
 
   const pintar = (aviso) => {
     pintarMandos();

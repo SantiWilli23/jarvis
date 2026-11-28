@@ -62,9 +62,11 @@
         <label class="sr" for="sayin">Escribir a Jarvis</label>
         <input type="text" id="sayin" placeholder="Hable o escriba" autocomplete="off" maxlength="4000">
         <label class="priv"><input type="checkbox" id="saypriv"> privado</label>
+        <button type="button" id="conversar" aria-pressed="false">Conversar</button>
         <button type="submit" class="enviar" aria-label="Enviar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
         <button type="button" class="micbig" id="saymic" aria-label="Hablar" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
       </form>
+      <div class="hint" id="conversa-aviso" role="status" hidden></div>
     </section>
   </div>
 
@@ -224,6 +226,7 @@
 </div>
 
 <script type="module" src="js/main.js"></script>
+<script type="module" src="js/conversa.js"></script>
 <script type="module" src="js/secciones.js"></script>
 <script type="module" src="js/envivo.js"></script>
 <script type="module" src="js/chats.js"></script>

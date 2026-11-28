@@ -61,7 +61,7 @@ test("/api/chat resuelve 'abre Futotal' sin IA en modo ia y en modo chat", async
   }
 });
 
-test("web: contenedor, módulo en el shell y caché v26", () => {
+test("web: contenedor, módulo en el shell y caché v28", () => {
   const w = (f) => readFileSync(new URL("../web/" + f, import.meta.url), "utf8");
   assert.match(w("index.html"), /id="juegos"/); assert.match(w("m.html"), /id="juegos"/);
   assert.match(w("sw.js"), /jarvis-shell-v28/); assert.match(w("sw.js"), /"\/js\/juegos\.js"/);

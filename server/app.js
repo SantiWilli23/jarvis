@@ -35,7 +35,7 @@ const WEB = fileURLToPath(new URL("../web", import.meta.url));
 // CSP: solo scripts propios (sin inline; wasm para "Hey Jarvis" en /m), fuentes de Google, WebSocket al mismo servidor, audio/blob del TTS.
 export const csp = (host = "") => [
   "default-src 'self'", "script-src 'self' 'wasm-unsafe-eval' https://www.youtube.com https://s.ytimg.com", "frame-src https://www.youtube-nocookie.com https://www.youtube.com", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: blob: https://i.ytimg.com", "media-src 'self' blob: data:", `connect-src 'self'${host ? ` wss://${host} ws://${host}` : ""}`,
+  "img-src 'self' data: blob: https://i.ytimg.com", "media-src 'self' blob: data:", `connect-src 'self'${host ? ` wss://${host} ws://${host}` : ""} wss://generativelanguage.googleapis.com`,
   "worker-src 'self'", "manifest-src 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'",
 ].join("; ");
 
@@ -85,6 +85,7 @@ export function createApp(ctx) {
   api.use("/escolar/calendario", auth, de(ctx.escolarCalendario, "routes")); // antes de /escolar
   api.use("/escolar", auth, escolarRoutes(ctx));
   api.use("/control", auth, de(ctx.control, "routes"));
+  api.use("/conversa", auth, de(ctx.conversa, "routes")); // charla en vivo (docs/CONVERSA.md)
   api.use("/rutinas", auth, de(ctx.rutinas, "routes"));
   api.use("/repaso", auth, de(ctx.repaso, "routes"));
   api.use("/textos", auth, de(ctx.claudeTextos, "routes"));

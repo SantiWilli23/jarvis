@@ -3,7 +3,7 @@ import { getSettings, putSettings, api, login, getToken, setToken, onAuthLost, p
 import { connectWs, closeWs } from "./ws.js";
 import { store, setState, subscribe, LABELS, VISUAL } from "./state.js";
 import { initOrb, setVisual } from "./orb.js";
-import { canRecord, startRecording, speak, stopSpeaking, desbloquearVoz, ocupado as vozOcupada } from "./voice.js";
+import { canRecord, startRecording, speak, stopSpeaking, desbloquearVoz, ocupado as vozOcupada, enCharla } from "./voice.js";
 import { iniciarEscucha } from "./wake/escucha-m.js";
 import "./musica.js";
 import "./juegos.js";
@@ -28,6 +28,10 @@ function say(who, text) {
   let i = 0; el.textContent = "";
   typeTimer = setInterval(() => { i += 2; el.textContent = text.slice(0, i); if (i >= text.length) clearInterval(typeTimer); }, 22);
 }
+
+// Charla en vivo (conversa.js, solo escritorio): se corta desde aquí y al empezar se detiene el tecleo.
+const cortarCharla = () => window.dispatchEvent(new CustomEvent("jarvis:conversa-cortar"));
+window.addEventListener("jarvis:conversa", () => clearInterval(typeTimer));
 
 /* ---------- estado visual ---------- */
 subscribe((what) => {
@@ -147,6 +151,7 @@ function afterSpeech() {
 }
 async function converse(text, priv) {
   if (!text.trim() || busy) return;
+  cortarCharla();
   busy = true;
   pedido = text;
   say("Usted", text);
@@ -190,6 +195,7 @@ function accionesDeMensaje(r) {
 
 /* ---------- toque en el orbe ---------- */
 async function onOrb() {
+  if (enCharla()) return cortarCharla();
   if (busy) return;
   desbloquearVoz();
   if (!store.greeted) {                       // primer toque: saludo (también desbloquea la voz en iOS)
@@ -233,6 +239,7 @@ async function stopAndSend(motivo) {
 /* ---------- pantalla de contraseña ---------- */
 function showLogin() {
   escucha?.apagar();
+  cortarCharla();
   closeWs();
   $("login").hidden = false; $("app").style.visibility = "hidden";
   $("pw").value = ""; setTimeout(() => $("pw").focus(), 50);
@@ -277,6 +284,7 @@ $("loginform").addEventListener("submit", async (e) => {
   }
 });
 $("logout").addEventListener("click", async () => {
+  cortarCharla();
   try { await logout(); } catch { /* ya caducó */ }
   setToken(""); started = false; pedido = ""; showLogin();
 });
@@ -304,7 +312,7 @@ if (document.body.classList.contains("movil")) {
   });
 } else $("orb").addEventListener("click", onOrb);
 // La app de escritorio (atajo global) pide activar el micrófono.
-window.addEventListener("jarvis:mic", () => { store.greeted = true; if (!recorder && store.state !== "thinking") onOrb(); });
+window.addEventListener("jarvis:mic", () => { store.greeted = true; if (!enCharla() && !recorder && store.state !== "thinking") onOrb(); });
 setState("idle");
 
 await waitForServer(() => { $("wake").hidden = false; }, () => { $("wake").hidden = true; });

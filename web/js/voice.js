@@ -16,8 +16,11 @@ function pickMime() {
 export const canRecord = () => !!(navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined");
 
 // Para la escucha de "Hey Jarvis" (app de escritorio): se pausa mientras se graba o se habla.
-let grabando = 0, hablando = false;
-export const ocupado = () => grabando > 0 || hablando;
+let grabando = 0, hablando = false, charla = false;
+// Charla en vivo (conversa.js): mientras dura, la escucha se pausa y no se lee nada más en voz alta.
+export const enCharla = () => charla;
+export const ponerCharla = (si) => { charla = !!si; };
+export const ocupado = () => grabando > 0 || hablando || charla;
 
 // Decide cuándo cortar una grabación. paso(nivel RMS en escala int16) devuelve null, "silencio" o "sin_voz".
 // El ruido de fondo es el mínimo de los últimos 5 s, así el umbral se adapta a la sala.
@@ -149,6 +152,7 @@ let cortar = null; // aborta las descargas y suelta el audio de lo que se esté 
 // la parte que no dé audio se lee con la voz del navegador. Sin partes: POST /api/tts (204 o fallo = voz del navegador).
 // llama a onEnd al terminar (o enseguida si no hay nada con qué hablar).
 export function speak(msg, onEnd, priv = false, voz = null) {
+  if (charla) return void onEnd?.();
   cortar?.();
   let ended = false;
   const end = () => { if (!ended) { ended = true; if (me === token) hablando = false; onEnd?.(); } };
