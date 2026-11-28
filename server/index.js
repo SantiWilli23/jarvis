@@ -34,6 +34,9 @@ cada(60_000, "rutinas", () => ctx.rutinas.tick(ctx.ownerId));
 cada(15_000, "textos", () => ctx.claudeTextos.tick(ctx.ownerId));
 cada(3_600_000, "memoria", () => ctx.memoriaReparto.tick(ctx.ownerId));
 cada(3_600_000, "repaso", () => ctx.repaso.tick(ctx.ownerId));
+cada(60_000, "recordatorios", () => ctx.cron.recordatorios());
+// Al despertar (Render dormido) se entrega lo atrasado sin esperar el primer minuto.
+for (const [nombre, fn] of [["recordatorios", () => ctx.cron.recordatorios()], ["rutinas", () => ctx.rutinas.tick(ctx.ownerId)]]) fn().catch((e) => console.error(`[${nombre}]`, e?.message));
 
 const port = Number(process.env.PORT) || 3000;
 server.listen(port, () => {

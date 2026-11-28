@@ -1,5 +1,5 @@
 // Service worker mínimo: sirve la "cáscara" de la app desde la caché y la renueva en segundo plano. Nunca toca /api, /ws ni nada con datos.
-const CACHE = "jarvis-shell-v24";
+const CACHE = "jarvis-shell-v25";
 const CACHE_WAKE = "jarvis-wake-v1"; // wasm y modelos de "Hey Jarvis": la llena js/wake/worker.js y no cambia con la versión
 const SHELL = ["/", "/m", "/css/hud.css", "/css/movil.css", "/css/pro.css", "/css/envivo.css", "/estudio", "/css/estudio.css", "/js/estudio.js", "/js/pro.js", "/js/pro-web.js", "/js/movil-pro.js", "/js/vista.js", "/js/movil.js", "/js/musica.js", "/js/juegos.js", "/js/nav.js", "/js/envivo.js", "/js/chats.js", "/js/estudiar.js", "/js/secciones.js", "/js/acciones-pc.js", "/js/bandeja.js", "/js/freno.js", "/js/registro.js", "/js/rutinas.js", "/js/repaso.js", "/js/memoria.js", "/js/main.js", "/js/api.js", "/js/sesion.js", "/js/ws.js", "/js/state.js", "/js/orb.js", "/js/voice.js", "/js/voz-ui.js", "/js/wake/escucha-m.js", "/js/wake/maquina.js", "/js/wake/worker.js", "/js/wake/worklet.js", "/js/wake/detector.js", "/js/panels.js", "/icon.svg", "/apple-touch-icon.png"];
 
@@ -11,7 +11,7 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { /* sin datos */ }
-  e.waitUntil(self.registration.showNotification(d.title || "Jarvis", { body: d.body || "Aprobación pendiente", icon: "/apple-touch-icon.png", badge: "/apple-touch-icon.png", tag: "jarvis-aprobacion", data: { approvalId: d.approvalId ?? null } }));
+  e.waitUntil(self.registration.showNotification(d.title || "Jarvis", { body: d.body || "Aprobación pendiente", icon: "/apple-touch-icon.png", badge: "/apple-touch-icon.png", tag: d.tag || "jarvis-aprobacion", data: { approvalId: d.approvalId ?? null } }));
 });
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();

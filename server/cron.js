@@ -1,14 +1,42 @@
 // Avisos proactivos. Se dispara desde fuera con GET/POST /api/cron/tick (secreto CRON_SECRET).
-//  1) Recordatorios vencidos -> Telegram (solo se marcan hechos si el aviso salió).
+//  1) Recordatorios vencidos -> Telegram y push (solo se marcan hechos si algún aviso salió). También cada minuto
+//     desde el propio servidor; lo atrasado (Render dormido) sale una sola vez, marcado como atrasado.
 //  2) PC encendido/apagado -> Telegram, solo cuando CAMBIA respecto al último aviso.
 //  3) Resumen diario de cuota (una vez al día, a partir de CRON_SUMMARY_HOUR_UTC, 12 por defecto).
 import { all, get, run } from "./db/client.js";
+import { classify } from "./router/classify.js";
+import { cuando, ZONA } from "./funciones/comun.js";
 
-export function createCron({ db, notify, state, status, ownerId, env = process.env, now = () => Date.now(), bus, proWeb = null }) {
+const ATRASO_MS = 10 * 60_000;
+
+export function createCron({ db, notify, state, status, ownerId, env = process.env, now = () => Date.now(), bus, proWeb = null, getPush = () => null, zona = ZONA }) {
   const setting = async (k) => (await get(db, "SELECT value FROM settings WHERE user_id=? AND key=?", [ownerId, k]))?.value ?? null;
   const setSetting = (k, v) => run(db, `INSERT INTO settings (user_id, key, value, created_at) VALUES (?,?,?,?) ON CONFLICT(user_id, key) DO UPDATE SET value=excluded.value`, [ownerId, k, String(v), now()]);
 
+  async function entregar() {
+    let n = 0;
+    const t = now();
+    for (const r of await all(db, "SELECT id, text, due_at FROM reminders WHERE user_id=? AND done=0 AND due_at<=? ORDER BY due_at LIMIT 20", [ownerId, t])) {
+      const titulo = t - Number(r.due_at) > ATRASO_MS ? `Recordatorio atrasado (era ${cuando(Number(r.due_at), t, zona)})` : "Recordatorio";
+      let enviado = !!(await notify?.(`${titulo}: ${r.text}`));
+      try {
+        // En la pantalla bloqueada no se muestra lo privado.
+        const p = await getPush()?.notify(ownerId, { title: titulo, body: classify(r.text).private ? "Abra Jarvis para verlo." : r.text, tag: `jarvis-recordatorio-${r.id}` });
+        enviado = enviado || p?.sent > 0;
+      } catch (e) { console.error("[recordatorios] push", e?.message); }
+      if (!enviado) continue; // sin canal: se reintenta
+      bus?.emit("reminder.due", { userId: ownerId, text: r.text });
+      await run(db, "UPDATE reminders SET done=1 WHERE id=?", [r.id]);
+      n++;
+    }
+    return n;
+  }
+  // Una entrega a la vez: el reloj interno y el externo no repiten avisos.
+  let enCurso = null;
+  const recordatorios = () => (enCurso ??= entregar().finally(() => { enCurso = null; }));
+
   return {
+    recordatorios,
     async tick() {
       const out = { recordatorios: 0, pc: null, resumen: false };
       const t = now();
