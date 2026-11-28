@@ -66,6 +66,7 @@ test("hwnd=0, contraseña, host ilegible y ventana ajena se informan como fallo"
   const s = UI_SCRIPTS.ui_escribir;
   const orden = ["GetForegroundWindow()\n", "GetWindowThreadProcessId($hwnd", "host_ilegible", "fuera_de_objetivo", "campo_contrasena", "Delante\n", "[JU]::Letra($c)"].map((x) => s.indexOf(x));
   assert.deepEqual([...orden].sort((a, b) => a - b), orden);
+  assert.ok(s.indexOf("no_es_campo") > 0 && s.indexOf("no_es_campo") < s.indexOf("[JU]::Letra($c)")); // nunca sobre un botón
 });
 
 test("no pulsa botones de pago ni de permisos", async () => {

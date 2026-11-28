@@ -35,7 +35,7 @@ Estado: Fase 0 (andamiaje). Lo marcado como pendiente lo programan los paquetes 
 - Amplio: abrir un programa del menú Inicio; mover/renombrar, crear carpeta y enviar a la papelera dentro de `pc_carpetas`
   (sin pisar nada, sin cruzar carpetas, sin secretos, nunca borrado definitivo).
 - Ratón/teclado: solo sobre la lista autorizada (`GET/PUT /api/control/lista`, solo sesión web, máx 20). Leer controles
-  (nombres y tipos, dato privado, sin capturas), pulsar, escribir (hasta 200, sin saltos) y teclas sueltas.
+  (nombres y tipos, dato privado, sin capturas), pulsar, escribir (hasta 200, sin saltos y solo con el foco en un campo de texto) y teclas sueltas.
 - Frases que autorizan sin tarjeta (escritas o dichas por el señor): "en <objetivo> pulsa|presiona ...",
   "abre el programa X", y con "en el pc": "borra el archivo X de <carpeta>", "mueve|renombra el archivo X de <carpeta> a Y",
   "crea la carpeta X en <carpeta>". Modelo, rutinas, atajos y escenas piden aprobación. Escribir la pide SIEMPRE.

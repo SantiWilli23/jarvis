@@ -111,6 +111,8 @@ foreach($c in ([string]$d.texto).ToCharArray()){
   Delante
   $f=$AE::FocusedElement
   if(-not $f -or $f.Current.IsPassword){ Fin $false 'campo_contrasena' $null }
+  # Solo en campos de texto: un espacio sobre un botón lo pulsaría.
+  if($f.Current.ControlType -ne $CT::Edit -and $f.Current.ControlType -ne $CT::Document){ Fin $false 'no_es_campo' $null }
   [JU]::Letra($c)
 }
 Fin $true '' $null`,
@@ -131,5 +133,5 @@ export const MOTIVOS = {
   host_prohibido: "esa página está prohibida", fuera_de_objetivo: "la ventana de delante no es el objetivo autorizado", campo_contrasena: "hay un campo de contraseña",
   cambio_de_ventana: "cambió la ventana a mitad", elemento_no_encontrado: "no encontré ese elemento", elemento_ambiguo: "hay varios elementos con ese nombre",
   elemento_prohibido: "ese botón no se pulsa (pagos o permisos)", elemento_no_visible: "el elemento no está visible", elemento_tapado: "el elemento está tapado",
-  sin_foco: "no hay ningún campo con el foco", barra_de_direcciones: "no escribo en la barra de direcciones", tecla_no_permitida: "tecla no permitida",
+  sin_foco: "no hay ningún campo con el foco", no_es_campo: "el foco no está en un campo de texto",barra_de_direcciones: "no escribo en la barra de direcciones", tecla_no_permitida: "tecla no permitida",
 };
