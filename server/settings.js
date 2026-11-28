@@ -20,6 +20,16 @@ export async function setNavCapturas(db, userId, on, now = Date.now()) {
   await run(db, "INSERT INTO settings (user_id, key, value, created_at) VALUES (?,'nav_capturas',?,?) ON CONFLICT(user_id, key) DO UPDATE SET value=excluded.value", [userId, on ? "1" : "0", now]);
 }
 
+// Selector de modelo del navegador: null = lo que diga config/nav.json.
+export async function getNavElegirModelo(db, userId) {
+  const r = await get(db, "SELECT value FROM settings WHERE user_id=? AND key='nav_elegir_modelo'", [userId]);
+  return r?.value === "1" ? true : r?.value === "0" ? false : null;
+}
+
+export async function setNavElegirModelo(db, userId, on, now = Date.now()) {
+  await run(db, "INSERT INTO settings (user_id, key, value, created_at) VALUES (?,'nav_elegir_modelo',?,?) ON CONFLICT(user_id, key) DO UPDATE SET value=excluded.value", [userId, on ? "1" : "0", now]);
+}
+
 // Lista autorizada de ratón y teclado: [{ tipo: "app"|"host", valor }].
 export async function getRatonLista(db, userId, opts) {
   const r = await get(db, "SELECT value FROM settings WHERE user_id=? AND key='raton_lista'", [userId]);

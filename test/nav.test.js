@@ -28,6 +28,7 @@ const pausa = () => new Promise((res) => setTimeout(res, 80));
 
 before(async () => {
   ctx = await buildContext({ db: createDb({ url: ":memory:" }), env: { OWNER_PASSWORD: "prueba-123" }, now });
+  ctx.nav.config.ahorro.elegir_modelo = false; // aquí se prueba sin el selector
   groq = spy("groq"); ctx.providers.groq = groq;
   ctx.websearch.search = async () => respaldo;
   server = createServer(createApp(ctx));

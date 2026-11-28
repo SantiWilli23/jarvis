@@ -142,7 +142,7 @@ function startWorker() {
     desktopCapturer, screen, dir: join(dataDir, "capturas"), notify: pcNotify,
     maxPorDia: cfg.capturas_por_dia, usoInicial: cfg.uso_capturas,
     onUso: (u) => { cfg.uso_capturas = u; saveConfig(dataDir, cfg); },
-    describir: claudeDescriber({ claude: cfg.claudePath ? { command: cfg.claudePath, prefix: [] } : resolveClaude(), runClaude, cwd: join(dataDir, "capturas") }),
+    describir: claudeDescriber({ claude: cfg.claudePath ? { command: cfg.claudePath, prefix: [] } : resolveClaude(), runClaude, cwd: join(dataDir, "capturas"), model: () => worker?.modeloCapturas?.() }),
   });
   capture.limpiar(); // por si una captura anterior quedó a medias
   pcWorker = createPcWorker({

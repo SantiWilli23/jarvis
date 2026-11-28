@@ -32,5 +32,5 @@ test("showApproval distingue al PC", () => {
 test("el service worker guarda acciones-pc.js y sube de versión", () => {
   const sw = web("sw.js");
   assert.ok(sw.includes('"/js/acciones-pc.js"'));
-  assert.match(sw, /jarvis-shell-v27/);
+  assert.match(sw, /jarvis-shell-v28/);
 });

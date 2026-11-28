@@ -151,6 +151,7 @@ export function createWorker({
     async stop() { running = false; halted = true; try { await hub.bye(); } catch { /* sin red */ } status(); },
     pause(v = true) { paused = !!v; status(); hub.heartbeat({ paused, current_task: current }).catch(() => {}); },
     isPaused: () => paused,
+    modeloCapturas: () => serverCfg.modelos?.capturas || null,
     claudeIds: () => (Array.isArray(serverCfg.pro?.modelos_claude) ? serverCfg.pro.modelos_claude : []), sync, tick, processTask,
   };
 }

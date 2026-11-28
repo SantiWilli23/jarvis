@@ -160,3 +160,38 @@ Sin probar con Chrome real: `sin_toolsearch`, `prompt_propio` y `pocas_capturas`
 ## Fuera del navegador
 - Textos y sondas: caché de 5 min. Sondas del doctor: 24 h (se olvidan si una tarea falla por modelo o sesión; reiniciar la app también sondea), sin guardar sesión. Con `local_visible:false` en config/pro.json no se sondea ni se exige Opus.
 - Clásico y Pro: `--strict-mcp-config --disable-slash-commands`. No se usa `--setting-sources`: quitaría hooks, permisos, modelo por defecto e instrucciones del usuario o del repo. La descripción de capturas sí usa `--setting-sources ""`.
+
+# Modelo: selector Haiku/Sonnet
+
+Encendido (`ahorro.elegir_modelo: true` en config/nav.json; con `false` vuelve a lo de antes). Por usuario: `PUT /api/settings {nav_elegir_modelo: true|false}`
+(si no se puso, manda la config). Fuera de Pro el modelo va siempre explícito y nunca es Opus.
+
+`modelos`: `barato` (claude-haiku-5-5), `fuerte` (sonnet), `umbral` (3), `escalar` (true), `capturas` (`fuerte`|`barato`).
+
+## Cómo elige (server/modelo-elige.js, sin IA; se decide en el claim)
+Puntos >= umbral => fuerte. buscar_google y preguntar a ChatGPT/Gemini/Perplexity/Grok 0; claude.ai +1; investigar, estudio y memoria +3;
+seguir un chat -1; capturas +2; consulta de más de 1500 caracteres +1; varios pasos +2; entregar/subir/rellenar/publicar +3;
+Haiku con 25% o más de fallos ahí (mínimo 4 casos, 30 días) +3. Perfil escolar o tareas del colegio: siempre Sonnet.
+Textos: Haiku solo si son menos de 2000 caracteres, sin tono formal ni código y no escolares (plan y repaso lo son: hoy van con Sonnet).
+Clásico: siempre Sonnet. Capturas: `modelos.capturas`.
+
+## Forzar por texto (funciona también con el selector apagado)
+"con haiku", "con sonnet", "con (el) modelo rápido|fuerte": antes de la orden ("con haiku, pregúntale a ..."), justo después
+("pregúntale a ChatGPT con haiku ...") o al final tras una coma. En medio de la consulta no cuenta. No usa respuestas guardadas.
+Las tareas del colegio siguen con Sonnet.
+
+## Reintento
+El claim manda `limites.modelo` y, si es Haiku, `limites.escalar` y `margen_dia_usd`. El PC repite UNA vez con Sonnet si hubo
+modelo_no_disponible, tope de costo, tope de turnos, respuesta sin JSON o estado error. No si quedó bloqueado, cancelada, tiempo,
+sin login o sin cuota, ni si hubo algún clic, tecleo o formulario (en la práctica: solo fallos antes de actuar). Además el intento
+debe costar menos de la mitad de `max_budget_usd`, quedar tope diario y plazo. Los costos se suman y el resultado lleva
+`escalada` y `motivo_escalada`.
+
+## Vuelta atrás y disponibilidad
+- Con 4 o más tareas de Haiku en un tipo y sitio, si costaron (reintentos incluidos) 70% o más de lo estimado con Sonnet
+  (promedio medido ahí), Haiku se apaga ahí 7 días (ajuste `nav_haiku_pausa:<tipo>:<sitio>`). Sin costos de Sonnet no se evalúa.
+- El doctor sondea también el id barato; si no responde se usa el fuerte y Pro no se ve afectado.
+- nav_tasks: `modelo`, `modelo_motivo`, `escalada`, `modelo_forzado`. La vista Chats muestra modelo y motivo.
+- Una app del PC antigua usa `limites.modelo` pero no reintenta; con un servidor antiguo la app nueva usa Sonnet.
+
+Prueba real (gasta uso de Claude): `node scripts/probar-haiku.mjs` (`--falso` ensaya sin modelos).

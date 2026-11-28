@@ -13,7 +13,7 @@ const POR_DIA = 40, MAX_CARGA = 60_000, MAX_RESULTADO = 40_000;
 const ABIERTOS = "estado IN ('pendiente','en_curso')";
 const ERRORES = ["sin_claude", "sin_cuota", "sin_login", "saturado", "tiempo", "herramienta", "error"];
 
-export function createClaudeTextos({ db, crypto, bus, agent, audit = null, getControl = () => null, now = () => Date.now() }) {
+export function createClaudeTextos({ db, crypto, bus, agent, audit = null, getControl = () => null, elegirModelo = null, now = () => Date.now() }) {
   const err = (status, error, mensaje) => Object.assign(new Error(error), { status, error, mensaje });
   const frenado = async (userId) => !!(await getControl()?.frenado(userId));
   const manejadores = new Map(); // tipo -> fn({id,userId,tipo,meta,estado,texto,error}); false o excepción = resultado inservible
@@ -70,7 +70,9 @@ export function createClaudeTextos({ db, crypto, bus, agent, audit = null, getCo
     }
     // Una a la vez por dispositivo, en la misma sentencia.
     const u = await run(db, "UPDATE claude_textos SET estado='en_curso', tomado=?, device_id=? WHERE id=? AND estado='pendiente' AND NOT EXISTS (SELECT 1 FROM claude_textos WHERE device_id=? AND estado='en_curso')", [now(), deviceId, t.id, deviceId]);
-    return u.changes ? { task: { id: Number(t.id), tipo: t.tipo, texto: carga.texto } } : { task: null };
+    if (!u.changes) return { task: null };
+    const modelo = await elegirModelo?.(userId, { tipo: t.tipo, texto: carga.texto });
+    return { task: { id: Number(t.id), tipo: t.tipo, texto: carga.texto, ...(modelo ? { modelo } : {}) } };
   }
 
   async function result(userId, deviceId, id, { estado, texto, error } = {}) {

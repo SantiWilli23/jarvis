@@ -12,6 +12,9 @@
 
 import { SECRETOS, DENEGADAS_CLAUDE } from "./secret-paths.js";
 
+// Fuera del Modo Pro el modelo va siempre explícito y nunca es Opus.
+export const sinOpus = (m) => (!m || /opus/i.test(m) ? "sonnet" : String(m));
+
 export const SOLO_LEER = ["Read", "Glob", "Grep"];
 export const LEER_ESCRIBIR = [...SOLO_LEER, "Edit", "Write", "MultiEdit"];
 
@@ -28,7 +31,7 @@ export function buildArgs({ task, folders = [], approved = [], resume = null, ma
   for (const f of folders.slice(1)) args.push("--add-dir", f);
   args.push("--disallowedTools", DENEGADAS_CLAUDE.join(",")); // secretos y guardianes: nunca (ver secret-paths.js)
   args.push("--max-turns", String(maxTurns));
-  if (model) args.push("--model", model);
+  args.push("--model", sinOpus(model));
   if (task?.header?.dictated_at && !resume) {
     args.push("--append-system-prompt", `Contexto: el señor dictó este pedido el ${task.header.dictated_at}. Respóndele en español.`);
   }
@@ -116,7 +119,7 @@ export function buildNavArgs({ perfil = "ia", capturas = false, settings = null,
   const prohibidas = [...NAV_PROHIBIDAS, ...(perfil === "ia" ? [] : [chrome("form_input"), ...(capturas ? [] : [chrome("computer")])]),
     ...(directo ? ["ToolSearch", ...SOBRAN, ...(perfil === "ia" ? [chrome("tabs_close_mcp")] : [])] : [])];
   return [
-    "-p", "--chrome", "--output-format", "stream-json", "--verbose", "--model", model, "--effort", "low",
+    "-p", "--chrome", "--output-format", "stream-json", "--verbose", "--model", sinOpus(model), "--effort", "low",
     "--permission-mode", "default", "--strict-mcp-config", // sin los conectores del usuario (Gmail, etc.)
     "--setting-sources", "",
     ...(settings ? ["--settings", settings] : []),
@@ -134,7 +137,7 @@ export const TEXTOS_SISTEMA = "Eres Jarvis redactando texto. No tienes herramien
 export const TEXTOS_PROHIBIDAS = ["Bash", "PowerShell", "Read", "Glob", "Grep", "Edit", "Write", "MultiEdit", "NotebookEdit", "WebFetch", "WebSearch", "Agent", "Task", "Skill", "ToolSearch"];
 export function buildTextosArgs({ model = "sonnet" } = {}) {
   return [
-    "-p", "--output-format", "stream-json", "--verbose", "--model", model,
+    "-p", "--output-format", "stream-json", "--verbose", "--model", sinOpus(model),
     "--tools", "", "--disallowedTools", TEXTOS_PROHIBIDAS.join(","), "--permission-mode", "default",
     "--strict-mcp-config", "--setting-sources", "", "--disable-slash-commands", "--no-chrome", "--no-session-persistence",
     "--max-turns", "2", "--system-prompt", TEXTOS_SISTEMA,

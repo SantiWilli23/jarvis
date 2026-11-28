@@ -12,16 +12,30 @@ const MI_PC = /\b(?:mi|este|en el)\s+(?:pc|ordenador|computadora|computador|comp
 const VER_INICIO = /^\s*(?:(?:oye\s+)?jarvis[,.:]?\s+)?muestrame\s+el\s+navegador\s*(?:[,;.:]\s*(?:y\s+)?|\s+y\s+)/;
 const VER_FINAL = /(?:\s*[,;.]\s*(?:y\s+)?|\s+y\s+)muestrame\s+el\s+navegador\s*[.!]*\s*$/;
 
+// Forzar el modelo que conduce el navegador. Solo en sitios inequívocos: antes de la orden, justo después de
+// "pregúntale a X" / "busca en google" / "investiga", o al final tras una coma. En medio es parte de la consulta.
+const NOMBRE = "(haiku|sonnet|modelo\\s+rapido|modelo\\s+fuerte)";
+const CON = "(?:(?:con|usa|usando)\\s+(?:el\\s+)?)";
+const MOD_INICIO = new RegExp(`^\\s*(?:(?:oye\\s+)?jarvis[,.:]?\\s+)?(?:${CON}${NOMBRE}|(modelo\\s+(?:rapido|fuerte)))(?:\\s*[,;.:]\\s*(?:y\\s+)?|\\s+y\\s+)`);
+const MOD_TRAS = new RegExp(`^[\\s,:;]*${CON}${NOMBRE}(?![\\w]|\\s*\\d)[\\s,:;.]*`);
+const MOD_FINAL = new RegExp(`\\s*[,;.]\\s*(?:y\\s+)?(?:${CON}${NOMBRE}|(modelo\\s+(?:rapido|fuerte)))\\s*[.!?]*\\s*$`);
+const nivel = (v) => (/haiku|rapido/.test(v.slice(1).find(Boolean)) ? "barato" : "fuerte");
+
 // Minúsculas y sin tildes, carácter a carácter: las posiciones siguen valiendo en el texto original.
 const plano = (s) => s.split("").map((c) => c.normalize("NFD")[0].toLowerCase()[0]).join("");
 
-// Devuelve { tipo, sitio, consulta, capturas? } o null. La consulta conserva el texto original (puede venir vacía).
+// Devuelve { tipo, sitio, consulta, capturas?, modelo? } o null. La consulta conserva el texto original (puede venir vacía).
 export function parseNavIntent(text) {
   let t = String(text ?? "").normalize("NFC");
   let capturas = false;
   for (const re of [VER_INICIO, VER_FINAL]) {
     const v = re.exec(plano(t));
     if (v) { t = t.slice(0, v.index) + t.slice(v.index + v[0].length); capturas = true; }
+  }
+  let modelo = null;
+  for (const re of [MOD_INICIO, MOD_FINAL]) {
+    const v = re.exec(plano(t));
+    if (v) { t = t.slice(0, v.index) + t.slice(v.index + v[0].length); modelo = nivel(v); }
   }
   const p = plano(t);
   const nuevo = CLAUDE_NUEVO.exec(p);
@@ -30,8 +44,12 @@ export function parseNavIntent(text) {
   const inv = ia || google ? null : INVESTIGA.exec(p);
   const m = ia || google || inv;
   if (!m || (inv && MI_PC.test(p))) return null;
-  const consulta = t.slice(m[0].length).replace(/^[\s,:;.]+/, "").trim();
+  let resto = t.slice(m[0].length);
+  const tras = MOD_TRAS.exec(plano(resto));
+  if (tras) { resto = resto.slice(tras[0].length); modelo = nivel(tras); }
+  const consulta = resto.replace(/^[\s,:;.]+/, "").trim();
   const out = ia ? { tipo: "preguntar_ia", sitio: ia[1].replace(/\s/g, ""), consulta } : { tipo: inv ? "investigar" : "buscar_google", sitio: "google", consulta };
   if (nuevo) out.nuevo = true;
+  if (modelo) out.modelo = modelo;
   return capturas ? { ...out, capturas } : out;
 }

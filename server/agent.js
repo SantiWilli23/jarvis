@@ -4,12 +4,15 @@ import { all, get, run } from "./db/client.js";
 
 export const PC_TIMEOUT_MS = 45_000;
 // Capacidades que reporta el PC: { claude:{ok,modelos[]}, repos:[ruta] }.
-function cleanCaps(c) {
+function cleanCaps(c, opcionales = []) {
   const strs = (a) => (Array.isArray(a) ? a.map((x) => String(x).slice(0, 200)).slice(0, 30) : []);
   const err = (x) => (x ? String(x).slice(0, 200) : null);
+  // Si lo único que falla es un modelo opcional (el barato del navegador), Claude sigue listo para lo demás.
+  const faltan = strs(c.claude?.faltan);
+  const soloOpcional = faltan.length > 0 && faltan.every((id) => opcionales.includes(id)) && strs(c.claude?.modelos).length > 0 && c.claude?.error !== "sin_login";
   return {
     // modelos = ids de Claude que el PC VERIFICÓ con una llamada mínima; error = sin_login | modelo_no_disponible | texto
-    claude: { ok: !!c.claude?.ok, modelos: strs(c.claude?.modelos), faltan: strs(c.claude?.faltan), error: err(c.claude?.error), ...(c.claude?.version ? { version: String(c.claude.version).slice(0, 20) } : {}) },
+    claude: { ok: soloOpcional || !!c.claude?.ok, modelos: strs(c.claude?.modelos), faltan, error: soloOpcional ? null : err(c.claude?.error), ...(c.claude?.version ? { version: String(c.claude.version).slice(0, 20) } : {}) },
     ...(c.chrome != null ? { chrome: { ok: c.chrome === true || c.chrome.ok === true } } : {}), // navegador de Claude (docs/NAV.md)
     repos: strs((c.repos || []).map((r) => (typeof r === "string" ? r : r?.ruta || ""))).filter(Boolean),
   };
@@ -18,7 +21,7 @@ function cleanCaps(c) {
 const cleanAcciones = (a) => (Array.isArray(a) ? a.filter((x) => typeof x === "string").map((x) => x.slice(0, 40)).slice(0, 100) : null);
 const dayOf = (t) => new Date(t).toISOString().slice(0, 10);
 
-export function createAgent({ db, bus, tasks, approvals, audit, permissions, state, proModelos = null, now = () => Date.now() }) {
+export function createAgent({ db, bus, tasks, approvals, audit, permissions, state, proModelos = null, opcionales = () => [], modeloCapturas = null, now = () => Date.now() }) {
   const pc = state.pc;
   Object.assign(pc, { capabilities: null, online: false, last_seen: null, current_task: null, paused: false, version: null, host: null });
   const caps = () => {
@@ -27,7 +30,7 @@ export function createAgent({ db, bus, tasks, approvals, audit, permissions, sta
   };
   const publish = (userId) => bus.emit("pc.status", { userId, ...api.view() });
   // Si solo llega pc_acciones (el doctor aún no terminó) no se pisan las capacidades de Claude.
-  const setCaps = (c) => { if (c && typeof c === "object" && Object.keys(c).some((k) => k !== "pc_acciones")) pc.capabilities = cleanCaps(c); };
+  const setCaps = (c) => { if (c && typeof c === "object" && Object.keys(c).some((k) => k !== "pc_acciones")) pc.capabilities = cleanCaps(c, opcionales()); };
   pc.acciones = null;
   const touch = () => { pc.last_seen = now(); };
 
@@ -67,6 +70,7 @@ export function createAgent({ db, bus, tasks, approvals, audit, permissions, sta
         ok: true, interrumpidas: hung.changes || 0, caps: caps(), uso: await api.usageToday(userId),
         permissions: { automatico: permissions.automatico, requiere_aprobacion: permissions.requiere_aprobacion, carpetas_permitidas: permissions.carpetas_permitidas, aprobacion_caduca_minutos: permissions.aprobacion_caduca_minutos },
         pro: { modelos_claude: proModelos ? proModelos() : [] }, // ids de Claude que el doctor debe verificar
+        ...(modeloCapturas ? { modelos: { capturas: modeloCapturas() } } : {}),
       };
     },
     async heartbeat(userId, { paused = false, current_task = null, capabilities } = {}) {

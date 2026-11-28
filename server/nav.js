@@ -3,6 +3,9 @@
 // Los frames (capturas en vivo) solo pasan al websocket del dueño: nunca se guardan.
 import { all, get, run } from "./db/client.js";
 import { urlPermitidaEscolar } from "./nav-url.js";
+import { elegirModelo, elegirModeloTextos, esColegio, modelosDe } from "./modelo-elige.js";
+import { getNavElegirModelo } from "./settings.js";
+import { sinOpus } from "../desktop/runner/claude-args.js";
 
 export const ESTADOS_RESULTADO = ["ok", "necesita_login", "captcha", "bloqueado", "vencida", "error", "cancelada", "cuenta_incorrecta"];
 export const DATO = "dato_no_instruccion"; // marca en messages.provider
@@ -17,6 +20,7 @@ const MAX_ITEMS = 100;
 const MAX_FRAME = 400 * 1024;
 const FRAME_MS = 2500; // el PC manda uno cada ~3 s; margen para el vaivén de la red
 const HORA = 3_600_000, DIA = 86_400_000;
+const MOTIVOS_ESCALADA = { modelo_no_disponible: "Haiku no disponible", tope_costo_tarea: "tope de costo", error_max_turns: "se acabaron los pasos", sin_json: "respuesta incompleta", estado_error: "terminó con error" };
 
 const MENSAJES = {
   necesita_login: (n) => `${n} pide iniciar sesión, señor. Entre usted en Chrome del PC y vuelva a pedírmelo.`,
@@ -74,7 +78,58 @@ export function createNav({ db, config, agent, chat, privacy, bus, audit, websea
     id: Number(t.id), tipo: t.tipo, sitio: t.sitio, sitio_nombre: nombre(t.sitio), consulta: ETIQUETAS[t.tipo] || t.consulta, estado: t.estado,
     respuesta: t.respuesta || "", fuentes: json(t.fuentes), url_conversacion: t.url_conversacion || null, pasos: json(t.pasos),
     creado: Number(t.creado), terminado: t.terminado == null ? null : Number(t.terminado),
+    ...(t.modelo ? { modelo: t.modelo, modelo_motivo: t.modelo_motivo || "", escalada: !!Number(t.escalada) } : {}),
   });
+
+  // --- Selector de modelo (docs/NAV.md "Modelo").
+  const mods = () => modelosDe(cfg);
+  const sinBarato = () => !!agent.capabilities()?.claude?.faltan?.includes(mods().barato);
+  const elegirActivo = async (userId) => (await getNavElegirModelo(db, userId)) ?? cfg.ahorro?.elegir_modelo === true;
+  const clavePausa = (t) => `nav_haiku_pausa:${t.tipo}:${t.sitio}`;
+  const pausaHasta = async (userId, t) => Number((await get(db, "SELECT value FROM settings WHERE user_id=? AND key=?", [userId, clavePausa(t)]))?.value) || 0;
+  const CON_BARATO = "(escalada=1 OR modelo=?)";
+
+  // Cómo le fue a Haiku en ese tipo y sitio (últimos 20 de 30 días).
+  async function historialDe(userId, t) {
+    const filas = await all(db, `SELECT estado, escalada, error FROM nav_tasks WHERE user_id=? AND tipo=? AND sitio=? AND creado>=? AND ${CON_BARATO}
+      AND (escalada=1 OR estado IN ('ok','error')) ORDER BY id DESC LIMIT 20`, [userId, t.tipo, t.sitio, now() - 30 * DIA, mods().barato]);
+    return { casos: filas.length, fallos: filas.filter((f) => Number(f.escalada) || f.estado === "error" || String(f.error || "").startsWith("respaldo_api: error")).length };
+  }
+
+  // Regla de vuelta: si Haiku (más sus reintentos) cuesta >= 70% de lo que habría costado Sonnet, se apaga ahí 7 días.
+  async function revisarAhorro(userId, t) {
+    const barato = mods().barato;
+    const desde = Math.max(await pausaHasta(userId, t), now() - 30 * DIA);
+    const h = await get(db, `SELECT COUNT(*) AS n, COALESCE(SUM(costo_usd),0) AS total FROM nav_tasks WHERE user_id=? AND tipo=? AND sitio=? AND creado>=? AND costo_usd IS NOT NULL AND ${CON_BARATO}`,
+      [userId, t.tipo, t.sitio, desde, barato]);
+    if (Number(h.n) < 4) return;
+    const s = Number((await get(db, "SELECT AVG(costo_usd) AS n FROM nav_tasks WHERE user_id=? AND tipo=? AND sitio=? AND creado>=? AND costo_usd>0 AND escalada=0 AND (modelo IS NULL OR modelo<>?)",
+      [userId, t.tipo, t.sitio, now() - 30 * DIA, barato]))?.n) || 0;
+    if (!s || Number(h.total) < 0.7 * s * Number(h.n)) return;
+    await run(db, "INSERT INTO settings (user_id, key, value, created_at) VALUES (?,?,?,?) ON CONFLICT(user_id, key) DO UPDATE SET value=excluded.value",
+      [userId, clavePausa(t), String(now() + 7 * DIA), now()]);
+    await log(userId, "nav.haiku_pausa", `${t.tipo} ${t.sitio}`);
+  }
+
+  // Qué modelo conduce esta tarea. Con el selector apagado queda el de siempre, salvo que se pida por texto.
+  async function modeloDe(userId, t, perfil, continuacion) {
+    const m = mods();
+    let modelo, motivo;
+    if (t.modelo_forzado) {
+      const colegio = perfil === "escolar" || esColegio(t.consulta);
+      modelo = t.modelo_forzado === "barato" && !colegio ? m.barato : m.fuerte;
+      motivo = colegio && t.modelo_forzado === "barato" ? "tarea del colegio" : "pedido por usted";
+    } else if (!(await elegirActivo(userId))) {
+      modelo = sinOpus(cfg.perfiles[perfil].modelo); motivo = "selector apagado";
+    } else if (await pausaHasta(userId, t) > now()) {
+      modelo = m.fuerte; motivo = "Haiku en pausa aquí: no ahorraba";
+    } else {
+      const e = elegirModelo({ tipo: t.tipo, sitio: t.sitio, perfil, consulta: t.consulta, continuacion, capturas: !!Number(t.capturas), historial: await historialDe(userId, t), cfg });
+      modelo = e.modelo; motivo = e.motivos.join(", ") || "tarea sencilla";
+    }
+    if (modelo === m.barato && sinBarato()) { modelo = m.fuerte; motivo = "Haiku no disponible en el PC"; }
+    return { modelo, motivo };
+  }
 
   // Estudio y memoria: nada de lo leído se guarda aquí; solo el mensaje neutro que devuelve el manejador.
   async function manejar(t, resultado) {
@@ -194,8 +249,14 @@ export function createNav({ db, config, agent, chat, privacy, bus, audit, websea
     entregar: (id) => avisar(id),
     activo: () => cfg.activo === true,
     sweep,
+    // Modelo para un pedido de texto (server/claude-textos.js) y para describir capturas (server/agent.js).
+    async modeloTextos(userId, { tipo, texto: carga }) {
+      if (!(await elegirActivo(userId)) || sinBarato()) return mods().fuerte;
+      return elegirModeloTextos({ tipo, texto: carga, cfg });
+    },
+    modeloCapturas: () => (mods().capturas === "barato" && !sinBarato() ? mods().barato : mods().fuerte),
     registrar(tipo, handler) { manejadores.set(tipo, handler); },
-    async enqueue({ userId, conversationId = null, tipo, sitio, consulta, text = consulta, flagPrivate = false, urlInicial = null, cuenta = null, capturas = false, nuevo = false }) {
+    async enqueue({ userId, conversationId = null, tipo, sitio, consulta, text = consulta, flagPrivate = false, urlInicial = null, cuenta = null, capturas = false, nuevo = false, modelo = null }) {
       if (!cfg.activo) throw err(403, "nav_apagado", "El navegador de Claude está apagado, señor.");
       const perfil = PERFIL_DE_TIPO[tipo];
       if (!perfil || cfg.sitios[sitio]?.perfil !== perfil) throw err(400, "sitio_desconocido", "No conozco ese sitio, señor.");
@@ -209,7 +270,8 @@ export function createNav({ db, config, agent, chat, privacy, bus, audit, websea
       }
       let url = urlInicialDe(tipo, sitio, consulta, urlInicial);
       // Respuesta guardada: no en estudio ni memoria, ni al seguir un chat, ni si piden repetir o ver capturas.
-      const repetir = nuevo || capturas || /\b(de nuevo|chat nuevo|nuevo chat)\b/i.test(String(text ?? ""));
+      const forzado = ["barato", "fuerte"].includes(modelo) ? modelo : null;
+      const repetir = nuevo || capturas || !!forzado || /\b(de nuevo|chat nuevo|nuevo chat)\b/i.test(String(text ?? ""));
       if (!OPACOS.has(tipo) && !repetir && !(tipo === "preguntar_ia" && await chatAnterior(userId, sitio, conversationId))) {
         const g = await guardadaDe(userId, tipo, sitio, consulta);
         if (g) {
@@ -229,8 +291,8 @@ export function createNav({ db, config, agent, chat, privacy, bus, audit, websea
       const ajuste = await get(db, "SELECT value FROM settings WHERE user_id=? AND key='nav_capturas'", [userId]);
       if (tipo === "preguntar_ia" && !nuevo) url = (await chatAnterior(userId, sitio, conversationId)) || url;
       const correo = texto(typeof cuenta === "string" ? cuenta : cuenta?.correo, 200) || null;
-      const r = await run(db, "INSERT INTO nav_tasks (user_id, conversation_id, tipo, sitio, consulta, estado, creado, perfil, capturas, url_inicial, cuenta) VALUES (?,?,?,?,?,'pendiente',?,?,?,?,?)",
-        [userId, conversationId, tipo, sitio, consulta, t, perfil, capturas || ajuste?.value === "1" ? 1 : 0, url, correo]);
+      const r = await run(db, "INSERT INTO nav_tasks (user_id, conversation_id, tipo, sitio, consulta, estado, creado, perfil, capturas, url_inicial, cuenta, modelo_forzado) VALUES (?,?,?,?,?,'pendiente',?,?,?,?,?,?)",
+        [userId, conversationId, tipo, sitio, consulta, t, perfil, capturas || ajuste?.value === "1" ? 1 : 0, url, correo, forzado]);
       await log(userId, "nav.encolar", `${sitio} #${r.id}`);
       return { id: Number(r.id), estado: "pendiente" };
     },
@@ -248,12 +310,18 @@ export function createNav({ db, config, agent, chat, privacy, bus, audit, websea
       // La dirección de un chat empezado se revalida antes de entregarla.
       const continuacion = perfil === "ia" && t.url_inicial !== s.url_inicial && conversacionValida(t.sitio, t.url_inicial);
       const inicial = perfil === "ia" ? (continuacion ? t.url_inicial : s.url_inicial) : t.url_inicial || s.url_inicial;
+      const { modelo, motivo } = await modeloDe(userId, t, perfil, continuacion);
+      await run(db, "UPDATE nav_tasks SET modelo=?, modelo_motivo=? WHERE id=?", [modelo, motivo, t.id]);
+      // Reintento con el fuerte: lo hace el PC; aquí va el permiso y lo que queda del tope de hoy.
+      const m = mods(), tope = Number(lim().tope_costo_dia) || 0;
+      const reintento = modelo === m.barato && m.barato !== m.fuerte && m.escalar
+        ? { escalar: m.fuerte, margen_dia_usd: tope ? Math.max(0, tope - await costoDesde(userId, now() - DIA)) : null } : {};
       return {
         task: {
           id: Number(t.id), tipo: t.tipo, sitio: t.sitio, perfil, consulta: t.consulta, url_inicial: inicial, ...(continuacion ? { continuacion: true } : {}),
           capturas: !!Number(t.capturas), cuenta: t.cuenta ? { correo: t.cuenta } : null,
           limites: { hosts, hosts_negados: cfg.hosts_negados, timeout_s: lim().timeout_s, max_turnos: lim().max_turnos, max_paginas: cfg.perfiles[perfil].max_paginas,
-            max_budget_usd: lim().max_budget_usd ?? null, modelo: cfg.perfiles[perfil].modelo || "sonnet" },
+            max_budget_usd: lim().max_budget_usd ?? null, modelo, ...reintento },
           ahorro: { ...(cfg.ahorro || {}) },
         },
       };
@@ -286,13 +354,19 @@ export function createNav({ db, config, agent, chat, privacy, bus, audit, websea
       }
       return { cancelado: false };
     },
-    async result(userId, deviceId, id, { estado, respuesta, fuentes, error, url_conversacion, session_id, cuenta_visible, items, uso } = {}) {
+    async result(userId, deviceId, id, { estado, respuesta, fuentes, error, url_conversacion, session_id, cuenta_visible, items, uso, escalada, motivo_escalada } = {}) {
       if (!ESTADOS_RESULTADO.includes(estado)) throw err(400, "estado_invalido");
       await sweep(userId);
       const t = await propia(userId, deviceId, id);
       // El gasto se anota aunque la tarea ya esté cancelada o vencida: el límite se consumió igual.
       if (uso && cifra(uso.costo_usd) != null) await run(db, "UPDATE nav_tasks SET costo_usd=?, tok_entrada=?, tok_salida=?, tok_cache_lectura=?, tok_cache_escritura=? WHERE id=? AND costo_usd IS NULL",
         [cifra(uso.costo_usd), cifra(uso.entrada), cifra(uso.salida), cifra(uso.cache_lectura), cifra(uso.cache_escritura), t.id]);
+      const conBarato = t.modelo === mods().barato;
+      if (escalada === true && conBarato) {
+        const causa = Object.hasOwn(MOTIVOS_ESCALADA, motivo_escalada) ? MOTIVOS_ESCALADA[motivo_escalada] : "falló";
+        await run(db, "UPDATE nav_tasks SET escalada=1, modelo=?, modelo_motivo=? WHERE id=? AND escalada=0",
+          [mods().fuerte, `${t.modelo_motivo || ""}; Haiku: ${causa}, repetido con Sonnet`, t.id]);
+      }
       const estudio = t.tipo === "estudio", opaco = OPACOS.has(t.tipo);
       const cuerpo = texto(respuesta, MAX_RESPUESTA);
       const final = estado === "ok" && !cuerpo && !estudio ? "error" : estado;
@@ -306,6 +380,7 @@ export function createNav({ db, config, agent, chat, privacy, bus, audit, websea
       if (!u.changes) throw err(409, "tarea_cerrada");
       await log(userId, "nav.resultado", `#${id} ${final}`);
       await avisar(id, opaco ? { respuesta: cuerpo, fuentes: limpias, items: limpiarItems(items), cuenta_visible: visible, error: motivo } : {});
+      if (conBarato) await revisarAhorro(userId, t);
       return { ok: true };
     },
     async list(userId, limit = 50) {

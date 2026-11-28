@@ -18,6 +18,10 @@ function tarjeta(t) {
   const li = el("li", "tarjeta");
   li.append(el("small", "", [nombreSitio(t), fecha(t.creado), ESTADOS[t.estado] || t.estado].filter(Boolean).join(" · ")));
   li.append(el("b", "", t.tipo === "estudio" ? "Revisión escolar" : String(t.consulta || "")));
+  if (t.modelo) {
+    const nombre = /haiku/i.test(t.modelo) ? "Haiku" : /sonnet/i.test(t.modelo) ? "Sonnet" : String(t.modelo);
+    li.append(el("small", "", ["Modelo: " + nombre, t.modelo_motivo].filter(Boolean).join(" · ")));
+  }
   if (t.respuesta) {
     const d = el("details"); d.open = abiertas.has(t.id);
     d.addEventListener("toggle", () => { if (d.open) abiertas.add(t.id); else abiertas.delete(t.id); });
