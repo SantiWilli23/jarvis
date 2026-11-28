@@ -24,7 +24,8 @@ if (process.env.FAKE_EDIT && args.includes("acceptEdits")) {
 if (process.env.FAKE_SLEEP_MS) await new Promise((r) => setTimeout(r, Number(process.env.FAKE_SLEEP_MS)));
 // FAKE_ERR_MODEL: ese modelo contesta con error (FAKE_ERR_TEXT), como una cuenta sin cuota o sin acceso.
 if (process.env.FAKE_ERR_MODEL && args[args.indexOf("--model") + 1] === process.env.FAKE_ERR_MODEL) {
-  out({ type: "result", subtype: "success", is_error: true, result: process.env.FAKE_ERR_TEXT || "error", session_id: "s", permission_denials: [], usage: { input_tokens: 1, output_tokens: 1 } });
+  for (const t of JSON.parse(process.env.FAKE_ERR_TOOLS || "[]")) out({ type: "assistant", message: { content: [{ type: "tool_use", ...t }] } });
+  out({ type: "result", subtype: process.env.FAKE_ERR_SUBTYPE || "success", is_error: true, result: process.env.FAKE_ERR_TEXT || "error", session_id: "s", permission_denials: [], usage: { input_tokens: 1, output_tokens: 1 }, ...(process.env.FAKE_COSTO ? { total_cost_usd: Number(process.env.FAKE_COSTO) } : {}) });
   process.exit(1);
 }
 out({ type: "system", subtype: "init", session_id: "sesion-falsa-1", tools: [] });
@@ -39,4 +40,4 @@ if (mode === "deny" && !/Bash\(rm /.test(allowed)) {
   denials = [{ tool_name: "Bash", tool_use_id: "t1", tool_input: { command: "rm viejo.txt" } }];
   text = "No pude borrar sin permiso.";
 }
-out({ type: "result", subtype: "success", is_error: false, result: text, session_id: "sesion-falsa-1", permission_denials: denials, usage: { input_tokens: 100, cache_creation_input_tokens: 20, output_tokens: 50 } });
+out({ type: "result", subtype: "success", is_error: false, result: text, session_id: "sesion-falsa-1", permission_denials: denials, usage: { input_tokens: 100, cache_creation_input_tokens: 20, output_tokens: 50 }, ...(process.env.FAKE_COSTO ? { total_cost_usd: Number(process.env.FAKE_COSTO) } : {}) });

@@ -4,7 +4,8 @@
   "activo": true,
   "limites": { "timeout_s": 180, "margen_s": 60, "max_turnos": 25, "por_hora": 10, "por_dia": 30, "max_budget_usd": 0.2, "tope_costo_dia": 2 },
   "cache_horas": 24,
-  "ahorro": { "cache_5m": true, "sin_toolsearch": true, "sin_texto": true, "entorno_limpio": true, "prompt_propio": true, "pocas_capturas": true },
+  "ahorro": { "cache_5m": true, "sin_toolsearch": true, "sin_texto": true, "entorno_limpio": true, "prompt_propio": true, "pocas_capturas": true, "elegir_modelo": false },
+  "modelos": { "barato": "claude-haiku-5-5", "fuerte": "sonnet", "umbral": 3, "escalar": true, "capturas": "fuerte" },
   "perfiles": { "ia": { "max_paginas": 3, "modelo": "sonnet" }, "lectura": { "max_paginas": 5, "modelo": "sonnet" }, "escolar": { "max_paginas": 5, "modelo": "sonnet" } },
   "hosts": ["chatgpt.com", "gemini.google.com", "perplexity.ai", "www.perplexity.ai", "grok.com", "claude.ai", "www.google.com"],
   "hosts_negados": [

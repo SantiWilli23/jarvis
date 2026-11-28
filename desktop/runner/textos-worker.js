@@ -29,7 +29,7 @@ export function createTextosWorker({ hub, claude = null, runClaude = realRun, re
       log(`Texto #${task.id} (${task.tipo})`);
       cwd = mkdtempSync(join(tmpdir(), "jarvis-textos-"));
       const r = await runClaude({
-        ...bin, args: buildTextosArgs({ model }), stdin: Buffer.from(String(task.texto), "utf8"), cwd,
+        ...bin, args: buildTextosArgs({ model: task.modelo || model }), stdin: Buffer.from(String(task.texto), "utf8"), cwd,
         env: { ...process.env, ...TTL_CORTO },
         signal: abort.signal, killTree: true, timeoutMs,
         onMessage: (m) => { if (m.type === "assistant" && m.message?.content?.some((b) => b.type === "tool_use")) { herramienta = true; abort.abort(); } },

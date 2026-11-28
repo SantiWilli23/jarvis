@@ -19,6 +19,7 @@ import { createPrepare } from "./queue/prepare.js";
 import { createStudio } from "./studio.js";
 import { createBrowser } from "./browser.js";
 import { createNav } from "./nav.js";
+import { modelosDe } from "./modelo-elige.js";
 import { createEscolar } from "./escolar.js";
 import { createCrypto } from "./crypto.js";
 import { createApprovals } from "./approvals.js";
@@ -86,8 +87,12 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const phone = createPhoneQueue({ db, bus, approvals, audit, config: loadJson("phone-actions.json"), now });
   const agent = createAgent({ db, bus, tasks, approvals, audit, permissions, state, proModelos: () => {
     const cfg = loadProConfig(), ids = claudeIds(cfg);
-    return cfg.local_visible !== false ? ids : ids.filter((id) => !/opus/i.test(id)); // con Pro escondido no se gasta en sondear Opus
-  }, now });
+    const pro = cfg.local_visible !== false ? ids : ids.filter((id) => !/opus/i.test(id)); // con Pro escondido no se gasta en sondear Opus
+    return [...new Set([...pro, modelosDe(loadJson("nav.json")).barato])]; // y el barato del navegador (docs/NAV.md)
+  }, opcionales: () => {
+    const barato = modelosDe(loadJson("nav.json")).barato;
+    return claudeIds(loadProConfig()).includes(barato) ? [] : [barato];
+  }, modeloCapturas: () => nav.modeloCapturas(), now });
   const pc = createPcQueue({ db, bus, approvals, audit, agent, config: loadJson("pc-actions.json"), now });
   const escenas = createEscenas({ config: loadJson("escenas.json"), pc, phone, audit });
   const github = createGitHub({ env, fetch: f, now });
@@ -105,7 +110,7 @@ export async function buildContext({ db, env = process.env, fetch: f, now = () =
   const escolar = createEscolar({ db, config: loadJson("escolar.json"), crypto, nav, audit, now });
   // Módulos de la Fase 0 (docs/CONTROL.md, docs/MEMORIA.md, docs/NAV.md).
   const control = createControl({ db, bus, audit, approvals, tasks, agent, pc, nav, browser, pro, env, now });
-  const claudeTextos = createClaudeTextos({ db, crypto, bus, agent, audit, getControl: () => control, now });
+  const claudeTextos = createClaudeTextos({ db, crypto, bus, agent, audit, getControl: () => control, elegirModelo: (userId, p) => nav.modeloTextos(userId, p), now });
   const rutinas = createRutinas({ db, bus, audit, approvals, escenas, pc, phone, getChat: () => chat, getControl: () => control, getPush: () => push, getNotify: () => ext?.notify, zona: env.ZONA_HORARIA, now });
   const repaso = createRepaso({ db, crypto, escolar, claudeTextos, audit, now });
   const memoriaReparto = createMemoriaReparto({ db, notes, inbox, privacy, nav, claudeTextos, audit, bus, agent, getControl: () => control, now });

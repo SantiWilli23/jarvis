@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync, existsSync
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join, resolve, isAbsolute } from "node:path";
-import { buildNavArgs, navSettings } from "./claude-args.js";
+import { buildNavArgs, navSettings, sinOpus } from "./claude-args.js";
 import { runClaude as realRun, resolveClaude as realResolve, entornoLimpio, TTL_CORTO } from "./claude-runner.js";
 import { limpiarCacheSonda } from "./doctor.js";
 import { urlPermitida, urlsDeHerramienta, PERFILES } from "./nav-guard.js";
@@ -165,10 +165,32 @@ export function urlsDeResultado(textoResultado) {
   return [...String(textoResultado || "").matchAll(/tabId\s+\d+\s*:[^\n]*\((https:\/\/[^\s()]+)\)/g)].map((m) => m[1]);
 }
 
+// ¿Esta llamada pudo escribir o enviar algo en el sitio? Ante la duda, sí (un clic puede ser "Enviar").
+const SOLO_MIRAR = ["screenshot", "wait", "scroll", "zoom", "hover", "scroll_to"];
+export function actua(name, input) {
+  const corto = String(name).replace(CHROME, "");
+  if (corto === "browser_batch") return !Array.isArray(input?.actions) || input.actions.some((a) => actua(a?.name || "", a?.input));
+  if (corto === "computer") return !SOLO_MIRAR.includes(input?.action);
+  // Hay chats que envían lo que va en la dirección; buscar en Google no escribe nada.
+  if (corto === "navigate") return /[?&](q|prompt)=/i.test(String(input?.url || "")) && !/^(https?:\/\/)?(www\.)?google\./i.test(String(input?.url || ""));
+  return ["form_input", "javascript_tool", "file_upload", "upload_image", "shortcuts_execute"].includes(corto);
+}
+
+// Motivo por el que un intento con el modelo barato merece repetirse con el fuerte; null si no.
+const REPETIBLES = ["modelo_no_disponible", "tope_costo_tarea", "error_max_turns"];
+export function motivoEscalada(r, { estudio = false } = {}) {
+  if (r.aborted) return null; // cancelada, bloqueado, tiempo
+  if (r.isError || r.exitCode) return REPETIBLES.includes(r.errorKind) ? r.errorKind : null; // sin_login, sin_cuota y lo demás no
+  const j = parseNavResult(r.result, { estudio });
+  return !j ? "sin_json" : j.estado === "error" ? "estado_error" : null;
+}
+
+const sumarCostos = (a, b) => (a && b ? Object.fromEntries(Object.keys({ ...a, ...b }).map((k) => [k, (a[k] || 0) + (b[k] || 0)])) : a || b);
+
 // Mira el stream: pasos nuevos, última captura y dirección de la conversación.
 function observador(task) {
   const nombres = new Map(); // tool_use_id -> herramienta
-  const obs = { pasos: [], frame: null, urlVista: null };
+  const obs = { pasos: [], frame: null, urlVista: null, actuo: false };
   let hostIni = null; try { hostIni = new URL(task.url_inicial).host; } catch { /* sin host */ }
 
   const mirarTexto = (t) => {
@@ -181,6 +203,7 @@ function observador(task) {
       if (m.type === "assistant" && b.type === "tool_use") {
         nombres.set(b.id, String(b.name).replace(CHROME, ""));
         obs.pasos.push(...pasosDe(b.name, b.input));
+        if (actua(b.name, b.input)) obs.actuo = true;
       }
       if (m.type === "user" && b.type === "tool_result") {
         const partes = typeof b.content === "string" ? [{ type: "text", text: b.content }] : Array.isArray(b.content) ? b.content : [];
@@ -295,17 +318,37 @@ ${fuente}`;
       marca("spawn");
       const ahorro = task.ahorro || {}; // lo manda el servidor desde config/nav.json
       const envClaude = { ...(ahorro.entorno_limpio ? entornoLimpio(hijoEnv) : hijoEnv), ...(ahorro.cache_5m ? TTL_CORTO : {}), ...(ahorro.sin_toolsearch ? { ENABLE_TOOL_SEARCH: "false" } : {}) };
-      const r = await runClaude({
-        ...bin, cwd: navDir, env: envClaude, hosts: pol.hosts, negados: pol.negados, killTree: true, timeoutMs: limiteMs,
-        signal: abort.signal, onMessage: (m) => { if (m.type === "result") marca("result"); obs.ver(m); },
-        args: buildNavArgs({ perfil: pol.perfil, memoria: esMemoria(task), capturas: pol.capturas, settings, maxTurns: Number(lim.max_turnos) || 25, model: lim.modelo || "sonnet", presupuesto: lim.max_budget_usd, ahorro }),
-        stdin: Buffer.from(navPrompt(task), "utf8"),
-      });
+      const intento = async (model, ms) => {
+        const res = await runClaude({
+          ...bin, cwd: navDir, env: envClaude, hosts: pol.hosts, negados: pol.negados, killTree: true, timeoutMs: ms,
+          signal: abort.signal, onMessage: (m) => { if (m.type === "result") marca("result"); obs.ver(m); },
+          args: buildNavArgs({ perfil: pol.perfil, memoria: esMemoria(task), capturas: pol.capturas, settings, maxTurns: Number(lim.max_turnos) || 25, model, presupuesto: lim.max_budget_usd, ahorro }),
+          stdin: Buffer.from(navPrompt(task), "utf8"),
+        });
+        if (["modelo_no_disponible", "sin_login"].includes(res.errorKind)) limpiarCacheSonda();
+        return res;
+      };
+      const inicio = Date.now();
+      let r = await intento(sinOpus(lim.modelo), limiteMs);
+      let c = r.costo, escalo = null;
+      // Un solo reintento con el modelo fuerte (lo autoriza el servidor en limites.escalar), nunca si ya pudo escribir o enviar.
+      const causa = lim.escalar ? motivoEscalada(r, { estudio: task.tipo === "estudio" }) : null;
+      if (causa && !abort.signal.aborted && !obs.actuo) {
+        const gasto = c?.costo_usd, tope = Number(lim.max_budget_usd) || 0;
+        const barato = gasto == null ? causa === "modelo_no_disponible" : !tope || gasto < 0.5 * tope;
+        const hayDia = lim.margen_dia_usd == null || (gasto || 0) < Number(lim.margen_dia_usd);
+        const queda = limiteMs - (Date.now() - inicio); // el segundo intento cabe en el plazo de la tarea
+        if (barato && hayDia && queda >= Math.min(30_000, limiteMs / 4)) {
+          escalo = causa;
+          log(`Tarea ${task.id}: reintento con ${sinOpus(lim.escalar)} (${causa})`);
+          obs.urlVista = null;
+          r = await intento(sinOpus(lim.escalar), queda);
+          c = sumarCostos(c, r.costo);
+        }
+      }
       await cerrar();
-      if (["modelo_no_disponible", "sin_login"].includes(r.errorKind)) limpiarCacheSonda();
-      const c = r.costo;
       if (c) log(`Tarea ${task.id} uso: ${c.costo_usd.toFixed(4)} USD equiv, entrada ${c.entrada}, salida ${c.salida}, cache leida ${c.cache_lectura}, cache escrita ${c.cache_escritura}`);
-      const extra = { ...(c ? { uso: c } : {}), ...(r.sessionId ? { session_id: r.sessionId } : {}), ...(pol.perfil === "ia" && obs.urlVista ? { url_conversacion: obs.urlVista } : {}) };
+      const extra = { ...(c ? { uso: c } : {}), ...(escalo ? { escalada: true, motivo_escalada: escalo } : {}), ...(r.sessionId ? { session_id: r.sessionId } : {}), ...(pol.perfil === "ia" && obs.urlVista ? { url_conversacion: obs.urlVista } : {}) };
       const mal = (estado, error) => ({ ...fallo(estado, error), ...extra });
       if (abort.signal.aborted) return mal("cancelada", "cancelada");
       if (r.aborted === "bloqueado") return mal("bloqueado", `Intentó abrir una dirección no permitida: ${sinCuenta(r.blockedUrl)}`);
