@@ -5,7 +5,7 @@
 **Velocidad (publicada):** voz en dos partes preparadas con la respuesta, corte de silencio 1,5 s, silencios recortados, MiniMax apagado, sw v24, menos consultas; 509 pruebas. Medido en producción: chat 1,9 s, audio ~10 s (meta 6-7 s no lograda); Gemini gratis corta y habla la voz del navegador. Ahora Gemini TTS apagado (config/providers.json): respuestas con voz del navegador al instante, Algenib solo en pregrabadas.
 **Fases 3 y 4 (publicadas 8bdab80, comprobado en Render; app del PC reiniciada):** control amplio y ratón/teclado, apagados por defecto, panel "Control del PC", sw v26, 541 pruebas; sin probar en Windows real (docs/CONTROL.md).
 **Siguiente:** publicar la voz (en main local, sw v27, 542 pruebas; sin probar en iPhone); primera prueba real (Bloc de notas); 3 frases que faltan (`node scripts/gen-frases.mjs`, 10 pedidos al día).
-**Del usuario:** elegir voz, sí/no a Vosk ("Llegó papi"), sesión en Classroom y Lirmi, conectar Google (guía §14).
+**Del usuario:** elegir voz en la página privada «Voces de Jarvis» (https://claude.ai/artifact/XuFb7Qs4UrBLZ7p3D9y4LQ; luego fijar voz, velocidad y tono en web/js/voice.js), sí/no a Vosk ("Llegó papi"), sesión en Classroom y Lirmi, conectar Google (guía §14).
 **Sin probar:** Classroom, Lirmi, eventos reales, repaso con material real, micrófono real, app empaquetada, recoger/repartir, MCP, freno en Windows e iPhone; voz nueva con Google real.
 **Pendiente técnico:** al cambiar fecha de una prueba no se borra el evento viejo; si Render duerme, recordatorios y rutinas avisan tarde (marcados atrasados).
 **Micrófono (publicado):** "Hey Jarvis" en /m (orbe prende/apaga, 3 s, 8 s) y Atajo con voz (docs/ATAJO-JARVIS.md); sw v23; 473 pruebas. Falta probar en iPhone y armar el Atajo.
