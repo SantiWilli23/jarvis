@@ -6,11 +6,11 @@ import { classify } from "./router/classify.js";
 import { parsePhoneIntent, phoneReply } from "./phone/intents.js";
 import { parseMusicIntent, CONTROLES } from "./music/intents.js";
 import { parseJuegoIntent, respuestaJuego } from "./games.js";
-import { getModo } from "./settings.js";
+import { getModo, getRatonLista } from "./settings.js";
 import { parseNavIntent } from "./nav-intents.js";
 import { parseProIntent, crearSesionPro } from "./pro-intents.js";
 import { DATO } from "./nav.js";
-import { detectDestino, stripDestino, parsePcIntent, interpretWithModel, pcReply, pcError } from "./pc/intents.js";
+import { detectDestino, stripDestino, parsePcIntent, parseUiIntent, pareceOrdenUi, interpretWithModel, pcReply, pcError } from "./pc/intents.js";
 
 // Modo Chat: solo conversar. Sin búsqueda web, sin acciones ni tareas para el PC o el teléfono.
 const PROMPT_MODO_CHAT = "\n\nMODO CHAT: el señor eligió que solo converse. Responda únicamente con texto: no busque en la web, no use herramientas ni ofrezca acciones (correo, calendario, Spotify, WhatsApp, teléfono) y no prepare ni encole tareas para el PC. Si le piden algo así, explique con amabilidad que está en modo Chat y que puede cambiarlo a IA en Configuración.";
@@ -64,9 +64,24 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       const motor = MOTORES.includes(engine) ? engine : "auto";
       let original = String(text ?? "");
       if (!original.trim()) return { status: "vacio", reply: "No le oí nada, señor." };
-      const [modo, conv] = await Promise.all([getModo(db, userId), ensureConversation(userId, conversationId, original)]);
+      // Orden de ratón/teclado: lo que haya que escribir no se guarda en ninguna parte (ni en el título de la charla).
+      const uiI = pc && pareceOrdenUi(original) && (await getModo(db, userId)) !== "chat" ? parseUiIntent(original, await getRatonLista(db, userId)) : null;
+      const visible = uiI?.action === "ui_escribir" ? `En ${uiI.params.objetivo} escribe [${uiI.params.texto.length} caracteres]` : original;
+      const [modo, conv] = await Promise.all([getModo(db, userId), ensureConversation(userId, conversationId, visible)]);
+      const porVoz = ["texto", "voz"].includes(source); // la orden del señor autoriza; rutinas, atajos y demás no
       const chatSolo = modo === "chat"; // el servidor decide, no el cliente
       state(userId, "thinking");
+      async function ordenPc(i, { autorizada, texto, priv }) {
+        const out = await pc.create({ userId, action: i.action, params: i.params, source, conversationId: conv, deviceId, autorizada });
+        const reply = out.ok ? pcReply(out.item) : out.mensaje || pcError(out.error);
+        await saveMsg(userId, conv, "user", texto, null, priv);
+        await saveMsg(userId, conv, "assistant", reply, "pc", priv);
+        bus?.emit("chat.done", { userId, text: reply, provider: "pc" });
+        state(userId, "speaking");
+        return { status: "pc", conversationId: conv, reply, pc: out.ok ? { id: out.item.id, status: out.item.status } : { error: out.error } };
+      }
+      // Va antes que todo lo demás: ningún otro módulo ni modelo ve la frase.
+      if (uiI) return ordenPc(uiI, { autorizada: porVoz, texto: visible, priv: true });
 
       // 1) Directo a Claude: se guarda el texto exacto, sin modelo. "/gemini ..." (o "díselo a Gemini:") ya no encola:
       // se quita el prefijo y el texto se contesta normal, con el proveedor gemini (API) primero.
@@ -195,19 +210,12 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
       let pcI = !chatSolo && pc && destino !== "telefono" ? parsePcIntent(textoOrden, { apps: pc.config.apps || [], destino }) : null;
       let pi = !chatSolo && phone && !flagPrivate && destino !== "pc" ? parsePhoneIntent(textoOrden, phone.config, { destino, original }) : null;
       if (pcI && pi) { if (origen === "pc") pi = null; else pcI = null; }
+      const delSenor = !!pcI && porVoz; // solo las frases fijas autorizan; lo que elija el modelo, nunca
       if (!pcI && !pi && !chatSolo && pc && destino === "pc" && textoOrden.length <= 140) {
         // Respaldo: el modelo (Groq primero) elige de la lista cerrada; lo privado solo a proveedores permitidos.
         pcI = await interpretWithModel({ router, pc, userId, text: textoOrden, isPrivate: flagPrivate || classify(original).private });
       }
-      if (pcI) {
-        const out = await pc.create({ userId, action: pcI.action, params: pcI.params, source, conversationId: conv, deviceId });
-        const reply = out.ok ? pcReply(out.item) : out.mensaje || pcError(out.error);
-        await saveMsg(userId, conv, "user", original, null, flagPrivate);
-        await saveMsg(userId, conv, "assistant", reply, "pc", flagPrivate);
-        bus?.emit("chat.done", { userId, text: reply, provider: "pc" });
-        state(userId, "speaking");
-        return { status: "pc", conversationId: conv, reply, pc: out.ok ? { id: out.item.id, status: out.item.status } : { error: out.error } };
-      }
+      if (pcI) return ordenPc(pcI, { autorizada: delSenor, texto: original, priv: flagPrivate });
       if (pi) {
         const out = await phone.create({ userId, action: pi.action, args: pi.args, source, conversationId: conv, deviceId });
         if (out.ok) {

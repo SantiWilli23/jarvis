@@ -8,7 +8,7 @@ export const SECRETOS = [
 export const GUARDIANES = [
   "**/desktop/runner/danger.js", "**/desktop/runner/agy-policy.js", "**/desktop/runner/agy-args.js",
   "**/desktop/runner/claude-args.js", "**/desktop/runner/secret-paths.js", "**/config/permissions.json",
-  "**/desktop/runner/pc-spec.js", "**/desktop/runner/pc-exec.js", "**/desktop/runner/pc-files.js", "**/desktop/runner/pc-capture.js",
+  "**/desktop/runner/pc-spec.js", "**/desktop/runner/pc-exec.js", "**/desktop/runner/pc-files.js", "**/desktop/runner/pc-capture.js", "**/desktop/runner/pc-ui.js", "**/desktop/runner/pc-reglas.js",
 ];
 
 const REGLAS_ESCRITURA = ["Edit", "Write", "MultiEdit"];

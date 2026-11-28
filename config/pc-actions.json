@@ -22,6 +22,14 @@
     "cancelar_apagado": { "descripcion": "Cancelar un apagado o reinicio en curso", "nivel": "automatico", "params": {} },
     "archivos_listar": { "descripcion": "Listar una carpeta del PC (solo las carpetas permitidas)", "nivel": "automatico", "params": { "raiz": { "tipo": "texto", "max": 40 }, "ruta": { "tipo": "ruta_relativa", "opcional": true } } },
     "archivos_leer": { "descripcion": "Leer un archivo de texto del PC (privado)", "nivel": "aprobacion", "privado": true, "params": { "raiz": { "tipo": "texto", "max": 40 }, "ruta": { "tipo": "ruta_relativa" } } },
-    "captura": { "descripcion": "Captura de pantalla descrita por Claude en el PC (privado, con aviso)", "nivel": "automatico", "privado": true, "params": {} }
+    "captura": { "descripcion": "Captura de pantalla descrita por Claude en el PC (privado, con aviso)", "nivel": "automatico", "privado": true, "params": {} },
+    "abrir_programa": { "descripcion": "Abrir un programa instalado (menú Inicio)", "nivel": "aprobacion", "requiere": "amplio", "params": { "nombre": { "tipo": "texto", "max": 60 } } },
+    "archivos_mover": { "descripcion": "Mover o renombrar dentro de una carpeta permitida", "nivel": "aprobacion", "requiere": "amplio", "params": { "raiz": { "tipo": "texto", "max": 40 }, "de": { "tipo": "ruta_relativa" }, "a": { "tipo": "ruta_relativa" } } },
+    "archivos_crear_carpeta": { "descripcion": "Crear una carpeta", "nivel": "aprobacion", "requiere": "amplio", "params": { "raiz": { "tipo": "texto", "max": 40 }, "ruta": { "tipo": "ruta_relativa" } } },
+    "archivos_papelera": { "descripcion": "Enviar a la papelera de reciclaje", "nivel": "aprobacion", "requiere": "amplio", "params": { "raiz": { "tipo": "texto", "max": 40 }, "ruta": { "tipo": "ruta_relativa" } } },
+    "ui_leer": { "descripcion": "Leer los controles de la ventana autorizada (privado)", "nivel": "automatico", "requiere": "raton", "privado": true, "params": { "objetivo": { "tipo": "objetivo" } } },
+    "ui_pulsar": { "descripcion": "Pulsar un elemento de la ventana autorizada", "nivel": "aprobacion", "requiere": "raton", "params": { "objetivo": { "tipo": "objetivo" }, "elemento": { "tipo": "texto", "max": 80 } } },
+    "ui_escribir": { "descripcion": "Escribir en la ventana autorizada", "nivel": "aprobacion", "requiere": "raton", "privado": true, "no_guardar": true, "params": { "objetivo": { "tipo": "objetivo" }, "texto": { "tipo": "texto", "max": 200 } } },
+    "ui_tecla": { "descripcion": "Pulsar una tecla en la ventana autorizada", "nivel": "aprobacion", "requiere": "raton", "params": { "objetivo": { "tipo": "objetivo" }, "tecla": { "tipo": "enum", "valores": ["enter", "tab", "esc", "arriba", "abajo", "izquierda", "derecha", "retroceso"] } } }
   }
 }

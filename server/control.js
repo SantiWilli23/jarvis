@@ -3,13 +3,22 @@
 import express, { Router } from "express";
 import { all, get, run } from "./db/client.js";
 import { ProError } from "./pro/orchestrator.js";
+import { getRatonLista, setRatonLista } from "./settings.js";
+import { entradaValida, MAX_LISTA } from "../desktop/runner/pc-reglas.js";
 
 export const MENSAJE_FRENO = "El freno está puesto, señor. Reanude desde la web cuando quiera.";
 const MIN_DEF = 30, MIN_MAX = 240;
 const RONDAS_FINALES = ["hecha", "fallida", "cancelada"];
+const MSG_APAGADO = {
+  amplio: "El control amplio está apagado, señor. Enciéndalo desde la web (Control del PC) y repítamelo.",
+  raton: "El control de ratón y teclado está apagado, señor. Enciéndalo desde la web (Control del PC) y repítamelo.",
+};
+const hostDe = (u) => { try { return new URL(u).hostname.toLowerCase().replace(/^www\./, ""); } catch { return null; } };
 const frenadoErr = () => ({ status: 409, error: "frenado", mensaje: MENSAJE_FRENO });
 
-export function createControl({ db, bus, audit, approvals, tasks, agent, pc, nav = null, browser = null, pro = null, now = () => Date.now() }) {
+export function createControl({ db, bus, audit, approvals, tasks, agent, pc, nav = null, browser = null, pro = null, env = {}, now = () => Date.now() }) {
+  const propios = [env.PUBLIC_URL, env.RENDER_EXTERNAL_URL].map(hostDe).filter(Boolean);
+  const lista = (userId) => getRatonLista(db, userId, { negados: propios });
   async function estado(userId) {
     const r = await get(db, "SELECT * FROM control_estado WHERE user_id=?", [userId]);
     const t = now(), frenado = !!Number(r?.frenado || 0);
@@ -18,7 +27,7 @@ export function createControl({ db, bus, audit, approvals, tasks, agent, pc, nav
     return { frenado, frenado_at: frenado ? Number(r.frenado_at) : null, amplio: !!amplio, raton: !!raton, amplio_hasta: amplio, raton_hasta: raton };
   }
   const frenado = async (userId) => (await estado(userId)).frenado;
-  const paraPc = async (userId) => { const e = await estado(userId); return { freno: e.frenado, amplio: e.amplio, raton: e.raton }; };
+  const paraPc = async (userId) => { const e = await estado(userId); return { freno: e.frenado, amplio: e.amplio, raton: e.raton, ...(e.raton ? { lista: await lista(userId) } : {}) }; };
   const guardar = (userId, f, at, amplio, raton) => run(db, `INSERT INTO control_estado (user_id, frenado, frenado_at, amplio_hasta, raton_hasta) VALUES (?,?,?,?,?)
     ON CONFLICT(user_id) DO UPDATE SET frenado=excluded.frenado, frenado_at=excluded.frenado_at, amplio_hasta=excluded.amplio_hasta, raton_hasta=excluded.raton_hasta`,
     [userId, f ? 1 : 0, at, amplio, raton]);
@@ -39,7 +48,7 @@ export function createControl({ db, bus, audit, approvals, tasks, agent, pc, nav
     const t = now();
     await paso("tareas", () => cada("SELECT id FROM tasks WHERE user_id=? AND status IN ('pendiente','por_revisar','reclamada','en_curso')", [userId], (id) => tasks.cancel(userId, id)));
     if (nav) await paso("nav", () => cada("SELECT id FROM nav_tasks WHERE user_id=? AND estado IN ('pendiente','en_curso')", [userId], (id) => nav.cancel(userId, id)));
-    await paso("pc", () => sql("UPDATE pc_actions SET status='rechazada', done_at=? WHERE user_id=? AND status IN ('aprobacion','lista','reclamada')", [t, userId]));
+    if (pc) await paso("pc", () => pc.rechazarPendientes(userId));
     if (pro) await paso("pro", () => cada(`SELECT id FROM pro_rounds WHERE user_id=? AND status NOT IN (${RONDAS_FINALES.map(() => "?").join(",")})`, [userId, ...RONDAS_FINALES], (id) => pro.orch.cancel(userId, id)));
     if (browser) await paso("navegador", () => cada("SELECT id FROM browser_tasks WHERE user_id=? AND status IN ('pendiente','preparando','esperando_usuario')", [userId], (id) => browser.cancel(userId, id)));
     await paso("textos", () => sql("UPDATE claude_textos SET estado='cancelado', terminado=? WHERE user_id=? AND terminado IS NULL", [t, userId]));
@@ -67,10 +76,47 @@ export function createControl({ db, bus, audit, approvals, tasks, agent, pc, nav
     const nuevo = (v, antes) => (v === true ? hasta : v === false ? null : antes);
     await guardar(userId, false, null, nuevo(amplio, e.amplio_hasta), nuevo(raton, e.raton_hasta));
     const s = await estado(userId);
+    for (const [k, v] of [["amplio", amplio], ["raton", raton]]) if (v === false) await pc?.rechazarPendientes?.(userId, k);
     await audit?.log({ userId, action: "control.activar", detail: `amplio: ${s.amplio ? "sí" : "no"}, ratón: ${s.raton ? "sí" : "no"}` });
     await avisar(userId);
     return s;
   }
+
+  // Guarda la lista autorizada (solo sesión web). Una sola entrada mala rechaza el cambio entero.
+  async function guardarLista(userId, entradas, negados = []) {
+    if (!Array.isArray(entradas) || entradas.length > MAX_LISTA) throw { status: 400, error: "lista_invalida", mensaje: `Máximo ${MAX_LISTA} entradas.` };
+    const limpias = entradas.map((e) => {
+      const v = entradaValida(e, { negados: [...propios, ...negados] });
+      if (!v) throw { status: 400, error: "entrada_no_permitida", mensaje: `No se puede autorizar «${String(e?.valor ?? "").slice(0, 60)}».` };
+      return v;
+    });
+    const unicas = [...new Map(limpias.map((e) => [`${e.tipo} ${e.valor}`, e])).values()];
+    await setRatonLista(db, userId, unicas, now());
+    await audit?.log({ userId, action: "control.lista", detail: `${unicas.length} entradas` });
+    return unicas;
+  }
+
+  // ---------- acciones con permiso propio ("requiere") ----------
+  const requiereDe = (accion) => pc?.config?.acciones?.[accion]?.requiere;
+  const crear = pc?.create, siguiente = pc?.next;
+  if (crear) pc.create = async (o = {}) => {
+    const r = requiereDe(o.action);
+    if (r) {
+      if (!(await estado(o.userId))[r]) return { ok: false, error: `${r}_apagado`, mensaje: MSG_APAGADO[r] };
+      if (r === "raton") {
+        const objetivo = String(o.params?.objetivo ?? "").trim().toLowerCase();
+        if (!(await lista(o.userId)).some((e) => e.valor === objetivo)) return { ok: false, error: "objetivo_no_permitido", mensaje: "Ese objetivo no está en la lista autorizada, señor." };
+      }
+    }
+    return crear.call(pc, o);
+  };
+  if (siguiente) pc.next = async (userId, o) => {
+    const accion = await siguiente.call(pc, userId, o);
+    const r = accion && requiereDe(accion.accion);
+    if (!r || (await estado(userId))[r]) return accion;
+    await pc.result(userId, accion.id, { ok: false, texto: "control apagado" });
+    return null;
+  };
 
   // ---------- con freno puesto no entra ni sale nada ----------
   function cerrar(obj, metodo, siFrenado) {
@@ -115,6 +161,8 @@ export function createControl({ db, bus, audit, approvals, tasks, agent, pc, nav
       r.post("/freno", wrap(async (req, res, uid) => res.json(await freno(uid))));
       r.post("/reanudar", wrap(async (req, res, uid) => res.json(await reanudar(uid))));
       r.put("/activar", wrap(async (req, res, uid) => res.json(await activar(uid, body(req)))));
+      r.get("/lista", wrap(async (req, res, uid) => res.json({ lista: await lista(uid) })));
+      r.put("/lista", wrap(async (req, res, uid) => res.json({ lista: await guardarLista(uid, body(req).lista, [hostDe(`https://${req.get("host")}`)].filter(Boolean)) })));
       return r;
     },
     // /api/agent/control (solo token "pc"): registrar, frenar y apagar permisos. Nunca reanudar ni encender.

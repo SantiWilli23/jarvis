@@ -45,8 +45,45 @@ export function createPcFiles({ roots, fs = nodeFs, path = nodePath } = {}) {
     return { real, raizReal };
   }
 
+  // Algo que ya existe y se puede mover o tirar: nunca la raíz ni un enlace (resolver seguiría hasta su destino).
+  async function existente(raiz, ruta) {
+    if (!ruta) fail("Falta la ruta.");
+    const { real, raizReal } = await resolver(raiz, ruta);
+    if (path.relative(raizReal, real) === "") fail("La carpeta permitida entera no se toca.");
+    if ((await fs.lstat(path.resolve(raizReal, ruta))).isSymbolicLink()) fail("Es un enlace; no lo toco.");
+    return { real, raizReal };
+  }
+  // Algo que todavía no existe: su carpeta sí existe y está dentro de la raíz.
+  async function nuevo(raiz, ruta) {
+    if (!ruta || !rutaRelativaValida(ruta)) fail("Ruta no válida.");
+    if (bloqueado(ruta)) fail("Ruta protegida (secretos): no la toco.");
+    const partes = String(ruta).trim().split(/[\\/]/).filter(Boolean);
+    if (!partes.length || partes.some((p) => /[. ]$/.test(p))) fail("Ruta no válida.");
+    const nombre = partes.pop();
+    const { real } = await resolver(raiz, partes.join("/"));
+    if (!(await fs.stat(real)).isDirectory()) fail("La carpeta de destino no existe.");
+    const destino = path.join(real, nombre);
+    try { await fs.lstat(destino); } catch (e) { if (e?.code === "ENOENT") return destino; fail("No pude comprobar el destino."); }
+    return fail("Ya existe algo con ese nombre; no lo piso.");
+  }
+
   return {
     nombres: () => Object.keys(map),
+    // revisar() se llama justo antes de cambiar nada (freno o permiso apagado).
+    async mover(raiz, de, a, revisar = () => {}) {
+      const { real } = await existente(raiz, de);
+      const destino = await nuevo(raiz, a);
+      revisar();
+      await fs.rename(real, destino);
+      return { texto: `Movido a ${a}.` };
+    },
+    async crearCarpeta(raiz, ruta, revisar = () => {}) {
+      const destino = await nuevo(raiz, ruta);
+      revisar();
+      await fs.mkdir(destino);
+      return { texto: `Carpeta ${ruta} creada.` };
+    },
+    async paraPapelera(raiz, ruta) { return (await existente(raiz, ruta)).real; },
     async listar(raiz, ruta) {
       const { real } = await resolver(raiz, ruta);
       const st = await fs.stat(real);

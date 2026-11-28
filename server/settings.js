@@ -1,5 +1,6 @@
 // Ajustes por usuario (tabla `settings`). Hoy solo `modo`: "ia" (por defecto) o "chat" (solo conversar).
 import { get, run } from "./db/client.js";
+import { entradaValida, MAX_LISTA } from "../desktop/runner/pc-reglas.js";
 
 export const MODOS = ["ia", "chat"];
 export const KEY_MODO = "modo";
@@ -17,6 +18,18 @@ export async function getNavCapturas(db, userId) {
 
 export async function setNavCapturas(db, userId, on, now = Date.now()) {
   await run(db, "INSERT INTO settings (user_id, key, value, created_at) VALUES (?,'nav_capturas',?,?) ON CONFLICT(user_id, key) DO UPDATE SET value=excluded.value", [userId, on ? "1" : "0", now]);
+}
+
+// Lista autorizada de ratón y teclado: [{ tipo: "app"|"host", valor }].
+export async function getRatonLista(db, userId, opts) {
+  const r = await get(db, "SELECT value FROM settings WHERE user_id=? AND key='raton_lista'", [userId]);
+  let l = [];
+  try { l = JSON.parse(r?.value || "[]"); } catch { /* vacía */ }
+  return (Array.isArray(l) ? l : []).map((e) => entradaValida(e, opts)).filter(Boolean).slice(0, MAX_LISTA);
+}
+
+export async function setRatonLista(db, userId, lista, now = Date.now()) {
+  await run(db, "INSERT INTO settings (user_id, key, value, created_at) VALUES (?,'raton_lista',?,?) ON CONFLICT(user_id, key) DO UPDATE SET value=excluded.value", [userId, JSON.stringify(lista), now]);
 }
 
 export async function setModo(db, userId, modo, now = Date.now()) {
