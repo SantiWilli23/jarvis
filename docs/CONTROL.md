@@ -56,7 +56,8 @@ Pendiente:
 - Zona America/Santiago; se cambia con la variable `ZONA_HORARIA`.
 - Cada paso es una frase que pasa por `chat.handle` (source `rutina`): mismas reglas que escrita a mano.
 - `tick()` cada minuto, margen de 10 min, una vez por día y hora (reclamo atómico en `ultima`). Una ocasión frenada,
-  en modo Chat o con el servidor dormido más de 10 min no se recupera.
+  o en modo Chat no se recupera. Si el servidor estuvo dormido más de 10 min, al despertar se avisa una vez que
+  quedó atrasada (hasta 7 días) y no se ejecuta nada.
 - Por horario NO hay autorización: solo corren solos los pasos que leen (lo escolar, "revisa mis tareas", estado del
   PC o del iPhone). Cada paso restante pide una aprobación `rutina:<id>` (vale 12 h); al aprobar se ejecuta ese paso
   con las reglas de siempre, que pueden pedir otra. Los pasos que esperan no detienen a los que leen.

@@ -64,7 +64,7 @@ export function leerFecha(texto, hoy) {
   return { dia, hora };
 }
 
-function materia(item) {
+export function materia(item) {
   for (const t of [item.curso, item.titulo]) {
     const p = plano(t);
     const m = MATERIAS.find(([, re]) => re.test(p));
@@ -73,7 +73,7 @@ function materia(item) {
   return String(item.curso ?? "").replace(/\s+/g, " ").trim().slice(0, 80) || "Materia sin nombre";
 }
 
-const esPrueba = (i) => /evaluaci|prueba|examen|test|quiz|assessment/.test(plano(i.tipo)) || ES_PRUEBA.test(plano(i.titulo));
+export const esPrueba = (i) => /evaluaci|prueba|examen|test|quiz|assessment/.test(plano(i.tipo)) || ES_PRUEBA.test(plano(i.titulo));
 
 function evento(titulo, dia, hora, color) {
   let inicio = dia, fin = sumar(dia, 1); // día completo: el fin es exclusivo
