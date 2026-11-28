@@ -4,7 +4,7 @@
 **Publicado:** fases 1 y 2 (5bdf3aa, sw v22), comprobado en Render; app del PC reiniciada.
 **Velocidad (publicada):** voz en dos partes preparadas con la respuesta, corte de silencio 1,5 s, silencios recortados, MiniMax apagado, sw v24, menos consultas; 509 pruebas. Medido antes: ~12-13 s por voz; meta 6-7 s.
 **Voz medida (producción):** chat 1,9 s; audio listo a ~10 s (meta 6-7 s no lograda); el plan gratis de Gemini corta tras pocas respuestas y habla la voz del navegador.
-**Siguiente:** fases 3 control amplio y 4 mouse (rama fase34, planificando); 3 frases que faltan (`node scripts/gen-frases.mjs`); decidir voz rápida del navegador o Algenib.
+**Siguiente:** fases 3 control amplio y 4 mouse (rama fase34, plan hecho, programando); 3 frases que faltan (`node scripts/gen-frases.mjs`); decidir voz rápida del navegador o Algenib.
 **Del usuario:** elegir voz, sí/no a Vosk ("Llegó papi"), sesión en Classroom y Lirmi, conectar Google (guía §14).
 **Sin probar:** Classroom, Lirmi, eventos reales, repaso con material real, micrófono real, app empaquetada, recoger/repartir, MCP, freno en Windows e iPhone; voz nueva con Google real.
 **Pendiente técnico:** al cambiar fecha de una prueba no se borra el evento viejo; rutina por horario se pierde si Render duerme >10 min.
