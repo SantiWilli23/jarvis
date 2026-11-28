@@ -13,7 +13,8 @@ export function claudeIds(cfg) {
 export function claudeRequired(cfg) {
   const m = cfg?.modelos?.claude || {};
   const ids = ["planear", "programar", "verificar", "consultar"].map((k) => m[k]).filter((x) => typeof x === "string" && x);
-  return [...new Set(ids.length ? ids : cfg?.requisitos?.claude_modelos || [])];
+  const need = [...new Set(ids.length ? ids : cfg?.requisitos?.claude_modelos || [])];
+  return cfg?.local_visible === false ? need.filter((id) => !/opus/i.test(id)) : need; // Pro local escondido: Opus ni se sondea ni se exige
 }
 
 export function proReasons({ pcOnline, caps, cfg }) {

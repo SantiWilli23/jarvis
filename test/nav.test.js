@@ -109,7 +109,7 @@ test("claim/result, nav.done por websocket, mensaje guardado y no reinyectado", 
   await chat({ text: "pregúntale a Grok otra cosa", conversationId: r.conversationId });
   const t = await claim();
   assert.deepEqual([t.id, t.sitio, t.tipo, t.consulta, t.url_inicial], [r.nav.id, "gemini", "preguntar_ia", "cuánto es 2+2", "https://gemini.google.com/app"]);
-  assert.deepEqual(Object.keys(t.limites).sort(), ["hosts", "hosts_negados", "max_paginas", "max_turnos", "timeout_s"]);
+  assert.deepEqual(Object.keys(t.limites).sort(), ["hosts", "hosts_negados", "max_budget_usd", "max_paginas", "max_turnos", "modelo", "timeout_s"]);
   assert.deepEqual([t.perfil, t.capturas, t.cuenta], ["ia", false, null]);
   assert.equal(await claim(), null); // una a la vez por dispositivo
   assert.equal((await pc(`/${t.id}/result`, { estado: "otro" })).status, 400);

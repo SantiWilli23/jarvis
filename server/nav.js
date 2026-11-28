@@ -64,6 +64,7 @@ export function createNav({ db, config, agent, chat, privacy, bus, audit, websea
   const nombre = (sitio) => cfg.sitios[sitio]?.nombre || sitio;
   const perfilDe = (t) => t.perfil || PERFIL_DE_TIPO[t.tipo] || "ia";
   const count = async (sql, args) => Number((await get(db, sql, args))?.n ?? 0);
+  const costoDesde = async (userId, desde) => Number((await get(db, "SELECT COALESCE(SUM(costo_usd),0) AS n FROM nav_tasks WHERE user_id=? AND creado>=?", [userId, desde]))?.n ?? 0);
   const log = (userId, action, detail) => audit?.log({ userId, action, detail });
   const manejadores = new Map(); // tipo -> handler (hoy solo "estudio")
   const ultimoFrame = new Map(); // id de tarea -> instante
@@ -173,8 +174,24 @@ export function createNav({ db, config, agent, chat, privacy, bus, audit, websea
     return filas.map((f) => f.url_conversacion).find((u) => conversacionValida(sitio, u)) || null;
   }
 
+  // Misma consulta, mismo sitio y mismo usuario, respondida bien en las últimas cache_horas (nunca otra copia ni un chat seguido).
+  async function guardadaDe(userId, tipo, sitio, consulta) {
+    const horas = Number(cfg.cache_horas) || 0;
+    if (!horas) return null;
+    return get(db, `SELECT respuesta, fuentes, url_conversacion FROM nav_tasks WHERE user_id=? AND tipo=? AND sitio=? AND consulta=? AND estado='ok'
+      AND error IS NULL AND respuesta IS NOT NULL AND guardada=0 AND terminado>=? AND (?<>'preguntar_ia' OR url_inicial=?) ORDER BY id DESC LIMIT 1`,
+      [userId, tipo, sitio, consulta, now() - horas * HORA, tipo, cfg.sitios[sitio].url_inicial]);
+  }
+
+  // Número dentro de un rango razonable o null.
+  const cifra = (v) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 1e9 ? v : null);
+
   return {
     config: cfg,
+    // Gasto equivalente (USD) de las últimas 24 h, para /api/status.
+    async costoDia(userId) { return { costo_dia: Math.round((await costoDesde(userId, now() - DIA)) * 10000) / 10000, tope: Number(lim().tope_costo_dia) || null }; },
+    // Entrega una respuesta guardada igual que una recién terminada (mensaje marcado como dato y nav.done).
+    entregar: (id) => avisar(id),
     activo: () => cfg.activo === true,
     sweep,
     registrar(tipo, handler) { manejadores.set(tipo, handler); },
@@ -191,11 +208,24 @@ export function createNav({ db, config, agent, chat, privacy, bus, audit, websea
         try { privacy.assert(`web_${sitio}`, priv); } catch { throw err(403, "privado_no_sitio", "Eso es privado, señor: no lo llevo a un sitio web."); }
       }
       let url = urlInicialDe(tipo, sitio, consulta, urlInicial);
+      // Respuesta guardada: no en estudio ni memoria, ni al seguir un chat, ni si piden repetir o ver capturas.
+      const repetir = nuevo || capturas || /\b(de nuevo|chat nuevo|nuevo chat)\b/i.test(String(text ?? ""));
+      if (!OPACOS.has(tipo) && !repetir && !(tipo === "preguntar_ia" && await chatAnterior(userId, sitio, conversationId))) {
+        const g = await guardadaDe(userId, tipo, sitio, consulta);
+        if (g) {
+          const ya = now();
+          const r = await run(db, "INSERT INTO nav_tasks (user_id, conversation_id, tipo, sitio, consulta, estado, respuesta, fuentes, url_conversacion, creado, terminado, perfil, url_inicial, guardada) VALUES (?,?,?,?,?,'ok',?,?,?,?,?,?,?,1)",
+            [userId, conversationId, tipo, sitio, consulta, `(respuesta guardada)\n${g.respuesta}`.slice(0, MAX_RESPUESTA), g.fuentes, g.url_conversacion, ya, ya, perfil, url]);
+          await log(userId, "nav.guardada", `${sitio} #${r.id}`);
+          return { id: Number(r.id), estado: "ok", guardada: true };
+        }
+      }
       if (!disponible()) throw err(409, "pc_apagado", "Su PC no está conectado con el navegador, señor: no encolé nada.");
       await sweep(userId);
       const t = now(), L = lim();
-      if (await count("SELECT COUNT(*) AS n FROM nav_tasks WHERE user_id=? AND creado>=?", [userId, t - HORA]) >= L.por_hora) throw err(429, "tope_hora", `Llegué al tope de ${L.por_hora} consultas por hora con el navegador, señor.`);
-      if (await count("SELECT COUNT(*) AS n FROM nav_tasks WHERE user_id=? AND creado>=?", [userId, t - DIA]) >= L.por_dia) throw err(429, "tope_dia", `Llegué al tope de ${L.por_dia} consultas por día con el navegador, señor.`);
+      if (await count("SELECT COUNT(*) AS n FROM nav_tasks WHERE user_id=? AND creado>=? AND guardada=0", [userId, t - HORA]) >= L.por_hora) throw err(429, "tope_hora", `Llegué al tope de ${L.por_hora} consultas por hora con el navegador, señor.`);
+      if (await count("SELECT COUNT(*) AS n FROM nav_tasks WHERE user_id=? AND creado>=? AND guardada=0", [userId, t - DIA]) >= L.por_dia) throw err(429, "tope_dia", `Llegué al tope de ${L.por_dia} consultas por día con el navegador, señor.`);
+      if (Number(L.tope_costo_dia) > 0 && await costoDesde(userId, t - DIA) >= Number(L.tope_costo_dia)) throw err(429, "tope_costo", "Llegué al tope de gasto de hoy con el navegador, señor.");
       const ajuste = await get(db, "SELECT value FROM settings WHERE user_id=? AND key='nav_capturas'", [userId]);
       if (tipo === "preguntar_ia" && !nuevo) url = (await chatAnterior(userId, sitio, conversationId)) || url;
       const correo = texto(typeof cuenta === "string" ? cuenta : cuenta?.correo, 200) || null;
@@ -222,7 +252,9 @@ export function createNav({ db, config, agent, chat, privacy, bus, audit, websea
         task: {
           id: Number(t.id), tipo: t.tipo, sitio: t.sitio, perfil, consulta: t.consulta, url_inicial: inicial, ...(continuacion ? { continuacion: true } : {}),
           capturas: !!Number(t.capturas), cuenta: t.cuenta ? { correo: t.cuenta } : null,
-          limites: { hosts, hosts_negados: cfg.hosts_negados, timeout_s: lim().timeout_s, max_turnos: lim().max_turnos, max_paginas: cfg.perfiles[perfil].max_paginas },
+          limites: { hosts, hosts_negados: cfg.hosts_negados, timeout_s: lim().timeout_s, max_turnos: lim().max_turnos, max_paginas: cfg.perfiles[perfil].max_paginas,
+            max_budget_usd: lim().max_budget_usd ?? null, modelo: cfg.perfiles[perfil].modelo || "sonnet" },
+          ahorro: { ...(cfg.ahorro || {}) },
         },
       };
     },
@@ -254,10 +286,13 @@ export function createNav({ db, config, agent, chat, privacy, bus, audit, websea
       }
       return { cancelado: false };
     },
-    async result(userId, deviceId, id, { estado, respuesta, fuentes, error, url_conversacion, session_id, cuenta_visible, items } = {}) {
+    async result(userId, deviceId, id, { estado, respuesta, fuentes, error, url_conversacion, session_id, cuenta_visible, items, uso } = {}) {
       if (!ESTADOS_RESULTADO.includes(estado)) throw err(400, "estado_invalido");
       await sweep(userId);
       const t = await propia(userId, deviceId, id);
+      // El gasto se anota aunque la tarea ya esté cancelada o vencida: el límite se consumió igual.
+      if (uso && cifra(uso.costo_usd) != null) await run(db, "UPDATE nav_tasks SET costo_usd=?, tok_entrada=?, tok_salida=?, tok_cache_lectura=?, tok_cache_escritura=? WHERE id=? AND costo_usd IS NULL",
+        [cifra(uso.costo_usd), cifra(uso.entrada), cifra(uso.salida), cifra(uso.cache_lectura), cifra(uso.cache_escritura), t.id]);
       const estudio = t.tipo === "estudio", opaco = OPACOS.has(t.tipo);
       const cuerpo = texto(respuesta, MAX_RESPUESTA);
       const final = estado === "ok" && !cuerpo && !estudio ? "error" : estado;

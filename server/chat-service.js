@@ -113,6 +113,7 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
           const t = await nav.enqueue({ userId, conversationId: conv, ...ni, text: original, flagPrivate });
           reply = ni.tipo === "investigar" ? "Lo investigo con su navegador, señor." : ni.sitio === "google" ? "Lo busco en Google con su navegador, señor." : "Se lo pregunto en su navegador, señor.";
           info = { id: t.id, estado: t.estado, sitio: ni.sitio };
+          if (t.guardada) { reply = "Esa ya la consulté, señor: le muestro la respuesta guardada."; info.guardada = true; }
         } catch (e) {
           if (!e?.error) throw e;
           if (e.error === "privado_no_sitio") priv = true;
@@ -127,6 +128,7 @@ export function createChatService({ db, router, privacy, search, tasks, prepare,
         await saveMsg(userId, conv, "user", original, null, priv);
         await saveMsg(userId, conv, "assistant", reply, "nav", priv);
         bus?.emit("chat.done", { userId, text: reply, provider: "nav" });
+        if (info.guardada) await nav.entregar(info.id);
         state(userId, "speaking");
         return { status: "nav", conversationId: conv, reply, private: priv, nav: info };
       }

@@ -39,6 +39,9 @@ export async function migrate(db) {
   // Navegador de Claude v2 (docs/NAV.md): perfiles, en vivo e historial.
   for (const [col, ddl] of [["perfil", "TEXT"], ["url_conversacion", "TEXT"], ["session_id", "TEXT"], ["pasos", "TEXT"], ["cuenta_visible", "TEXT"],
     ["capturas", "INTEGER NOT NULL DEFAULT 0"], ["url_inicial", "TEXT"], ["cuenta", "TEXT"]]) addColumn("nav_tasks", col, ddl);
+  // Ahorro (docs/NAV.md): uso medido de cada tarea y respuestas reutilizadas.
+  for (const [col, ddl] of [["costo_usd", "REAL"], ["tok_entrada", "INTEGER"], ["tok_salida", "INTEGER"], ["tok_cache_lectura", "INTEGER"],
+    ["tok_cache_escritura", "INTEGER"], ["guardada", "INTEGER NOT NULL DEFAULT 0"]]) addColumn("nav_tasks", col, ddl);
   // Registro de uso del PC (capturas): solo fecha, tipo, dispositivo y ok (1/0, NULL = en curso). Nunca imagen ni descripción.
   for (const [col, ddl] of [["tipo", "TEXT"], ["device_id", "INTEGER"], ["ok", "INTEGER"], ["action_id", "INTEGER"]]) addColumn("claude_usage", col, ddl);
   addColumn("memoria_repartos", "nav_id", "INTEGER"); // tarea del navegador que lo atiende
