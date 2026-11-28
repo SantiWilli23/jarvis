@@ -1,11 +1,11 @@
 <!-- estado-proyecto -->
-# Estado de Jarvis (28-nov-2026) - voz del navegador lista, sin publicar
+# Estado de Jarvis (28-nov-2026) - voz del navegador publicada (Render en sw v28)
 **Pedido:** memoria única mensual, freno, control que pregunta, mouse solo en lo autorizado, "Hey Jarvis" y "Llegó papi", voz de película, estudio + calendario MDE.
 **Publicado:** fases 1 y 2 (5bdf3aa, sw v22), comprobado en Render; app del PC reiniciada.
 **Velocidad (publicada):** voz en dos partes preparadas con la respuesta, corte de silencio 1,5 s, silencios recortados, MiniMax apagado, sw v24, menos consultas; 509 pruebas. Medido en producción: chat 1,9 s, audio ~10 s (meta 6-7 s no lograda); Gemini gratis corta y habla la voz del navegador. Ahora Gemini TTS apagado (config/providers.json): respuestas con voz del navegador al instante, Algenib solo en pregrabadas.
 **Fases 3 y 4 (publicadas 8bdab80, comprobado en Render; app del PC reiniciada):** control amplio y ratón/teclado, apagados por defecto, panel "Control del PC", sw v26, 541 pruebas; sin probar en Windows real (docs/CONTROL.md).
-**Siguiente:** publicar la voz (en main local, sw v27, 542 pruebas; sin probar en iPhone); primera prueba real (Bloc de notas); 3 frases que faltan (`node scripts/gen-frases.mjs`, 10 pedidos al día).
-**Del usuario:** voz elegida en la página «Voces de Jarvis»: gravedad 2, cuerpo 0, velocidad 1.2; modelo Piper davefx ya en una carpeta del PC fuera del repo, probada en PC: 5 s de audio en 1,2 s; muestras en la página; falta su sí para integrarla (y probar iPhone)) (falta; voz que entregue audio, p. ej. Piper), sí/no a Vosk ("Llegó papi"), sesión en Classroom y Lirmi, conectar Google (guía §14).
+**Siguiente:** voz del navegador publicada, sin probar en iPhone; integrar Piper si lo aprueba; primera prueba real (Bloc de notas); 3 frases que faltan (`node scripts/gen-frases.mjs`, 10 pedidos al día).
+**Del usuario:** voz elegida en la página «Voces de Jarvis»: gravedad 2, cuerpo 0, velocidad 1.2; modelo Piper davefx ya en una carpeta del PC fuera del repo, probada en PC: 5 s de audio en 1,2 s; muestras en la página; falta su sí para integrarla (y probar iPhone), sí/no a Vosk ("Llegó papi"), sesión en Classroom y Lirmi, conectar Google (guía §14).
 **Sin probar:** Classroom, Lirmi, eventos reales, repaso con material real, micrófono real, app empaquetada, recoger/repartir, MCP, freno en Windows e iPhone; voz nueva con Google real.
 **Pendiente técnico:** al cambiar fecha de una prueba no se borra el evento viejo; si Render duerme, recordatorios y rutinas avisan tarde (marcados atrasados).
 **Micrófono (publicado):** "Hey Jarvis" en /m (orbe prende/apaga, 3 s, 8 s) y Atajo con voz (docs/ATAJO-JARVIS.md); sw v23; 473 pruebas. Falta probar en iPhone y armar el Atajo.
