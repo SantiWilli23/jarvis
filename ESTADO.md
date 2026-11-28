@@ -10,5 +10,5 @@
 **Micrófono (publicado):** "Hey Jarvis" en /m (orbe prende/apaga, 3 s, 8 s) y Atajo con voz (docs/ATAJO-JARVIS.md); sw v23; 473 pruebas. Falta probar en iPhone y armar el Atajo.
 **Navegador rápido (publicado; app del PC ya lo usa):** una prueba por IA: ChatGPT 102→67 s, Gemini 93→44 s; 476 pruebas. Sin probar: Perplexity, Grok, Claude, lectura y escolar.
 **Navegador sin PC (investigado, sin código):** sin tarjeta no hay servidor gratis 24/7 fiable (Codespaces: por horas y solo para desarrollo; AWS: 6 meses, adultos). Recomendado: portátil siempre encendido; falta ajustar Windows y probar con la sesión bloqueada.
-**Plan (sin código, falta "ya"):** ahorrar uso de Claude (medir coste; caché 5 min; sondas del doctor cada 24 h; flags estrictas en Clásico/Pro; nav con menos turnos y capturas) y funciones nuevas (buenos días, recordatorios hablados, notas/promedio; las que usan base de datos, tras publicar velocidad).
+**Ahorro + funciones (rama integra-uso, sin publicar; 524 pruebas):** ahorro de uso (interruptores en config/nav.json > ahorro), buenos días, recordatorios hablados (arregla lo atrasado), notas (docs/FUNCIONES.md); sw v25. Sin probar: tarea real con Chrome.
 **Verificar:** `npm test`.

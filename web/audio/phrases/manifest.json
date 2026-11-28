@@ -7,6 +7,9 @@
     { "id": "entendido", "texto": "Entendido.", "archivo": "entendido.wav" },
     { "id": "un-momento", "texto": "Un momento, señor.", "archivo": "un-momento-senor.wav" },
     { "id": "anotado-en-cola", "texto": "Anotado, señor. Lo dejé en cola, palabra por palabra, y se lo entrego a Claude en cuanto encienda su PC.", "archivo": "anotado-en-cola.wav" },
-    { "id": "preparado-claude", "texto": "Lo preparé para Claude en el PC, señor. Revise los pasos en la cola antes de enviarlo.", "archivo": "preparado-claude.wav" }
+    { "id": "preparado-claude", "texto": "Lo preparé para Claude en el PC, señor. Revise los pasos en la cola antes de enviarlo.", "archivo": "preparado-claude.wav" },
+    { "id": "sin-cupo", "texto": "Mis proveedores gratuitos llegaron a su límite por ahora, señor. Lo reintento en cuanto se reinicien. Si quiere, puede pedírselo a Gemini con /gemini.", "archivo": "sin-cupo.wav" },
+    { "id": "freno-puesto", "texto": "El freno está puesto, señor. Reanude desde la web cuando quiera.", "archivo": "freno-puesto.wav" },
+    { "id": "no-le-oi-nada", "texto": "No le oí nada, señor.", "archivo": "no-le-oi-nada.wav" }
   ]
 }
